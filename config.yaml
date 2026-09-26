@@ -7,11 +7,28 @@ geral:
   nao_repetir_dias: 7          # não repostar o mesmo produto dentro desse prazo
   horario_ativo: ""            # "" = 24h (sem restrição de horário de postagem)
 
+publicacao:
+  intervalo_entre_posts_segundos: 300   # intervalo mínimo entre postagens consecutivas (5 min)
+  posts_antes_pausa: 5                  # pausa após publicar bloco de N posts
+  tempo_pausa_segundos: 1800            # tempo da pausa em segundos (30 min)
+  max_posts_periodo: 20                 # limite máximo de postagens
+  periodo_horas: 24                     # janela de tempo para o limite de postagens
+
 filtros:
-  desconto_minimo: 25          # % mínimo de desconto para postar (ofertas automáticas)
-  preco_minimo: 0              # 0 = sem limite
-  preco_maximo: 0              # 0 = sem limite
-  palavras_bloqueadas: []      # ex: [capinha, película] — ignora ofertas com essas palavras
+  avaliacao_minima: 4.5                 # nota mínima de estrelas (0 ou vazio = desativado)
+  vendas_minimas: 100                   # quantidade mínima de vendas/pedidos (0 = desativado)
+  desconto_minimo: 0                    # % mínimo de desconto para postar (0 = desativado)
+  permitir_sem_desconto: true           # aceita produtos sem desconto anterior se tiver preço válido
+  permitir_sem_avaliacao: true          # aceita produtos quando a plataforma não informa estrelas
+  permitir_sem_vendas: true             # aceita produtos quando a plataforma não informa vendas
+  preco_minimo: 0                       # 0 = sem limite
+  preco_maximo: 0                       # 0 = sem limite
+  palavras_bloqueadas: []               # ex: [capinha, película] — ignora ofertas com essas palavras
+
+scraping_telegram:
+  ativo: true
+  intervalo_segundos: 30
+  max_mensagens_por_ciclo: 50
 
 # Por padrão o bot pega ofertas de TODAS as categorias.
 # JEITO FÁCIL de escolher um nicho: use o seletor "Categorias do canal" no PAINEL

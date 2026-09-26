@@ -6,8 +6,10 @@ from telegram import Bot
 
 from . import db
 from .config import config, dentro_do_horario
+from .filters import passes_product_filters
 from .grok import grok_service
 from .models import Oferta
+from .publishing_control import publishing_controller
 from .sources import aliexpress, amazon, mercadolivre, shopee
 from .telegram_poster import postar_oferta
 
@@ -58,23 +60,19 @@ def coletar() -> list[Oferta]:
 
 
 def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
+    """Aplica o sistema central de filtros de qualidade (estrelas, vendas, descontos, palavras bloqueadas)."""
     aprovadas = []
     for o in ofertas:
         if not o.titulo:
             continue
         if db.ja_postada(o.uid, config.nao_repetir_dias):
+            log.info("[FILTER] Oferta '%s' ignorada: já postada nos últimos %d dias.", o.titulo[:40], config.nao_repetir_dias)
             continue
-        if config.desconto_minimo and (o.desconto or 0) < config.desconto_minimo:
-            continue
-        if o.preco is not None:
-            if config.preco_minimo and o.preco < config.preco_minimo:
-                continue
-            if config.preco_maximo and o.preco > config.preco_maximo:
-                continue
-        titulo = o.titulo.lower()
-        if any(p in titulo for p in config.palavras_bloqueadas):
-            continue
-        aprovadas.append(o)
+        ok, motivo = passes_product_filters(o)
+        if ok:
+            aprovadas.append(o)
+        else:
+            log.info("[FILTER] Oferta '%s' rejeitada: %s", o.titulo[:40], motivo)
     return aprovadas
 
 
@@ -150,8 +148,15 @@ async def executar_ciclo(bot: Bot) -> int:
             log.info("[GROK] Oferta classificada como irrelevante, pulando: %s", o.titulo[:60])
             continue
 
+        # Controle de Velocidade e Pausas
+        pode_postar, motivo_ctrl, espera_s = publishing_controller.pode_publicar()
+        if not pode_postar:
+            log.info("[PUBLISH-CTRL] Publicação pausada (%s). Aguardando próximo ciclo.", motivo_ctrl)
+            break
+
         try:
             await postar_oferta(bot, o, config.chat_id)
+            publishing_controller.registrar_publicacao()
         except Exception as e:
             log.error("Falha ao postar '%s': %s", o.titulo[:60], e)
             continue
@@ -282,17 +287,26 @@ async def processar_mensagem_telegram(
 
     log.info("[AFFILIATE] Marketplace: %s, Link afiliado gerado: %s", oferta.plataforma, oferta.url_afiliado[:50])
 
-    # 7. Filtros existentes
-    aprovadas = filtrar([oferta])
-    if not aprovadas:
-        log.info("[FILTROS] Oferta '%s' rejeitada pelos filtros existentes.", oferta.titulo[:50])
+    # 7. Sistema central de filtros de qualidade de produto
+    ok_filtro, motivo_filtro = passes_product_filters(oferta)
+    if not ok_filtro:
+        log.info("[FILTROS] Oferta '%s' rejeitada pelos filtros: %s", oferta.titulo[:50], motivo_filtro)
         if source_id and message_id:
-            db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="filtrada")
-        return {"ok": False, "motivo": "filtrada"}
+            db.registrar_msg_telegram(source_id, message_id, oferta.uid, status=f"filtrada: {motivo_filtro}")
+        return {"ok": False, "motivo": f"filtrada: {motivo_filtro}"}
 
-    # 8. Publicação (respeitando dry_run e canal de destino)
+    # 8. Controle de Velocidade e Pausas Globais
+    if not dry_run:
+        pode_postar, motivo_ctrl, espera_s = publishing_controller.pode_publicar()
+        if not pode_postar:
+            log.info("[PUBLISH-CTRL] Publicação retida pelo controle de velocidade: %s", motivo_ctrl)
+            if source_id and message_id:
+                db.registrar_msg_telegram(source_id, message_id, oferta.uid, status=f"retida: {motivo_ctrl}")
+            return {"ok": False, "motivo": f"controle_velocidade: {motivo_ctrl}", "espera_segundos": espera_s}
+
+    # 9. Publicação (respeitando dry_run e canal de destino)
     if dry_run or not config.chat_id or not bot:
-        log.info("[PUBLISH] [DRY-RUN] Oferta pronta para publicação (chat=%s): %s", config.chat_id, oferta.titulo[:50])
+        log.info("[PUBLISH] [DRY-RUN] Oferta aprovada para publicação (chat=%s): %s", config.chat_id, oferta.titulo[:50])
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="dry_run")
         return {"ok": True, "dry_run": True, "oferta": oferta}
@@ -300,6 +314,7 @@ async def processar_mensagem_telegram(
     try:
         log.info("[PUBLISH] Publicando oferta no canal %s: %s", config.chat_id, oferta.titulo[:50])
         await postar_oferta(bot, oferta, config.chat_id)
+        publishing_controller.registrar_publicacao()
         db.registrar(oferta)
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="publicada")

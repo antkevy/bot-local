@@ -117,6 +117,25 @@ def _chamar_api(metodo_api: str, params_api: dict | None = None) -> dict:
     return dados
 
 
+def _converter_rating_percentual(raw_val) -> float | None:
+    """Converte avaliação percentual do AliExpress (ex: '96.0%', 96) para escala 1-5 estrelas (4.8)."""
+    if raw_val is None:
+        return None
+    try:
+        val_str = str(raw_val).replace("%", "").strip()
+        if not val_str or val_str.upper() in ("NONE", "NULL", "N/A"):
+            return None
+        val_float = float(val_str)
+        if val_float > 5.0:
+            # Escala de 0-100% -> 0-5.0 (ex: 96% / 20 = 4.8)
+            return round(val_float / 20.0, 1)
+        elif val_float >= 0:
+            return round(val_float, 1)
+        return None
+    except (ValueError, TypeError):
+        return None
+
+
 def _item_para_oferta(item: dict) -> Oferta:
     """Normaliza um produto retornado pela API do AliExpress para o modelo interno Oferta."""
     pid = str(item.get("product_id") or item.get("item_id") or "")
@@ -152,22 +171,24 @@ def _item_para_oferta(item: dict) -> Oferta:
     url_afiliado = item.get("promotion_link") or ""
     url_produto = item.get("product_detail_url") or f"https://pt.aliexpress.com/item/{pid}.html" if pid else ""
 
-    partes_extra = []
-    if item.get("evaluate_rate"):
+    # Avaliação (AliExpress retorna percentual ex: 96% -> 4.8 estrelas)
+    avaliacao = _converter_rating_percentual(item.get("evaluate_rate"))
+
+
+    # Quantidade de vendas / pedidos
+    vendas: int | None = None
+    raw_vendas = item.get("lastest_volume") or item.get("volume") or item.get("sale_count")
+    if raw_vendas:
         try:
-            rate = float(str(item["evaluate_rate"]).replace("%", ""))
-            partes_extra.append(f"⭐ {rate:.1f}%")
+            vendas = int(raw_vendas)
         except (ValueError, TypeError):
             pass
 
-    if item.get("lastest_volume") or item.get("volume"):
-        vol = item.get("lastest_volume") or item.get("volume")
-        partes_extra.append(f"{vol} vendidos")
-
+    # Comissão de afiliado (dado técnico interno — NUNCA enviado ao template)
+    comissao_pct: float | None = None
     if item.get("commission_rate"):
         try:
-            com = float(str(item["commission_rate"]).replace("%", ""))
-            partes_extra.append(f"Comissão {com:.1f}%")
+            comissao_pct = float(str(item["commission_rate"]).replace("%", "").strip())
         except (ValueError, TypeError):
             pass
 
@@ -181,7 +202,10 @@ def _item_para_oferta(item: dict) -> Oferta:
         preco_original=preco_original,
         desconto_pct=desconto_pct,
         imagem=imagem,
-        extra=" · ".join(partes_extra) or None,
+        avaliacao=avaliacao,
+        vendas=vendas,
+        comissao_pct=comissao_pct,
+        extra=None,
     )
 
 

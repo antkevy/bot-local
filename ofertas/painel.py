@@ -874,6 +874,33 @@ class Handler(BaseHTTPRequestHandler):
             elif rota == "/api/nichos":
                 from .nichos import catalogo, ler_selecao
                 self._json({"catalogo": catalogo(), "selecionados": ler_selecao()})
+            elif rota == "/api/filtros":
+                from .config import config
+                self._json({
+                    "avaliacao_minima": config.avaliacao_minima,
+                    "vendas_minimas": config.vendas_minimas,
+                    "desconto_minimo": config.desconto_minimo,
+                    "permitir_sem_desconto": config.permitir_sem_desconto,
+                    "permitir_sem_avaliacao": config.permitir_sem_avaliacao,
+                    "permitir_sem_vendas": config.permitir_sem_vendas,
+                    "preco_minimo": config.preco_minimo,
+                    "preco_maximo": config.preco_maximo,
+                    "palavras_bloqueadas": config.palavras_bloqueadas,
+                })
+            elif rota == "/api/publicacao-controle":
+                from .config import config
+                from .publishing_control import publishing_controller
+                pode, motivo, restante = publishing_controller.pode_publicar()
+                self._json({
+                    "intervalo_entre_posts_segundos": config.intervalo_entre_posts_segundos,
+                    "posts_antes_pausa": config.posts_antes_pausa,
+                    "tempo_pausa_segundos": config.tempo_pausa_segundos,
+                    "max_posts_periodo": config.max_posts_periodo,
+                    "periodo_horas": config.periodo_horas,
+                    "pode_publicar": pode,
+                    "motivo_espera": motivo,
+                    "restante_segundos": restante,
+                })
             elif rota == "/api/fontes-telegram":
                 self._json({
                     "fontes": db.listar_fontes_telegram(),
@@ -908,11 +935,6 @@ class Handler(BaseHTTPRequestHandler):
                 atuais = ler_env()
                 filtrados = {}
                 for chave, _, _, segredo, _ in CAMPOS:
-                    # Só mexe no que veio no corpo. Antes, uma chave ausente
-                    # virava "" e apagava o valor salvo — e o formulário
-                    # genérico só funcionava porque mandava todos os campos
-                    # de uma vez. Com cada plataforma salvando o seu card
-                    # separado, isso passaria a limpar as outras.
                     if chave not in dados:
                         continue
                     v = dados[chave]
@@ -920,6 +942,34 @@ class Handler(BaseHTTPRequestHandler):
                         continue
                     filtrados[chave] = v
                 salvar_env(filtrados)
+                self._json({"ok": True})
+            elif rota == "/api/filtros":
+                from .config import config, salvar_yaml_secao
+                salvar_yaml_secao("filtros", {
+                    "avaliacao_minima": float(dados.get("avaliacao_minima", 0) or 0),
+                    "vendas_minimas": int(dados.get("vendas_minimas", 0) or 0),
+                    "desconto_minimo": int(dados.get("desconto_minimo", 0) or 0),
+                    "permitir_sem_desconto": bool(dados.get("permitir_sem_desconto", True)),
+                    "permitir_sem_avaliacao": bool(dados.get("permitir_sem_avaliacao", True)),
+                    "permitir_sem_vendas": bool(dados.get("permitir_sem_vendas", True)),
+                    "preco_minimo": float(dados.get("preco_minimo", 0) or 0),
+                    "preco_maximo": float(dados.get("preco_maximo", 0) or 0),
+                    "palavras_bloqueadas": [str(p).strip().lower() for p in (dados.get("palavras_bloqueadas") or []) if str(p).strip()],
+                })
+                self._json({"ok": True, "filtros": {
+                    "avaliacao_minima": config.avaliacao_minima,
+                    "vendas_minimas": config.vendas_minimas,
+                    "desconto_minimo": config.desconto_minimo,
+                }})
+            elif rota == "/api/publicacao-controle":
+                from .config import config, salvar_yaml_secao
+                salvar_yaml_secao("publicacao", {
+                    "intervalo_entre_posts_segundos": int(dados.get("intervalo_entre_posts_segundos", 300) or 300),
+                    "posts_antes_pausa": int(dados.get("posts_antes_pausa", 5) or 5),
+                    "tempo_pausa_segundos": int(dados.get("tempo_pausa_segundos", 1800) or 1800),
+                    "max_posts_periodo": int(dados.get("max_posts_periodo", 20) or 20),
+                    "periodo_horas": int(dados.get("periodo_horas", 24) or 24),
+                })
                 self._json({"ok": True})
             elif rota == "/api/start":
                 ok = bot.iniciar(["run"], "Bot")
@@ -984,13 +1034,16 @@ class Handler(BaseHTTPRequestHandler):
                 salvar_selecao(dados.get("selecionados") or [])
                 self._json({"ok": True})
             elif rota == "/api/fontes-telegram":
-                chat_id = str(dados.get("chat_id", "")).strip()
-                nome = str(dados.get("nome", "")).strip() or f"Canal {chat_id}"
+                from .sources.telegram_scraper import normalizar_username_telegram
+                chat_id_raw = str(dados.get("chat_id", "") or dados.get("username", "")).strip()
+                nome = str(dados.get("nome", "")).strip()
                 tipo = str(dados.get("tipo", "canal")).strip()
                 ativa = bool(dados.get("ativa", True))
-                if not chat_id:
-                    return self._json({"erro": "ID do canal/grupo é obrigatório."}, 400)
-                db.salvar_fonte_telegram(chat_id, nome, tipo, ativa)
+                if not chat_id_raw:
+                    return self._json({"erro": "Username ou ID do canal/grupo é obrigatório."}, 400)
+                norm = normalizar_username_telegram(chat_id_raw)
+                nome = nome or f"Fonte {norm}"
+                db.salvar_fonte_telegram(norm, nome, tipo, ativa)
                 self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
             elif rota == "/api/fontes-telegram/remover":
                 chat_id = str(dados.get("chat_id", "")).strip()
@@ -998,21 +1051,19 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"erro": "ID da fonte é obrigatório."}, 400)
                 db.remover_fonte_telegram(chat_id)
                 self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
-            elif rota == "/api/fontes-telegram/testar":
+            elif rota == "/api/fontes-telegram/status":
                 chat_id = str(dados.get("chat_id", "")).strip()
-                if not chat_id:
-                    return self._json({"erro": "ID da fonte é obrigatório."}, 400)
-                from .sources import telegram_scraper
-                loop = telegram_scraper.e_postagem_propria(chat_id, destination_chat_id=config.chat_id)
-                if loop:
-                    return self._json({
-                        "ok": False,
-                        "erro": "Este ID coincide com o canal de destino configurado no bot! Monitorar o destino causaria loop infinito."
-                    }, 400)
-                self._json({
-                    "ok": True,
-                    "msg": f"Fonte '{chat_id}' validada e pronta para monitoramento."
-                })
+                ativa = bool(dados.get("ativa", True))
+                db.atualizar_status_fonte_telegram(chat_id, ativa)
+                self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
+            elif rota == "/api/fontes-telegram/testar":
+                from .sources.telegram_scraper import testar_conexao_fonte
+                fonte_str = str(dados.get("chat_id", "") or dados.get("username", "")).strip()
+                if not fonte_str:
+                    return self._json({"erro": "Informe o @username ou ID do canal/grupo."}, 400)
+                import asyncio
+                res = asyncio.run(testar_conexao_fonte(fonte_str))
+                self._json(res)
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:

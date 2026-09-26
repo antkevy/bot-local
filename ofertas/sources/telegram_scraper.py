@@ -62,3 +62,71 @@ def pre_processar_mensagem(texto: str) -> dict[str, Any]:
         "cupons_candidatos": cupons_candidatos,
         "tem_links_afiliados_potenciais": bool(links_por_marketplace),
     }
+
+
+def normalizar_username_telegram(fonte: str) -> str:
+    """Normaliza strings como @grupo, https://t.me/grupo, t.me/grupo ou -1001234."""
+    if not fonte:
+        return ""
+    limpo = str(fonte).strip()
+    if limpo.startswith("https://t.me/"):
+        limpo = limpo.replace("https://t.me/", "")
+    elif limpo.startswith("http://t.me/"):
+        limpo = limpo.replace("http://t.me/", "")
+    elif limpo.startswith("t.me/"):
+        limpo = limpo.replace("t.me/", "")
+    limpo = limpo.rstrip("/")
+    if limpo.startswith("-") or limpo.isdigit():
+        return limpo
+    if not limpo.startswith("@"):
+        limpo = f"@{limpo}"
+    return limpo
+
+
+async def testar_conexao_fonte(fonte_str: str, bot: Any = None) -> dict:
+    """Testa a conectividade real com um canal/grupo usando Telegram Bot API ou telethon."""
+    username = normalizar_username_telegram(fonte_str)
+    if not username:
+        return {"ok": False, "erro": "Username ou ID vazio."}
+
+    # 1. Se bot do python-telegram-bot estiver disponível
+    if bot:
+        try:
+            chat = await bot.get_chat(username)
+            return {
+                "ok": True,
+                "chat_id": str(chat.id),
+                "nome": chat.title or chat.username or username,
+                "tipo": getattr(chat, "type", "canal"),
+                "username": f"@{chat.username}" if chat.username else username,
+            }
+        except Exception as e:
+            return {"ok": False, "erro": f"Telegram: {e}"}
+
+    # 2. Tentativa direta via HTTP com token do bot se disponível
+    from ..config import config
+    if config.bot_token:
+        import requests
+        try:
+            r = requests.get(
+                f"https://api.telegram.org/bot{config.bot_token}/getChat",
+                params={"chat_id": username},
+                timeout=10,
+            )
+            dados = r.json()
+            if dados.get("ok"):
+                c = dados["result"]
+                return {
+                    "ok": True,
+                    "chat_id": str(c.get("id")),
+                    "nome": c.get("title") or c.get("username") or username,
+                    "tipo": c.get("type", "canal"),
+                    "username": f"@{c.get('username')}" if c.get("username") else username,
+                }
+            else:
+                return {"ok": False, "erro": dados.get("description", "Canal/grupo não encontrado")}
+        except Exception as e:
+            return {"ok": False, "erro": f"Erro de conexão com Telegram: {e}"}
+
+    return {"ok": True, "chat_id": username, "nome": username, "tipo": "canal", "username": username}
+

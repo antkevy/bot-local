@@ -62,19 +62,40 @@ class Config:
         self.grok_timeout: float = float(os.getenv("GROK_TIMEOUT", "10").strip() or 10.0)
         self.grok_max_input_length: int = int(os.getenv("GROK_MAX_INPUT_LENGTH", "1000").strip() or 1000)
 
-        # config.yaml
+        # config.yaml — Controle Geral
         self.intervalo_minutos: int = int(geral.get("intervalo_minutos", 45))
         self.max_posts_por_ciclo: int = int(geral.get("max_posts_por_ciclo", 3))
         self.espacamento_segundos: int = int(geral.get("espacamento_segundos", 120))
         self.nao_repetir_dias: int = int(geral.get("nao_repetir_dias", 7))
         self.horario_ativo: str = str(geral.get("horario_ativo") or "").strip()  # "08:00-23:00"; vazio = 24h
 
-        self.desconto_minimo: int = int(filtros.get("desconto_minimo", 0))
+        # Publicação e Agendamento Global (Controle de Velocidade e Pausas)
+        pub = y.get("publicacao") or {}
+        self.intervalo_entre_posts_segundos: int = int(pub.get("intervalo_entre_posts_segundos", 300))
+        self.posts_antes_pausa: int = int(pub.get("posts_antes_pausa", 5))
+        self.tempo_pausa_segundos: int = int(pub.get("tempo_pausa_segundos", 1800))
+        self.max_posts_periodo: int = int(pub.get("max_posts_periodo", 20))
+        self.periodo_horas: int = int(pub.get("periodo_horas", 24))
+
+        # Filtros de Qualidade de Produtos
+        raw_av = filtros.get("avaliacao_minima")
+        self.avaliacao_minima: float = float(raw_av) if raw_av is not None and str(raw_av).strip() != "" else 0.0
+        self.vendas_minimas: int = int(filtros.get("vendas_minimas", 0) or 0)
+        self.desconto_minimo: int = int(filtros.get("desconto_minimo", 0) or 0)
+        self.permitir_sem_desconto: bool = bool(filtros.get("permitir_sem_desconto", True))
+        self.permitir_sem_avaliacao: bool = bool(filtros.get("permitir_sem_avaliacao", True))
+        self.permitir_sem_vendas: bool = bool(filtros.get("permitir_sem_vendas", True))
         self.preco_minimo: float = float(filtros.get("preco_minimo", 0))
         self.preco_maximo: float = float(filtros.get("preco_maximo", 0))
         self.palavras_bloqueadas: list[str] = [
             str(p).lower() for p in (filtros.get("palavras_bloqueadas") or [])
         ]
+
+        # Scraping Telegram
+        scraping_tg = y.get("scraping_telegram") or {}
+        self.scraping_telegram_ativo: bool = bool(scraping_tg.get("ativo", True))
+        self.scraping_intervalo_segundos: int = int(scraping_tg.get("intervalo_segundos", 30))
+        self.scraping_max_msgs: int = int(scraping_tg.get("max_mensagens_por_ciclo", 50))
 
         fontes = y.get("fontes") or {}
         self.fonte_ml: dict = fontes.get("mercadolivre") or {"ativa": False}
@@ -100,6 +121,25 @@ class Config:
                 self.fonte_aliexpress = {**self.fonte_aliexpress, "buscas": exp.get("aliexpress", exp.get("shopee", []))}
         except Exception:
             pass
+
+
+def salvar_yaml_secao(secao: str, dados: dict) -> None:
+    """Atualiza uma seção do config.yaml e recarrega a configuração global."""
+    caminho = BASE_DIR / "config.yaml"
+    y = {}
+    if caminho.exists():
+        try:
+            with open(caminho, "r", encoding="utf-8") as f:
+                y = yaml.safe_load(f) or {}
+        except Exception:
+            y = {}
+    if secao not in y:
+        y[secao] = {}
+    y[secao].update(dados)
+    with open(caminho, "w", encoding="utf-8") as f:
+        yaml.dump(y, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    global config
+    config = Config()
 
 
 config = Config()

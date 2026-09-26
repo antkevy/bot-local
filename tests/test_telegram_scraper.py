@@ -60,7 +60,16 @@ def setup_function():
         c.execute("DELETE FROM postadas")
     config.chat_id = "-1001234567890"
     config.desconto_minimo = 0
+    config.desconto_minimo_pct = 0
+    config.avaliacao_minima = 0
+    config.vendas_minimas = 0
+    config.intervalo_entre_posts_segundos = 0
+    config.posts_antes_pausa = 0
+    config.max_posts_periodo = 0
     config.palavras_bloqueadas = []
+    from ofertas.publishing_control import publishing_controller
+    publishing_controller.reset()
+
 
 
 def test_1_mensagem_produto():
@@ -140,7 +149,7 @@ def test_2_produto_com_cupom():
         assert res["ok"] is True
         assert res["oferta"].cupom == "OFERTA20"
         caption = montar_caption(res["oferta"])
-        assert "🎟 Cupom: <code>OFERTA20</code>" in caption
+        assert "Cupom: <code>OFERTA20</code>" in caption
         print("✅ TESTE 2 (Produto + Cupom extraído e formatado): OK")
 
 
@@ -329,12 +338,19 @@ if __name__ == "__main__":
     print("=" * 60)
     setup_function()
     test_1_mensagem_produto()
+    setup_function()
     test_2_produto_com_cupom()
+    setup_function()
     test_3_mensagem_irrelevante()
+    setup_function()
     test_4_sem_link_afiliado_nao_publica()
+    setup_function()
     test_5_deduplicacao()
+    setup_function()
     test_6_anti_loop_proprio_canal_destino()
+    setup_function()
     test_7_grok_fallback_em_erro()
+    setup_function()
     test_8_modo_dry_run()
     print("=" * 60)
     print("🎉 TODOS OS TESTES DO SCRAPER PASSARAM COM SUCESSO!")

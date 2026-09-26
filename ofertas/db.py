@@ -70,6 +70,12 @@ def _conn() -> sqlite3.Connection:
     return c
 
 
+def init_db() -> None:
+    """Inicializa as tabelas do banco de dados SQLite."""
+    with _conn():
+        pass
+
+
 def ja_postada(uid: str, dentro_de_dias: int) -> bool:
     with _conn() as c:
         row = c.execute("SELECT postada_em FROM postadas WHERE uid = ?", (uid,)).fetchone()

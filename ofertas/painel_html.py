@@ -1604,6 +1604,259 @@ PAGINA = r"""<!doctype html>
           <span id="nichosContador" class="metrica-rotulo" aria-live="polite"></span>
         </div>
       </div>
+
+      <!-- Filtros de Produtos -->
+      <div class="card" id="cardFiltros">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-sliders"/></svg>
+              <h3>Filtros de Produtos</h3>
+            </div>
+            <p class="card-sub">Critérios de qualidade aplicados no pipeline de captura (scraping e APIs). Produtos reprovados são ignorados com log do motivo.</p>
+          </div>
+        </div>
+
+        <form id="formFiltros" class="config-grade" novalidate>
+          <div class="campo">
+            <label for="filtroAvaliacao">⭐ Avaliação mínima</label>
+            <select id="filtroAvaliacao" name="avaliacao_minima">
+              <option value="0">Desativado (qualquer nota)</option>
+              <option value="4.0">⭐ 4.0 ou mais</option>
+              <option value="4.2">⭐ 4.2 ou mais</option>
+              <option value="4.5">⭐ 4.5 ou mais (Recomendado)</option>
+              <option value="4.7">⭐ 4.7 ou mais</option>
+              <option value="5.0">⭐ 5.0 (nota máxima)</option>
+            </select>
+            <p class="ajuda">AliExpress (96% → 4.8) e demais plataformas com nota real.</p>
+          </div>
+
+          <div class="campo">
+            <label for="filtroVendas">🛒 Vendas mínimas</label>
+            <select id="filtroVendas" name="vendas_minimas">
+              <option value="0">Desativado (qualquer volume)</option>
+              <option value="10">10+ vendas</option>
+              <option value="50">50+ vendas</option>
+              <option value="100">100+ vendas (Recomendado)</option>
+              <option value="500">500+ vendas</option>
+              <option value="1000">1.000+ vendas</option>
+              <option value="5000">5.000+ vendas</option>
+              <option value="10000">10.000+ vendas</option>
+            </select>
+            <p class="ajuda">Volume comprovado de vendas da oferta.</p>
+          </div>
+
+          <div class="campo">
+            <label for="filtroDesconto">💰 Desconto mínimo (%)</label>
+            <input id="filtroDesconto" name="desconto_minimo_pct" type="number" min="0" max="99" value="0" placeholder="0">
+            <p class="ajuda">Percentual mínimo de desconto real quando fornecido.</p>
+          </div>
+
+          <div class="campo">
+            <label for="filtroPrecoMin">💵 Faixa de preço (R$)</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="filtroPrecoMin" name="preco_minimo" type="number" step="0.5" min="0" placeholder="Mín (ex: 5)" style="flex:1">
+              <span style="color:var(--texto-3)">até</span>
+              <input id="filtroPrecoMax" name="preco_maximo" type="number" step="1" min="0" placeholder="Máx (ex: 5000)" style="flex:1">
+            </div>
+            <p class="ajuda">Deixe em branco para não limitar por valor.</p>
+          </div>
+
+          <div class="campo">
+            <label for="filtroSemAvaliacao">Política: Sem informação de estrelas</label>
+            <select id="filtroSemAvaliacao" name="permitir_sem_avaliacao">
+              <option value="true">Permitir produto (não descartar)</option>
+              <option value="false">Ignorar produto (exigir estrelas)</option>
+            </select>
+            <p class="ajuda">Quando o marketplace não informa a avaliação.</p>
+          </div>
+
+          <div class="campo">
+            <label for="filtroSemVendas">Política: Sem informação de vendas</label>
+            <select id="filtroSemVendas" name="permitir_sem_vendas">
+              <option value="true">Permitir produto (não descartar)</option>
+              <option value="false">Ignorar produto (exigir vendas)</option>
+            </select>
+            <p class="ajuda">Quando o marketplace não informa quantidade vendida.</p>
+          </div>
+
+          <div class="campo" style="grid-column:1/-1">
+            <label for="filtroSemDesconto">Política: Produto sem desconto explícito</label>
+            <select id="filtroSemDesconto" name="permitir_sem_desconto">
+              <option value="true">Permitir e postar preço atual / cupom (não inventar preço "De / Por")</option>
+              <option value="false">Ignorar produtos sem desconto real</option>
+            </select>
+            <p class="ajuda">Se aprovado sem preço anterior, o bot posta direto: 💰 R$ 49,90 e cupom, sem inventar percentuais falsos.</p>
+          </div>
+        </form>
+
+        <div class="acoes-form">
+          <button type="button" class="btn btn-primario" onclick="salvarFiltros()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+            Salvar filtros de produtos
+          </button>
+          <span id="filtrosAviso" class="metrica-rotulo" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <!-- Controle de Publicação e Agendamento -->
+      <div class="card" id="cardPublicacao">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-clock"/></svg>
+              <h3>Controle de Publicação e Cadência</h3>
+            </div>
+            <p class="card-sub">Intervalos globais, pausas automáticas em bloco e limite de segurança por período.</p>
+          </div>
+        </div>
+
+        <form id="formPublicacao" class="config-grade" novalidate>
+          <div class="campo">
+            <label for="pubIntervalo">⏱️ Intervalo mínimo entre posts (segundos)</label>
+            <input id="pubIntervalo" name="intervalo_entre_posts_segundos" type="number" min="1" value="300" placeholder="300">
+            <p class="ajuda">Ex: 300 segundos = 5 minutos entre uma oferta e outra.</p>
+          </div>
+
+          <div class="campo">
+            <label for="pubPostsAntesPausa">⏸️ Posts antes da pausa</label>
+            <input id="pubPostsAntesPausa" name="posts_antes_pausa" type="number" min="0" value="5" placeholder="5">
+            <p class="ajuda">Quantidade de posts num bloco antes de entrar em pausa (0 = desativado).</p>
+          </div>
+
+          <div class="campo">
+            <label for="pubTempoPausa">⏳ Duração da pausa (segundos)</label>
+            <input id="pubTempoPausa" name="tempo_pausa_segundos" type="number" min="0" value="1800" placeholder="1800">
+            <p class="ajuda">Ex: 1800 segundos = 30 minutos de descanso antes do próximo bloco.</p>
+          </div>
+
+          <div class="campo">
+            <label for="pubMaxPosts">📊 Limite máximo de posts por período</label>
+            <input id="pubMaxPosts" name="max_posts_periodo" type="number" min="0" value="20" placeholder="20">
+            <p class="ajuda">Ex: 20 posts no período de segurança (0 = sem limite).</p>
+          </div>
+
+          <div class="campo">
+            <label for="pubPeriodoHoras">🕒 Janela do período (horas)</label>
+            <input id="pubPeriodoHoras" name="periodo_horas" type="number" min="1" value="24" placeholder="24">
+            <p class="ajuda">Período de rotação do limite (padrão: 24 horas).</p>
+          </div>
+
+          <div class="campo">
+            <label>🚦 Status da Cadência em Tempo Real</label>
+            <div id="pubStatusCadencia" class="painel-info" style="font-size:12.5px; padding:10px 14px;">
+              Carregando estado de publicação…
+            </div>
+          </div>
+        </form>
+
+        <div class="acoes-form">
+          <button type="button" class="btn btn-primario" onclick="salvarPublicacao()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+            Salvar controle de publicação
+          </button>
+          <button type="button" class="btn btn-neutro" onclick="resetarCadenciaPublicacao()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-refresh"/></svg>
+            Zerar contadores de cadência
+          </button>
+          <span id="pubAviso" class="metrica-rotulo" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <!-- Fontes de Scraping Telegram -->
+      <div class="card" id="cardFontesTelegram">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-megaphone"/></svg>
+              <h3>Fontes de Scraping Telegram</h3>
+            </div>
+            <p class="card-sub">Monitore canais e supergrupos públicos de ofertas via @username. O scraper extrai, filtra e envia para a fila de publicação.</p>
+          </div>
+        </div>
+
+        <div style="background:var(--fundo-sub); border:1px solid var(--borda); border-radius:var(--r-md); padding:16px 18px; margin-bottom:18px;">
+          <h4 style="font-size:13.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+            <svg class="icone icone-sm" style="color:var(--primaria-forte)"><use href="#i-send"/></svg>
+            Adicionar nova fonte Telegram
+          </h4>
+          <form id="formNovaFonteTelegram" class="config-grade" novalidate onsubmit="adicionarFonteTelegram(event)">
+            <div class="campo">
+              <label for="novaFonteUsername">@username ou link público</label>
+              <input id="novaFonteUsername" name="username" type="text" placeholder="@canal_ofertas ou t.me/canal_ofertas" autocomplete="off" spellcheck="false" required>
+              <p class="ajuda">Canais públicos e supergrupos compatíveis.</p>
+            </div>
+            <div class="campo">
+              <label for="novaFonteNome">Nome amigável</label>
+              <input id="novaFonteNome" name="nome" type="text" placeholder="Ex: Canal Ofertas Promo" autocomplete="off" spellcheck="false">
+              <p class="ajuda">Identificação nos logs e relatórios.</p>
+            </div>
+            <div class="acoes-form" style="grid-column:1/-1; margin-top:6px; padding-top:10px;">
+              <button type="submit" class="btn btn-primario btn-sm">
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+                Salvar fonte
+              </button>
+              <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteNova()">
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-search"/></svg>
+                Testar conexão
+              </button>
+              <span id="novaFonteAviso" class="metrica-rotulo" aria-live="polite"></span>
+            </div>
+          </form>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <h4 style="font-size:13px; font-weight:700; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--texto-3);">
+            Fontes cadastradas
+          </h4>
+          <div class="tabela-caixa">
+            <table class="tabela">
+              <thead>
+                <tr>
+                  <th>Fonte / Nome</th>
+                  <th>@Username</th>
+                  <th>Status</th>
+                  <th>Última Captura</th>
+                  <th style="text-align:right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaFontesTelegramCorpo">
+                <tr><td colspan="5" style="text-align:center; padding:18px;">Carregando fontes…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--borda-sutil); padding-top:16px;">
+          <h4 style="font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px; color:var(--primaria-texto); margin-bottom:12px;">
+            Configurações do Robô de Scraping
+          </h4>
+          <form id="formScrapingCfg" class="config-grade" novalidate>
+            <div class="campo">
+              <label for="scrapingAtivo">Status do Scraper</label>
+              <select id="scrapingAtivo" name="ativo">
+                <option value="true">🟢 Scraping Ativo</option>
+                <option value="false">⚪ Scraping Desativado</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="scrapingIntervalo">Intervalo de varredura (segundos)</label>
+              <input id="scrapingIntervalo" name="intervalo_segundos" type="number" min="5" value="30" placeholder="30">
+            </div>
+            <div class="campo">
+              <label for="scrapingLimiteMsg">Máx. mensagens por ciclo</label>
+              <input id="scrapingLimiteMsg" name="limite_mensagens_por_ciclo" type="number" min="1" max="100" value="20" placeholder="20">
+            </div>
+          </form>
+          <div class="acoes-form">
+            <button type="button" class="btn btn-neutro btn-sm" onclick="salvarConfigScraping()">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+              Salvar configurações do scraper
+            </button>
+            <span id="scrapingCfgAviso" class="metrica-rotulo" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ── Logs ─────────────────────────────────────────────────── -->
@@ -3287,6 +3540,303 @@ async function abrirLoginSePrecisar() {
   }
 }
 
+/* ══ Filtros de Produtos ═════════════════════════════════════════════ */
+async function carregarFiltros() {
+  try {
+    const r = await fetch("/api/filtros", { cache: "no-store" });
+    const f = await r.json();
+    if ($("#filtroAvaliacao")) $("#filtroAvaliacao").value = String(f.avaliacao_minima ?? 0);
+    if ($("#filtroVendas")) $("#filtroVendas").value = String(f.vendas_minimas ?? 0);
+    if ($("#filtroDesconto")) $("#filtroDesconto").value = f.desconto_minimo_pct ?? 0;
+    if ($("#filtroPrecoMin")) $("#filtroPrecoMin").value = f.preco_minimo ?? "";
+    if ($("#filtroPrecoMax")) $("#filtroPrecoMax").value = f.preco_maximo ?? "";
+    if ($("#filtroSemAvaliacao")) $("#filtroSemAvaliacao").value = String(f.permitir_sem_avaliacao !== false);
+    if ($("#filtroSemVendas")) $("#filtroSemVendas").value = String(f.permitir_sem_vendas !== false);
+    if ($("#filtroSemDesconto")) $("#filtroSemDesconto").value = String(f.permitir_sem_desconto !== false);
+  } catch (e) {
+    console.error("Erro ao carregar filtros:", e);
+  }
+}
+
+async function salvarFiltros() {
+  const body = {
+    avaliacao_minima: parseFloat($("#filtroAvaliacao")?.value || 0),
+    vendas_minimas: parseInt($("#filtroVendas")?.value || 0, 10),
+    desconto_minimo_pct: parseFloat($("#filtroDesconto")?.value || 0),
+    preco_minimo: $("#filtroPrecoMin")?.value ? parseFloat($("#filtroPrecoMin").value) : null,
+    preco_maximo: $("#filtroPrecoMax")?.value ? parseFloat($("#filtroPrecoMax").value) : null,
+    permitir_sem_avaliacao: $("#filtroSemAvaliacao")?.value === "true",
+    permitir_sem_vendas: $("#filtroSemVendas")?.value === "true",
+    permitir_sem_desconto: $("#filtroSemDesconto")?.value === "true",
+  };
+  try {
+    const r = await fetch("/api/filtros", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast("Filtros de produtos atualizados com sucesso!", "ok");
+    } else {
+      toast(d.erro || "Erro ao salvar filtros.", "erro");
+    }
+  } catch (e) {
+    toast("Erro ao comunicar com o servidor.", "erro");
+  }
+}
+
+/* ══ Controle de Publicação e Cadência ═══════════════════════════════ */
+async function carregarPublicacao() {
+  try {
+    const r = await fetch("/api/publicacao-controle", { cache: "no-store" });
+    const p = await r.json();
+    const cfg = p.config || {};
+    const st = p.status || {};
+    if ($("#pubIntervalo")) $("#pubIntervalo").value = cfg.intervalo_entre_posts_segundos ?? 300;
+    if ($("#pubPostsAntesPausa")) $("#pubPostsAntesPausa").value = cfg.posts_antes_pausa ?? 5;
+    if ($("#pubTempoPausa")) $("#pubTempoPausa").value = cfg.tempo_pausa_segundos ?? 1800;
+    if ($("#pubMaxPosts")) $("#pubMaxPosts").value = cfg.max_posts_periodo ?? 20;
+    if ($("#pubPeriodoHoras")) $("#pubPeriodoHoras").value = cfg.periodo_horas ?? 24;
+
+    const elSt = $("#pubStatusCadencia");
+    if (elSt) {
+      let txt = `Posts no bloco atual: <b>${st.posts_no_bloco_atual ?? 0}</b> / ${cfg.posts_antes_pausa || '∞'} | `;
+      txt += `Total no período: <b>${st.posts_no_periodo_atual ?? 0}</b> / ${cfg.max_posts_periodo || '∞'}`;
+      if (st.em_pausa) {
+        txt += ` <span class="selo selo-espera"><span class="ponto"></span>Em pausa até ${st.pausa_ate ? new Date(st.pausa_ate * 1000).toLocaleTimeString() : ''}</span>`;
+      } else if (st.limite_atingido) {
+        txt += ` <span class="selo selo-espera"><span class="ponto"></span>Limite do período atingido</span>`;
+      } else {
+        txt += ` <span class="selo selo-ok"><span class="ponto"></span>Pronto para postar</span>`;
+      }
+      elSt.innerHTML = txt;
+    }
+  } catch (e) {
+    console.error("Erro ao carregar publicação:", e);
+  }
+}
+
+async function salvarPublicacao() {
+  const body = {
+    intervalo_entre_posts_segundos: parseInt($("#pubIntervalo")?.value || 300, 10),
+    posts_antes_pausa: parseInt($("#pubPostsAntesPausa")?.value || 5, 10),
+    tempo_pausa_segundos: parseInt($("#pubTempoPausa")?.value || 1800, 10),
+    max_posts_periodo: parseInt($("#pubMaxPosts")?.value || 20, 10),
+    periodo_horas: parseInt($("#pubPeriodoHoras")?.value || 24, 10),
+  };
+  try {
+    const r = await fetch("/api/publicacao-controle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast("Controle de publicação salvo com sucesso!", "ok");
+      await carregarPublicacao();
+    } else {
+      toast(d.erro || "Erro ao salvar publicação.", "erro");
+    }
+  } catch (e) {
+    toast("Erro ao comunicar com o servidor.", "erro");
+  }
+}
+
+async function resetarCadenciaPublicacao() {
+  try {
+    const r = await fetch("/api/publicacao-controle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reset_cadencia: true }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast("Contadores de cadência zerados!", "ok");
+      await carregarPublicacao();
+    }
+  } catch (e) {
+    toast("Erro ao resetar contadores.", "erro");
+  }
+}
+
+/* ══ Fontes de Scraping Telegram ═════════════════════════════════════ */
+async function carregarFontesTelegram() {
+  try {
+    const [rFontes, rCfg] = await Promise.all([
+      fetch("/api/fontes-telegram", { cache: "no-store" }).then(r => r.json()),
+      fetch("/api/scraping-config", { cache: "no-store" }).then(r => r.json()).catch(() => ({})),
+    ]);
+
+    const corpo = $("#tabelaFontesTelegramCorpo");
+    if (corpo) {
+      const fontes = rFontes.fontes || [];
+      if (!fontes.length) {
+        corpo.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--texto-3);">Nenhuma fonte cadastrada ainda. Adicione acima.</td></tr>`;
+      } else {
+        corpo.innerHTML = fontes.map(f => {
+          const statusSelo = f.ativo
+            ? `<span class="selo selo-ok"><span class="ponto"></span>Ativo</span>`
+            : `<span class="selo selo-neutro"><span class="ponto"></span>Inativo</span>`;
+          return `
+            <tr>
+              <td><b>${esc(f.nome || f.username)}</b></td>
+              <td><code>${esc(f.username)}</code></td>
+              <td>${statusSelo}</td>
+              <td class="quando">${esc(f.ultima_captura || "—")}</td>
+              <td style="text-align:right;">
+                <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteItem('${esc(f.username)}', this)" title="Testar acesso">
+                  ${icone("refresh")} Testar
+                </button>
+                <button type="button" class="btn btn-neutro btn-sm" onclick="alternarStatusFonteTelegram('${esc(f.username)}', ${!f.ativo})">
+                  ${f.ativo ? "Desativar" : "Ativar"}
+                </button>
+                <button type="button" class="btn btn-perigo btn-sm" onclick="removerFonteTelegram('${esc(f.username)}')">
+                  ${icone("trash")}
+                </button>
+              </td>
+            </tr>`;
+        }).join("");
+      }
+    }
+
+    if (rCfg) {
+      if ($("#scrapingAtivo")) $("#scrapingAtivo").value = String(rCfg.ativo !== false);
+      if ($("#scrapingIntervalo")) $("#scrapingIntervalo").value = rCfg.intervalo_segundos || 30;
+      if ($("#scrapingLimiteMsg")) $("#scrapingLimiteMsg").value = rCfg.limite_mensagens_por_ciclo || 20;
+    }
+  } catch (e) {
+    console.error("Erro ao carregar fontes Telegram:", e);
+  }
+}
+
+async function adicionarFonteTelegram(event) {
+  if (event) event.preventDefault();
+  const username = ($("#novaFonteUsername")?.value || "").trim();
+  const nome = ($("#novaFonteNome")?.value || "").trim();
+  if (!username) {
+    toast("Informe o @username ou link do canal/grupo.", "espera");
+    return;
+  }
+  try {
+    const r = await fetch("/api/fontes-telegram", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, nome, ativo: true }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(`Fonte ${d.fonte?.username || username} adicionada!`, "ok");
+      if ($("#novaFonteUsername")) $("#novaFonteUsername").value = "";
+      if ($("#novaFonteNome")) $("#novaFonteNome").value = "";
+      await carregarFontesTelegram();
+    } else {
+      toast(d.erro || "Erro ao adicionar fonte.", "erro");
+    }
+  } catch (e) {
+    toast("Erro de conexão ao salvar fonte.", "erro");
+  }
+}
+
+async function testarConexaoFonteNova() {
+  const username = ($("#novaFonteUsername")?.value || "").trim();
+  if (!username) {
+    toast("Informe o @username para testar.", "espera");
+    return;
+  }
+  await testarConexaoFonte(username);
+}
+
+async function testarConexaoFonteItem(username, btnEl) {
+  if (btnEl) btnEl.disabled = true;
+  try {
+    await testarConexaoFonte(username);
+  } finally {
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
+async function testarConexaoFonte(username) {
+  toast(`Testando acesso a ${username}…`, "info");
+  try {
+    const r = await fetch("/api/fontes-telegram/testar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(`Conexão OK com ${d.titulo || d.username} (${d.tipo || 'canal/grupo'})!`, "ok");
+    } else {
+      toast(d.erro || `Falha ao acessar ${username}. Verifique se é público ou se o bot é membro.`, "erro");
+    }
+  } catch (e) {
+    toast("Erro ao testar conexão com Telegram.", "erro");
+  }
+}
+
+async function alternarStatusFonteTelegram(username, novoAtivo) {
+  try {
+    const r = await fetch("/api/fontes-telegram/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, ativo: novoAtivo }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(`Fonte ${novoAtivo ? 'ativada' : 'desativada'}.`, "ok");
+      await carregarFontesTelegram();
+    } else {
+      toast(d.erro || "Erro ao alterar status.", "erro");
+    }
+  } catch (e) {
+    toast("Erro de comunicação com o servidor.", "erro");
+  }
+}
+
+async function removerFonteTelegram(username) {
+  if (!confirm(`Deseja realmente remover a fonte ${username}?`)) return;
+  try {
+    const r = await fetch("/api/fontes-telegram/remover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(`Fonte ${username} removida.`, "ok");
+      await carregarFontesTelegram();
+    } else {
+      toast(d.erro || "Erro ao remover fonte.", "erro");
+    }
+  } catch (e) {
+    toast("Erro ao comunicar com o servidor.", "erro");
+  }
+}
+
+async function salvarConfigScraping() {
+  const body = {
+    ativo: $("#scrapingAtivo")?.value === "true",
+    intervalo_segundos: parseInt($("#scrapingIntervalo")?.value || 30, 10),
+    limite_mensagens_por_ciclo: parseInt($("#scrapingLimiteMsg")?.value || 20, 10),
+  };
+  try {
+    const r = await fetch("/api/scraping-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast("Configurações do robô de scraping salvas!", "ok");
+    } else {
+      toast(d.erro || "Erro ao salvar configurações.", "erro");
+    }
+  } catch (e) {
+    toast("Erro ao comunicar com o servidor.", "erro");
+  }
+}
+
 /* ══ Início ══════════════════════════════════════════════════════════ */
 let _appNoAr = false;
 async function iniciar() {
@@ -3304,10 +3854,14 @@ async function iniciar() {
   carregarConfig();
   carregarNichos();
   carregarConta();
+  carregarFiltros();
+  carregarPublicacao();
+  carregarFontesTelegram();
 
   setInterval(atualizarStatus, 2500);
   setInterval(atualizarMetricas, 8000);
   setInterval(puxarLogs, 1500);
+  setInterval(carregarPublicacao, 5000);
 }
 
 (async () => {
