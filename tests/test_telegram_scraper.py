@@ -39,6 +39,9 @@ try:
 except Exception:
     pass
 
+import tempfile
+from pathlib import Path
+
 from ofertas import db, pipeline
 from ofertas.config import config
 from ofertas.formatter import montar_caption
@@ -46,9 +49,12 @@ from ofertas.grok import GrokResult, GrokService
 from ofertas.models import Oferta
 from ofertas.sources import telegram_scraper
 
+TEST_DB_PATH = Path(tempfile.gettempdir()) / "test_ofertas_scraper.db"
+db.DB_PATH = TEST_DB_PATH
+db.init_db()
+
 
 def setup_function():
-    # Limpa dados de teste
     with db._conn() as c:
         c.execute("DELETE FROM mensagens_telegram")
         c.execute("DELETE FROM postadas")

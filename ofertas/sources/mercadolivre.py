@@ -277,10 +277,10 @@ def ml_login() -> None:
     """Abre um navegador visível para o usuário fazer login no Mercado Livre."""
     from playwright.sync_api import sync_playwright
     PERFIL_DIR.mkdir(parents=True, exist_ok=True)
-    print("\n➡️ Abrindo janela do navegador para login no Mercado Livre...")
-    print("    1. Faça login na sua conta do Mercado Livre na janela que abriu.")
-    print("    2. Acesse o Link Builder de afiliados.")
-    print("    3. Quando concluir, você pode fechar a janela do navegador.\n")
+    print("\n➡️ Abrindo janela do navegador para login no Mercado Livre...", flush=True)
+    print("    1. Uma janela dedicada do navegador vai se abrir na sua tela.", flush=True)
+    print("    2. Faça login na sua conta do Mercado Livre.", flush=True)
+    print("    3. Quando o Link Builder carregar logado, você pode fechar a janela.\n", flush=True)
 
     with sync_playwright() as pw:
         ctx = _abrir_contexto(pw, headless=False)
@@ -303,9 +303,9 @@ def ml_login() -> None:
                 pass
 
     if tem_sessao_linkbuilder():
-        print(f"✅ Login concluído! Perfil salvo em {PERFIL_DIR}.")
+        print(f"✅ Login concluído! Perfil salvo em {PERFIL_DIR}.", flush=True)
     else:
-        print(f"ℹ️ Janela do navegador encerrada. Se não fez login via janela, você pode colar seu Cookie no painel.")
+        print(f"ℹ️ Janela do navegador encerrada. Caso não tenha feito o login via navegador, você pode colar seu Cookie no painel.", flush=True)
 
 
 def _criar_links_api(page, urls: list[str], etiqueta: str) -> list[str]:

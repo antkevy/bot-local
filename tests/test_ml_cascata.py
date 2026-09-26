@@ -28,11 +28,18 @@ try:
 except Exception:
     pass
 
+import tempfile
+from pathlib import Path
+
 from ofertas import db, pipeline
 from ofertas.config import config
 from ofertas.models import Oferta
 from ofertas.sources import ml_auth
 from ofertas.sources.ml_auth import ml_auth_service
+
+TEST_DB_PATH = Path(tempfile.gettempdir()) / "test_ofertas_ml.db"
+db.DB_PATH = TEST_DB_PATH
+db.init_db()
 
 
 def setup_function():

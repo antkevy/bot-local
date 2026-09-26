@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import os
 import secrets
 import shutil
 import subprocess
@@ -259,11 +260,13 @@ class Processo:
         flags = 0
         if "ml-login" not in args and "telegram-user-login" not in args:
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
         proc = subprocess.Popen(
-            [sys.executable, "-m", "ofertas", *args],
+            [sys.executable, "-u", "-m", "ofertas", *args],
             cwd=str(BASE_DIR), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
-            creationflags=flags,
+            creationflags=flags, env=env,
         )
         self.proc = proc
         # A thread guarda o processo localmente: se outra ação já tiver substituído
