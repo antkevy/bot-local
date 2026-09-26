@@ -513,38 +513,89 @@ PAGINA = r"""<!doctype html>
   /* 34px: a linha inteira do link é o alvo; o botão é o alvo secundário. */
   .link-item .btn-icone { width: 34px; height: 34px; min-height: 34px; }
 
-  /* ══ Plataformas ═══════════════════════════════════════════════════ */
-  .bloco {
-    background: var(--fundo-card); border: 1px solid var(--borda);
-    border-radius: var(--r-lg); padding: 20px 22px;
-    display: flex; flex-direction: column; gap: 16px; box-shadow: var(--sombra-1);
-    transition: border-color var(--t-media) var(--ease), box-shadow var(--t-media) var(--ease);
-    scroll-margin-top: 20px;
+  /* == Plataformas =================================================
+     Um card por plataforma, com a credencial dentro do proprio card.
+     Antes era uma lista vertical: o logo e o nome desciam pela tela e a
+     configuracao vivia numa outra aba, sem nenhuma relacao visual com o
+     marketplace. Duas colunas, nao tres: quatro plataformas num 2x2 em vez
+     de 3+1 orfa, e sobra largura para os campos de credencial. */
+  .plato-grade {
+    display: grid; gap: 16px; align-items: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .bloco.destaque { border-color: var(--primaria); box-shadow: var(--anel); }
-  .bloco-topo {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 14px; flex-wrap: wrap; padding-bottom: 14px;
-    border-bottom: 1px solid var(--borda-sutil);
+  .plato {
+    --cor: var(--primaria);
+    position: relative; display: flex; flex-direction: column; gap: 15px;
+    padding: 20px 22px 18px; background: var(--fundo-card);
+    border: 1px solid var(--borda); border-radius: var(--r-lg);
+    box-shadow: var(--sombra-1); overflow: hidden; scroll-margin-top: 20px;
+    transition: border-color var(--t-media) var(--ease),
+                box-shadow var(--t-media) var(--ease),
+                transform var(--t-media) var(--ease);
   }
-  .bloco-id { display: flex; align-items: center; gap: 13px; }
-  .bloco-id h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
-  .bloco-id small { font-size: 12px; color: var(--texto-3); }
-  .bloco-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-  .info-card {
+  /* Fio da cor da marca no topo: identifica o marketplace sem depender de
+     legenda, e da a cada card a identidade que a lista achatava. */
+  .plato::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--cor), transparent 82%);
+  }
+  .plato:hover { border-color: var(--borda-forte); transform: translateY(-2px); }
+  .plato.destaque {
+    border-color: var(--cor);
+    box-shadow: var(--sombra-2), 0 0 0 1px var(--cor);
+  }
+
+  .plato-topo { display: flex; align-items: center; gap: 13px; }
+  .plato-logo {
+    width: 46px; height: 46px; border-radius: var(--r-md); flex: none;
+    overflow: hidden; background: var(--fundo-card-hi);
+    border: 1px solid var(--borda-sutil); box-shadow: var(--sombra-1);
+  }
+  /* A classe vai no img, como nas outras logos do painel (mp-logo-img,
+     ativ-logo-img) — e' o que permite conferir as quatro por seletor
+     sem depender do elemento que as envolve. */
+  .plato-logo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .plato-id { min-width: 0; flex: 1; }
+  .plato-id h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .plato-id small {
+    display: block; margin-top: 2px; font-size: 12px; color: var(--texto-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Uma linha de estado por card, sempre. A altura minima existe para os
+     campos comecarem na mesma altura em todos os cards: sem isso, um
+     marketplace com estado e outro sem desalinham a coluna de inputs. */
+  .plato-estado { min-height: 30px; display: flex; align-items: center; }
+  .plato-linha {
+    display: flex; align-items: baseline; gap: 10px; width: 100%;
+    padding: 7px 12px; border-radius: var(--r-sm);
     background: var(--fundo-sub); border: 1px solid var(--borda-sutil);
-    border-radius: var(--r-md); padding: 11px 14px;
+    font-size: 12.5px; color: var(--texto-3);
   }
-  .info-card dt {
-    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.7px; color: var(--texto-3);
+  .plato-linha .val {
+    margin-left: auto; text-align: right; color: var(--texto-2);
+    font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .info-card dd {
-    font-size: 13.5px; font-weight: 600; color: var(--texto);
-    margin-top: 4px; word-break: break-all;
+  .plato-linha .val.mono { font-family: var(--mono); font-size: 12px; }
+  .plato-linha .val.sem-valor { color: var(--texto-3); font-weight: 500; }
+
+  .plato-credenciais { display: flex; flex-direction: column; gap: 14px; }
+  .plato-salvar { display: flex; align-items: center; gap: 10px; }
+  .plato-dica { font-size: 12px; color: var(--texto-3); }
+  .plato-dica.ok { color: var(--ok); }
+
+  /* margin-top:auto cola o rodape no fundo, entao os botoes dos quatro
+     cards ficam na mesma linha mesmo com quantidades diferentes de campos. */
+  .plato-rodape {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    margin-top: auto; padding-top: 15px; border-top: 1px solid var(--borda-sutil);
   }
-  .info-card dd.mono { font-family: var(--mono); font-size: 12.5px; }
-  .bloco-acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .plato-rodape .btn { flex: none; }
+  .plato-rodape .btn-perigo { margin-left: auto; }
+
+  @media (max-width: 980px) {
+    .plato-grade { grid-template-columns: 1fr; }
+  }
 
   /* ══ Formulário ════════════════════════════════════════════════════ */
   .config-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; }
@@ -876,11 +927,12 @@ PAGINA = r"""<!doctype html>
     }
     html, body { background: #fff !important; color: #000; }
     .sidebar, .top-header, .rodape, .toasts, .overlay,
-    .pular-para-conteudo, .btn, .btn-icone, .acoes-form, .bloco-acoes { display: none !important; }
+    .pular-para-conteudo, .btn, .btn-icone, .acoes-form, .plato-rodape { display: none !important; }
     .app-layout { display: block; }
     .view { display: none !important; padding: 0; }
     .view.ativa { display: block !important; }
-    .card, .bloco, .mp-card, .info-card {
+    .plato-grade { display: block !important; }
+    .card, .plato, .mp-card, .plato-linha {
       break-inside: avoid; page-break-inside: avoid;
       box-shadow: none !important; border-color: #c8d0d8 !important;
     }
@@ -1427,7 +1479,7 @@ PAGINA = r"""<!doctype html>
               <svg class="icone" aria-hidden="true"><use href="#i-layers"/></svg>
               <h3 id="t-plat">Marketplaces</h3>
             </div>
-            <p class="card-sub">Credenciais, sessões e testes de cada plataforma.</p>
+            <p class="card-sub">Cada marketplace com a sua credencial, sessão e teste. Preencha e salve aqui mesmo.</p>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap">
             <button type="button" class="btn btn-neutro" id="btnInstalarNav" onclick="executarAcao('instalar-navegador')">
@@ -1446,7 +1498,7 @@ PAGINA = r"""<!doctype html>
         </div>
       </div>
 
-      <div id="blocosPlataforma" style="display:flex; flex-direction:column; gap:16px"></div>
+      <div class="plato-grade" id="blocosPlataforma"></div>
 
       <div class="card">
         <div class="card-topo" style="margin-bottom:10px">
@@ -1794,21 +1846,34 @@ const NOME_ICONE_NICHO = {
   baby: "baby", paw: "paw", car: "car", book: "book"
 };
 
-/* Campos do .env: [chave, rótulo, grupo, é segredo, ajuda] */
-const CAMPOS = [
-  ["TELEGRAM_BOT_TOKEN", "Token do bot", "Telegram", true, "Criado no @BotFather com /newbot."],
-  ["TELEGRAM_OWNER_ID", "Seu user ID", "Telegram", false, "Só você envia links para o bot. Use 'Detectar IDs'."],
-  ["TELEGRAM_CHAT_ID", "ID do canal", "Telegram", false, "Canal onde o bot posta. Use 'Detectar IDs'."],
-  ["ML_ETIQUETA", "Etiqueta de afiliado", "Mercado Livre", false, "A 'Etiqueta em uso' que aparece no Linkbuilder do Mercado Livre."],
-  ["AMAZON_TAG", "Tag de associado", "Amazon", false, "Sua tag do Amazon Associados, ex: seunome-20."],
-  ["AMAZON_CREDENTIAL_ID", "Creators API — ID", "Amazon", false, "Opcional. Habilita a busca oficial da Amazon."],
-  ["AMAZON_CREDENTIAL_SECRET", "Creators API — Secret", "Amazon", true, "Opcional. Só aparece uma vez, na criação."],
-  ["SHOPEE_APP_ID", "App ID", "Shopee", false, "Painel de afiliados da Shopee > menu 'Abrir API'."],
-  ["SHOPEE_APP_SECRET", "App Secret", "Shopee", true, "Painel de afiliados da Shopee > menu 'Abrir API'."],
-  ["ALIEXPRESS_APP_KEY", "App Key", "AliExpress", false, "App Key gerado no AliExpress Open Platform / Portals."],
-  ["ALIEXPRESS_APP_SECRET", "App Secret", "AliExpress", true, "App Secret gerado no AliExpress Open Platform."],
-  ["ALIEXPRESS_TRACKING_ID", "Tracking ID", "AliExpress", false, "Seu Tracking ID de afiliado do AliExpress (ex: seunome_br)."],
-];
+/* ══ Campos de configuração ═══════════════════════════════════════════
+   A lista de campos NÃO mora aqui. O painel.py é o dono e manda os
+   metadados dentro de /api/config. Ela já existiu duplicada nos dois
+   arquivos, e duas listas para a mesma verdade só coincidem por acaso:
+   no dia que uma crescesse, o formulário ofereceria um campo que o
+   servidor nem valida. */
+let CFG = null;         // última resposta de /api/config
+let CAMPOS_META = [];   // metadados dos campos, vindos do servidor
+
+async function lerConfig(forcar = false) {
+  if (CFG && !forcar) return CFG;
+  const r = await fetch("/api/config", { cache: "no-store" });
+  CFG = await r.json();
+  CAMPOS_META = CFG.campos || [];
+  return CFG;
+}
+
+/* Campos de uma plataforma, na ordem em que o servidor declarou. */
+function camposDaPlataforma(grupo) {
+  return CAMPOS_META.filter(c => c.grupo === grupo);
+}
+
+/* Grupos que têm card próprio em Plataformas. Não entram no formulário
+   genérico de Configurações: mesma credencial em dois lugares, e salvar
+   num apagando o valor que o outro mostrou. */
+function gruposDePlataforma() {
+  return new Set(BLOCOS.map(b => b.grupo));
+}
 
 let statusAtual = {};
 let metricasAtual = {};
@@ -1861,6 +1926,11 @@ function switchView(nome) {
 
   if (nome === "produtos") carregarProdutos();
   if (nome === "config") { carregarConfig(); carregarNichos(); carregarConta(); }
+  // Os cards de plataforma só têm campo depois que /api/config responde.
+  // No boot isso já aconteceu, mas ir direto pela URL precisa funcionar.
+  if (nome === "plataformas" && !CAMPOS_META.length) {
+    lerConfig().then(() => pintarCredenciaisPlataforma()).catch(() => {});
+  }
   if (nome === "dashboard") desenharGraficos();   // o canvas precisa de largura real
   if (nome === "suporte") renderDiagnostico();
 }
@@ -1871,16 +1941,19 @@ function irPara(view) {
   if (link) link.focus({ preventScroll: true });
 }
 
+/* Entra na aba de Plataformas e destaca o card da plataforma. O foco vai
+   para o primeiro campo, não para o primeiro botão: quem clicou em
+   "Configurar" quer preencher a credencial. */
 function gerenciarPlataforma(chave) {
   switchView("plataformas");
-  $$(".bloco").forEach(b => b.classList.remove("destaque"));
-  const alvo = $("#bloco-" + chave);
+  $$(".plato").forEach(b => b.classList.remove("destaque"));
+  const alvo = $("#plato-" + chave);
   if (alvo) {
     alvo.classList.add("destaque");
     setTimeout(() => {
       alvo.scrollIntoView({ behavior: "smooth", block: "center" });
-      const btn = $("button", alvo);
-      if (btn) btn.focus({ preventScroll: true });
+      const campo = $("input", alvo);
+      if (campo) campo.focus({ preventScroll: true });
     }, 60);
   }
 }
@@ -1969,116 +2042,213 @@ async function atualizarStatus() {
 }
 
 /* ═══ Blocos de plataforma (gerados a partir dos dados) ═════════════ */
+/* Cada card da grade. `grupo` e o mesmo rotulo que o servidor usa em
+   /api/config, e e por ele que os campos de credencial sao buscados —
+   por isso o nome precisa bater com CAMPOS no painel.py. `estado` e a
+   linha de leitura: o que o selo "Conectado" nao diz, tipo o que falta
+   para a plataforma funcionar. */
 const BLOCOS = [
   {
-    chave: "mercadolivre", nome: "Mercado Livre", icone: "handshake", classe: "ml", logo: "/assets/mercadolivre.png",
-    sub: "Link builder com sessão local",
-    campos: [
-      ["Etiqueta de afiliado", "pbMlEtiqueta"],
-      ["Sessão do navegador", "pbMlSessao"],
-    ],
+    chave: "mercadolivre", nome: "Mercado Livre", grupo: "Mercado Livre",
+    cor: "var(--e1)", logo: "/assets/mercadolivre.png",
+    sub: "Linkbuilder com sessão local",
+    estado: ["Sessão do navegador", "pbMlSessao"],
     acoes: [
-      ["ml-login", "Fazer login no Mercado Livre", "btn-primario", "key"],
+      ["ml-login", "Fazer login", "btn-primario", "key"],
       ["testar-ml", "Testar conexão", "btn-neutro", "search"],
+      // "Detalhes da sessão" e não só "Detalhes": ao lado de "Limpar
+      // sessão", um rótulo sozinho não diz do que o botão trata.
       ["sessao", "Detalhes da sessão", "btn-neutro", "zoom"],
     ],
-    extra: ["Limpar sessão local", "btn-perigo", "trash", "limparSessao()"],
+    extra: ["Limpar sessão", "btn-perigo", "trash", "limparSessao()"],
   },
   {
-    chave: "amazon", nome: "Amazon", icone: "package", classe: "amz", logo: "/assets/amazon.png",
-    sub: "Amazon Associados e Creators API",
-    campos: [
-      ["Tag de associado", "pbAmzTag"],
-      ["Creators API", "pbAmzApi"],
-    ],
+    chave: "amazon", nome: "Amazon", grupo: "Amazon",
+    cor: "var(--e2)", logo: "/assets/amazon.png",
+    sub: "Associados e Creators API",
+    estado: ["Busca oficial", "pbAmzApi"],
     acoes: [
       ["testar-amazon", "Testar conexão", "btn-neutro", "search"],
-      ["config", "Editar credenciais", "btn-neutro", "sliders"],
     ],
   },
   {
-    chave: "shopee", nome: "Shopee", icone: "shopping-bag", classe: "shp", logo: "/assets/shopee.png",
+    chave: "shopee", nome: "Shopee", grupo: "Shopee",
+    cor: "var(--e3)", logo: "/assets/shopee.png",
     sub: "Open API oficial de afiliados",
-    campos: [
-      ["App ID", "pbShpAppId"],
-      ["App Secret", "pbShpSecret"],
-    ],
+    estado: ["Credenciais", "pbShpCred"],
     acoes: [
       ["testar-shopee", "Testar conexão", "btn-neutro", "search"],
-      ["config", "Editar credenciais", "btn-neutro", "sliders"],
     ],
   },
   {
-    chave: "aliexpress", nome: "AliExpress", icone: "globe", classe: "ali", logo: "/assets/aliexpress.png",
-    sub: "AliExpress Open Platform / Affiliate API",
-    campos: [
-      ["App Key", "pbAliAppKey"],
-      ["App Secret", "pbAliSecret"],
-      ["Tracking ID", "pbAliTrackingId"],
-    ],
+    chave: "aliexpress", nome: "AliExpress", grupo: "AliExpress",
+    cor: "var(--e4)", logo: "/assets/aliexpress.png",
+    sub: "Open Platform / Affiliate API",
+    estado: ["Credenciais", "pbAliCred"],
     acoes: [
       ["testar-aliexpress", "Testar conexão", "btn-neutro", "search"],
-      ["config", "Editar credenciais", "btn-neutro", "sliders"],
     ],
   },
 ];
 
+/* O status chega a cada poucos segundos. Recriar o HTML dos cards a cada
+   volta apagaria o que a pessoa estivesse digitando na credencial, então
+   a montagem acontece uma vez e daqui para frente so repinta o texto. */
 function renderPlataformas(s) {
   const alvo = $("#blocosPlataforma");
   if (!alvo) return;
-  if (!alvo.children.length) {
-    alvo.innerHTML = BLOCOS.map(b => `
-      <section class="bloco" id="bloco-${b.chave}" aria-labelledby="tit-${b.chave}">
-        <div class="bloco-topo">
-          <div class="bloco-id">
-            <div class="mp-logo-caixa">
-              <img src="${b.logo}" alt="${esc(b.nome)}" class="mp-logo-img">
-            </div>
-            <div>
-              <h3 id="tit-${b.chave}">${esc(b.nome)}</h3>
-              <small>${esc(b.sub)}</small>
-            </div>
-          </div>
-          <span class="selo selo-espera" id="seloPb-${b.chave}"><span class="ponto" aria-hidden="true"></span>Verificando</span>
-        </div>
-        <div class="bloco-info">
-          ${b.campos.map(([rot, id]) => `
-            <dl class="info-card"><dt>${esc(rot)}</dt><dd id="${id}">—</dd></dl>`).join("")}
-        </div>
-        ${b.acoes.length || b.extra ? `<div class="bloco-acoes">
-          ${b.acoes.map(([acao, rot, cls, ic]) => `<button type="button" class="btn ${cls}"
-              onclick="${acao === "sessao" ? "abrirModalSessao()" : acao === "config" ? "switchView('config')" : `executarAcao('${acao}')`}">
-              ${icone(ic)} ${esc(rot)}</button>`).join("")}
-          ${(b.extra || []).map(([rot, cls, ic, js]) =>
-            `<button type="button" class="btn ${cls}" onclick="${js}">${icone(ic)} ${esc(rot)}</button>`).join("")}
-        </div>` : ""}
-      </section>`).join("");
-  }
-  if (!s.plataformas) return;
+  if (!alvo.children.length) montarCardsPlataforma();
+  if (s && s.plataformas) pintarEstadoPlataforma(s);
+  pintarCredenciaisPlataforma();
+}
 
-  const ml = s.plataformas.mercadolivre || {};
+function montarCardsPlataforma() {
+  $("#blocosPlataforma").innerHTML = BLOCOS.map(b => `
+    <section class="plato" id="plato-${b.chave}" style="--cor:${b.cor}" aria-labelledby="tit-${b.chave}">
+      <div class="plato-topo">
+        <span class="plato-logo">
+          <img class="plato-logo-img" src="${b.logo}" alt="Logo ${esc(b.nome)}" width="46" height="46" loading="lazy">
+        </span>
+        <div class="plato-id">
+          <h3 id="tit-${b.chave}">${esc(b.nome)}</h3>
+          <small>${esc(b.sub)}</small>
+        </div>
+        <span class="selo selo-espera" id="seloPb-${b.chave}"><span class="ponto" aria-hidden="true"></span>Verificando</span>
+      </div>
+
+      <div class="plato-estado">
+        <div class="plato-linha">
+          <span>${esc(b.estado[0])}</span>
+          <span class="val" id="${b.estado[1]}">—</span>
+        </div>
+      </div>
+
+      <form class="plato-credenciais" id="form-${b.chave}" novalidate></form>
+
+      <div class="plato-salvar">
+        <button type="button" class="btn btn-primario btn-save-${b.chave}"
+                onclick="salvarPlataforma('${b.chave}')">
+          ${icone("check")} Salvar credenciais
+        </button>
+        <span class="plato-dica" id="dica-${b.chave}" role="status"></span>
+      </div>
+
+      <div class="plato-rodape">
+        ${b.acoes.map(([acao, rot, cls, ic]) => `<button type="button" class="btn ${cls}"
+            onclick="${acao === "sessao" ? "abrirModalSessao()" : `executarAcao('${acao}')`}">
+            ${icone(ic)} ${esc(rot)}</button>`).join("")}
+        ${(b.extra || []).map(([rot, cls, ic, js]) =>
+          `<button type="button" class="btn ${cls}" onclick="${js}">${icone(ic)} ${esc(rot)}</button>`).join("")}
+      </div>
+    </section>`).join("");
+}
+
+function texto(el, txt, fraco) {
+  if (!el) return;
+  el.textContent = txt;
+  el.className = "val" + (fraco ? " sem-valor" : "");
+}
+
+/* "Falta o App Secret", e não "Faltam App ID e Secret". A plataforma só
+   liga com as duas metades, então com uma preenchida a frase genérica
+   mente — e a pessoa vai procurar um campo que já está cheio. */
+function falta(rotulos) {
+  const porCima = rotulos.filter(([k]) => !(CFG && CFG[k + "__set"]));
+  if (!porCima.length) return [true, "Credenciais definidas"];
+  return [false, "Falta " + porCima.map(([, rot]) => rot).join(" e ")];
+}
+
+function pintarEstadoPlataforma(s) {
+  const p = s.plataformas;
+
+  const ml = p.mercadolivre || {};
   selo($("#seloPb-mercadolivre"), ml.conectado, ml.conectado ? "Conectado" : ml.status || "Não configurado");
-  $("#pbMlEtiqueta").textContent = ml.etiqueta || "Não configurada";
-  $("#pbMlEtiqueta").className = ml.etiqueta ? "" : "sem-valor";
-  $("#pbMlSessao").textContent = ml.sessao_ativa ? "Ativa e salva" : "Pendente — faça o login";
+  texto($("#pbMlSessao"), ml.sessao_ativa ? "Ativa e salva" : "Pendente — faça o login", !ml.sessao_ativa);
 
-  const amz = s.plataformas.amazon || {};
+  const amz = p.amazon || {};
   selo($("#seloPb-amazon"), amz.conectado, amz.conectado ? "Conectado" : amz.status || "Não configurado");
-  $("#pbAmzTag").textContent = amz.tag || "Não configurada";
-  $("#pbAmzApi").textContent = amz.api_ativa ? "ID e secret definidos" : "Opcional — usando busca por scraping";
+  texto($("#pbAmzApi"), amz.api_ativa ? "Creators API ativa" : "Busca por scraping", !amz.api_ativa);
 
-  const shp = s.plataformas.shopee || {};
+  const shp = p.shopee || {};
   selo($("#seloPb-shopee"), shp.conectado, shp.conectado ? "Conectado" : shp.status || "Não configurado");
-  $("#pbShpAppId").textContent = shp.app_id || "Não configurado";
-  $("#pbShpAppId").className = shp.app_id ? "mono" : "";
-  $("#pbShpSecret").textContent = shp.conectado ? "Definido" : "Não configurado";
+  const shpFalta = falta([["SHOPEE_APP_ID", "o App ID"], ["SHOPEE_APP_SECRET", "o App Secret"]]);
+  texto($("#pbShpCred"), shpFalta[1], !shpFalta[0]);
 
-  const ali = s.plataformas.aliexpress || {};
+  const ali = p.aliexpress || {};
   selo($("#seloPb-aliexpress"), ali.conectado, ali.conectado ? "Conectado" : ali.status || "Não configurado");
-  $("#pbAliAppKey").textContent = ali.app_key || "Não configurado";
-  $("#pbAliAppKey").className = ali.app_key ? "mono" : "";
-  $("#pbAliSecret").textContent = ali.conectado ? "Definido" : "Não configurado";
-  $("#pbAliTrackingId").textContent = ali.tracking_id || "Padrão (opcional)";
+  const aliFalta = falta([["ALIEXPRESS_APP_KEY", "a App Key"], ["ALIEXPRESS_APP_SECRET", "o App Secret"]]);
+  texto($("#pbAliCred"), aliFalta[1], !aliFalta[0]);
+}
+
+/* Os inputs de credencial de cada card. Só escreve uma vez por card: o
+   polling do status passaria por cima de tudo que a pessoa digitou. Só
+   o card indicado em forcarChave é repintado — usado depois de salvar,
+   para trazer a marca "definido" sem limpar o que está em outro card. */
+function pintarCredenciaisPlataforma(forcarChave) {
+  if (!CAMPOS_META.length) return;
+  for (const b of BLOCOS) {
+    const form = $("#form-" + b.chave);
+    if (!form) continue;
+    if (form.dataset.pronto === "1" && b.chave !== forcarChave) continue;
+    const campos = camposDaPlataforma(b.grupo);
+    form.dataset.pronto = "1";
+    if (!campos.length) {
+      form.innerHTML = `<p class="plato-dica">Esta fonte não usa credencial.</p>`;
+      continue;
+    }
+    form.innerHTML = campos.map(c => {
+      const definido = !!CFG[c.chave + "__set"];
+      const marca = definido ? `<span class="marca-ok">${icone("check")} definido</span>` : "";
+      const valor = c.segredo ? "" : esc(CFG[c.chave] || "");
+      const ph = c.segredo && definido ? "Já preenchido — deixe em branco para manter" : "";
+      return `
+        <div class="campo">
+          <label for="pbc_${esc(c.chave)}">${esc(c.rotulo)} ${marca}</label>
+          <input id="pbc_${esc(c.chave)}" name="${esc(c.chave)}" type="${c.segredo ? "password" : "text"}"
+                 value="${valor}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false"
+                 aria-describedby="pba_${esc(c.chave)}">
+          <p class="ajuda" id="pba_${esc(c.chave)}">${esc(c.ajuda)}</p>
+        </div>`;
+    }).join("");
+  }
+  // A linha de estado diz o que falta, e isso depende de quais campos já
+  // estão salvos — ou seja, do CFG que acabou de chegar. O status costuma
+  // pintar antes dele, e sem este repinto um card já configurado ficaria
+  // anunciando "falta tudo" até a próxima volta do polling.
+  if (statusAtual.plataformas) pintarEstadoPlataforma(statusAtual);
+}
+
+/* Salva só os campos deste card. O servidor ignora o que não veio no
+   corpo, então tocar num cartao não mexe na credencial dos outros. */
+async function salvarPlataforma(chave) {
+  const form = $("#form-" + chave);
+  if (!form) return;
+  const btn = $(".btn-save-" + chave, form.closest(".plato") || document);
+  const dica = $("#dica-" + chave);
+  const body = {};
+  $$("input", form).forEach(el => { body[el.name] = el.value.trim(); });
+
+  if (btn) btn.disabled = true;
+  dica.className = "plato-dica";
+  dica.textContent = "Salvando…";
+  try {
+    const r = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.erro) { dica.textContent = d.erro; return; }
+    await lerConfig(true);
+    pintarCredenciaisPlataforma(chave);
+    dica.className = "plato-dica ok";
+    dica.textContent = "Credenciais salvas";
+    await atualizarStatus();
+  } catch (e) {
+    dica.textContent = "Não consegui salvar. O .env continua como estava.";
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function renderDiagnostico(s = statusAtual) {
@@ -2398,9 +2568,16 @@ async function carregarConfig(forcar = false) {
   if (!form) return;
   if (!form.querySelector("input")) form.innerHTML = '<div class="vazio" style="grid-column:1/-1">Carregando campos…</div>';
   try {
-    const cfg = await (await fetch("/api/config", { cache: "no-store" })).json();
+    const cfg = await lerConfig(forcar);
+    // Os grupos de plataforma não entram aqui: cada um tem card próprio em
+    // Plataformas, com o campo dentro. Deixá-los nos dois lugares só
+    // criaria duas cópias da mesma credencial — e salvar uma apagaria o
+    // valor que a outra exibiu.
+    const dasPlataformas = gruposDePlataforma();
     let html = "", grupo = "";
-    for (const [k, rot, grp, segredo, ajuda] of CAMPOS) {
+    for (const c of CAMPOS_META) {
+      const { chave: k, rotulo: rot, grupo: grp, segredo, ajuda } = c;
+      if (dasPlataformas.has(grp)) continue;
       if (grp !== grupo) {
         html += `<div class="grupo-titulo">${icone("sliders")} ${esc(grp)}</div>`;
         grupo = grp;
@@ -2421,6 +2598,9 @@ async function carregarConfig(forcar = false) {
     form.innerHTML = html;
     configCarregada = true;
     configSuja = false;
+    // Os cards de Plataformas leem a mesma resposta. Pintar aqui garante
+    // que eles não fiquem com o formulário vazio se o status chegar antes.
+    pintarCredenciaisPlataforma();
   } catch (e) {
     form.innerHTML = '<div class="alerta alerta-erro" style="grid-column:1/-1">' +
       icone("alert", "icone") + "<div>Não consegui carregar as credenciais do servidor.</div></div>";

@@ -833,6 +833,15 @@ class Handler(BaseHTTPRequestHandler):
                 for chave, _, _, segredo, _ in CAMPOS:
                     saida[chave] = "" if (segredo and env.get(chave)) else env.get(chave, "")
                     saida[chave + "__set"] = bool(env.get(chave))
+                # Os metadados dos campos vêm junto. O JS mantinha uma cópia
+                # hand-written dessa lista, que só coincidia com o Python por
+                # coincidência — duas listas para a mesma verdade é o jeito
+                # mais garantido de elas divergirem.
+                saida["campos"] = [
+                    {"chave": c[0], "rotulo": c[1], "grupo": c[2],
+                     "segredo": bool(c[3]), "ajuda": c[4]}
+                    for c in CAMPOS
+                ]
                 self._json(saida)
             elif rota == "/api/logs":
                 fonte = urlparse(self.path).query
@@ -870,7 +879,14 @@ class Handler(BaseHTTPRequestHandler):
                 atuais = ler_env()
                 filtrados = {}
                 for chave, _, _, segredo, _ in CAMPOS:
-                    v = dados.get(chave, "")
+                    # Só mexe no que veio no corpo. Antes, uma chave ausente
+                    # virava "" e apagava o valor salvo — e o formulário
+                    # genérico só funcionava porque mandava todos os campos
+                    # de uma vez. Com cada plataforma salvando o seu card
+                    # separado, isso passaria a limpar as outras.
+                    if chave not in dados:
+                        continue
+                    v = dados[chave]
                     if segredo and not v and atuais.get(chave):
                         continue
                     filtrados[chave] = v
@@ -926,12 +942,12 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception as e:
                         return self._json({"erro": f"Erro ao limpar: {e}"}, 500)
                 self._json({"ok": True, "msg": "Sessão limpa com sucesso."})
-            elif rota == "/api/detectar-ids":
-                self._json(detectar_ids())
             elif rota == "/api/nichos":
                 from .nichos import salvar_selecao
                 salvar_selecao(dados.get("selecionados") or [])
                 self._json({"ok": True})
+            elif rota == "/api/detectar-ids":
+                self._json(detectar_ids())
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:
