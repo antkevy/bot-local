@@ -42,3 +42,23 @@ def registrar(oferta: Oferta) -> None:
 def total_postadas() -> int:
     with _conn() as c:
         return c.execute("SELECT COUNT(*) FROM postadas").fetchone()[0]
+
+
+def listar_postadas(limite: int = 50) -> list[dict]:
+    with _conn() as c:
+        c.row_factory = sqlite3.Row
+        rows = c.execute(
+            "SELECT uid, plataforma, titulo, preco, postada_em FROM postadas "
+            "ORDER BY postada_em DESC LIMIT ?",
+            (limite,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def contar_por_plataforma() -> dict[str, int]:
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT plataforma, COUNT(*) FROM postadas GROUP BY plataforma"
+        ).fetchall()
+        return {p: cnt for p, cnt in rows}
+
