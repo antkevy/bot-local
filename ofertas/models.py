@@ -6,7 +6,7 @@ class Oferta:
     plataforma: str            # "mercadolivre" | "shopee" | "amazon"
     id_produto: str
     titulo: str
-    url_afiliado: str          # vazio até o link de afiliado ser gerado
+    url_afiliado: str = ""          # vazio até o link de afiliado ser gerado
     url_produto: str = ""
     preco: float | None = None
     preco_original: float | None = None

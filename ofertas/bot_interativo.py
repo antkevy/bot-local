@@ -104,6 +104,58 @@ async def _cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def _cmd_status_ml(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not _e_dono(update):
+        return
+    from .sources.ml_auth import ml_auth_service
+    res = ml_auth_service.testar_autenticacao()
+    if res.get("authenticated"):
+        metodo = "Link Builder" if res.get("method") == "linkbuilder" else "Cookie"
+        await update.message.reply_text(f"✅ Mercado Livre: *Autenticado via {metodo}*\nLink de teste gerado: `{res.get('link_teste', '')}`", parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            "⚠️ Mercado Livre: *Autenticação Necessária*\n"
+            "Nem o Link Builder nem o Cookie estão funcionando.\n"
+            "Envie `/setcookie <seu_cookie>` para atualizar via cookie ou faça login no Link Builder.",
+            parse_mode="Markdown"
+        )
+
+
+async def _cmd_setcookie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not _e_dono(update):
+        return
+    # Cookie pode vir como argumento (/setcookie ...) ou no texto da mensagem
+    texto = update.message.text or ""
+    partes = texto.split(maxsplit=1)
+    if len(partes) < 2:
+        await update.message.reply_text(
+            "🍪 *Como atualizar o Cookie do Mercado Livre:*\n\n"
+            "Envie o comando:\n`/setcookie <cole_seu_cookie_aqui>`\n\n"
+            "_O bot testará a autenticação antes de salvar. Se for válido, reprocessará as ofertas pendentes._",
+            parse_mode="Markdown"
+        )
+        return
+
+    cookie_candidato = partes[1].strip()
+    await update.message.reply_text("⏳ Validando novo cookie do Mercado Livre com teste real...")
+
+    from .sources.ml_auth import ml_auth_service
+    resultado = ml_auth_service.validar_e_salvar_novo_cookie(cookie_candidato, bot=ctx.bot)
+
+    if resultado.get("ok"):
+        ofertas_rep = resultado.get("ofertas_reprocessadas", 0)
+        msg_rep = f"\n🔄 {ofertas_rep} oferta(s) pendente(s) reprocessada(s)!" if ofertas_rep else ""
+        await update.message.reply_text(
+            f"✅ *Novo cookie do Mercado Livre validado e salvo com sucesso!*{msg_rep}",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            f"❌ *{resultado.get('erro', 'Falha ao validar cookie')}*\n_O cookie anterior foi mantido._",
+            parse_mode="Markdown"
+        )
+
+
 def _e_dono(update: Update) -> bool:
     return bool(config.owner_id) and update.effective_user.id == config.owner_id
 
@@ -283,6 +335,8 @@ def rodar():
     app.add_handler(CommandHandler("fontes", _cmd_fontes))
     app.add_handler(CommandHandler("addfonte", _cmd_add_fonte))
     app.add_handler(CommandHandler("delfonte", _cmd_del_fonte))
+    app.add_handler(CommandHandler("setcookie", _cmd_setcookie))
+    app.add_handler(CommandHandler("statusml", _cmd_status_ml))
     app.add_handler(CommandHandler("ciclo", _cmd_ciclo))
     app.add_handler(CallbackQueryHandler(_callback))
     app.add_handler(MessageHandler(filters.FORWARDED & filters.ChatType.PRIVATE, _receber_forward))

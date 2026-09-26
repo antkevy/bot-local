@@ -35,12 +35,29 @@ _COLUNAS_MSGS = (
     " PRIMARY KEY(source_id, message_id)"
 )
 
+_COLUNAS_PENDENTES_ML = (
+    "uid TEXT PRIMARY KEY,"
+    " url_produto TEXT,"
+    " titulo TEXT,"
+    " preco REAL,"
+    " preco_original REAL,"
+    " desconto INTEGER,"
+    " imagem TEXT,"
+    " cupom TEXT,"
+    " beneficio_cupom TEXT,"
+    " tipo TEXT,"
+    " raw_data TEXT,"
+    " adicionada_em TEXT,"
+    " status TEXT"
+)
+
 
 def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(_DB)
     c.execute("CREATE TABLE IF NOT EXISTS postadas (" + _COLUNAS + ")")
     c.execute("CREATE TABLE IF NOT EXISTS fontes_telegram (" + _COLUNAS_FONTES + ")")
     c.execute("CREATE TABLE IF NOT EXISTS mensagens_telegram (" + _COLUNAS_MSGS + ")")
+    c.execute("CREATE TABLE IF NOT EXISTS ofertas_pendentes_ml (" + _COLUNAS_PENDENTES_ML + ")")
     # Bancos criados por versões antigas não têm url_afiliado/imagem; adiciona sem perder dados.
     existentes = {r[1] for r in c.execute("PRAGMA table_info(postadas)")}
     for coluna in ("url_afiliado", "imagem"):
@@ -183,3 +200,59 @@ def atualizar_status_fonte_telegram(chat_id: str | int, ativa: bool) -> None:
 def total_msgs_telegram_processadas() -> int:
     with _conn() as c:
         return c.execute("SELECT COUNT(*) FROM mensagens_telegram").fetchone()[0]
+
+
+def salvar_oferta_pendente_ml(oferta: Oferta, status: str = "aguardando_autenticacao") -> None:
+    agora = dt.datetime.now().isoformat(timespec="seconds")
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO ofertas_pendentes_ml (uid, url_produto, titulo, preco, preco_original, desconto, imagem, cupom, beneficio_cupom, tipo, raw_data, adicionada_em, status)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(uid) DO UPDATE SET"
+            " url_produto = excluded.url_produto,"
+            " titulo = excluded.titulo,"
+            " preco = excluded.preco,"
+            " preco_original = excluded.preco_original,"
+            " desconto = excluded.desconto,"
+            " imagem = excluded.imagem,"
+            " cupom = excluded.cupom,"
+            " beneficio_cupom = excluded.beneficio_cupom,"
+            " tipo = excluded.tipo,"
+            " status = excluded.status",
+            (
+                oferta.uid,
+                oferta.url_produto,
+                oferta.titulo,
+                oferta.preco,
+                oferta.preco_original,
+                oferta.desconto,
+                oferta.imagem,
+                oferta.cupom,
+                oferta.beneficio_cupom,
+                oferta.tipo,
+                oferta.extra or "",
+                agora,
+                status,
+            ),
+        )
+
+
+def listar_ofertas_pendentes_ml(status: str | None = None) -> list[dict]:
+    with _conn() as c:
+        c.row_factory = sqlite3.Row
+        if status:
+            rows = c.execute("SELECT * FROM ofertas_pendentes_ml WHERE status = ? ORDER BY adicionada_em ASC", (status,)).fetchall()
+        else:
+            rows = c.execute("SELECT * FROM ofertas_pendentes_ml ORDER BY adicionada_em ASC").fetchall()
+        return [dict(r) for r in rows]
+
+
+def remover_oferta_pendente_ml(uid: str) -> None:
+    with _conn() as c:
+        c.execute("DELETE FROM ofertas_pendentes_ml WHERE uid = ?", (uid,))
+
+
+def total_ofertas_pendentes_ml() -> int:
+    with _conn() as c:
+        return c.execute("SELECT COUNT(*) FROM ofertas_pendentes_ml").fetchone()[0]
+

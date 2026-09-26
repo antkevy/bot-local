@@ -2060,7 +2060,7 @@ const BLOCOS = [
       // sessão", um rótulo sozinho não diz do que o botão trata.
       ["sessao", "Detalhes da sessão", "btn-neutro", "zoom"],
     ],
-    extra: ["Limpar sessão", "btn-perigo", "trash", "limparSessao()"],
+    extra: [["Limpar sessão", "btn-perigo", "trash", "limparSessao()"]],
   },
   {
     chave: "amazon", nome: "Amazon", grupo: "Amazon",

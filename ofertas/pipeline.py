@@ -129,11 +129,9 @@ async def executar_ciclo(bot: Bot) -> int:
     ml_pendentes = [o for o in escolhidas if o.plataforma == "mercadolivre" and not o.url_afiliado]
     if ml_pendentes:
         try:
-            await asyncio.to_thread(mercadolivre.gerar_links_afiliado, ml_pendentes)
+            await asyncio.to_thread(mercadolivre.gerar_links_afiliado, ml_pendentes, bot)
         except Exception as e:
-            log.error("Linkbuilder ML falhou: %s", e)
-            if "Sessão" in str(e):
-                await avisar_dono(bot, f"⚠️ Mercado Livre parou de gerar links: {e}")
+            log.error("Geração de afiliados ML falhou: %s", e)
 
     postadas = 0
     for o in escolhidas:
@@ -270,9 +268,9 @@ async def processar_mensagem_telegram(
     # 5. Mercado Livre: se precisa de link de afiliado
     if oferta.plataforma == "mercadolivre" and not oferta.url_afiliado:
         try:
-            await asyncio.to_thread(mercadolivre.gerar_links_afiliado, [oferta])
+            await asyncio.to_thread(mercadolivre.gerar_links_afiliado, [oferta], bot)
         except Exception as e:
-            log.error("[AFFILIATE] Linkbuilder ML falhou: %s", e)
+            log.error("[AFFILIATE] Geração de link ML falhou: %s", e)
 
     # 6. VALIDAÇÃO OBRIGATÓRIA DE AFILIADO:
     # "Se não existir link afiliado válido: NÃO publicar. NUNCA utilizar a URL original como fallback de affiliate_link."

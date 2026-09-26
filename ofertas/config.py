@@ -42,6 +42,7 @@ class Config:
         self.amazon_credential_id: str = os.getenv("AMAZON_CREDENTIAL_ID", "").strip()
         self.amazon_credential_secret: str = os.getenv("AMAZON_CREDENTIAL_SECRET", "").strip()
         self.ml_etiqueta: str = os.getenv("ML_ETIQUETA", "").strip()
+        self.ml_cookie: str = os.getenv("ML_COOKIE", "").strip()
         self.shopee_app_id: str = os.getenv("SHOPEE_APP_ID", "").strip()
         self.shopee_app_secret: str = os.getenv("SHOPEE_APP_SECRET", "").strip()
         self.aliexpress_app_key: str = os.getenv("ALIEXPRESS_APP_KEY", "").strip()

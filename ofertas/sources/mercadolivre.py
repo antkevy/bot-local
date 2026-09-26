@@ -168,7 +168,7 @@ def _abrir_contexto(pw, headless: bool):
 
 
 def _achar_chrome() -> str:
-    """Caminho do Google Chrome instalado (Windows, macOS ou Linux)."""
+    """Caminho de um navegador baseado em Chromium (Chrome, Brave, Edge) instalado."""
     import shutil
     candidatos: list[str] = []
 
@@ -176,40 +176,50 @@ def _achar_chrome() -> str:
         try:
             import winreg
             for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
-                try:
-                    chave = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
-                    with winreg.OpenKey(hive, chave) as k:
-                        candidatos.append(winreg.QueryValueEx(k, None)[0])
-                except OSError:
-                    continue
+                for exe in ("chrome.exe", "brave.exe", "msedge.exe"):
+                    try:
+                        chave = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}"
+                        with winreg.OpenKey(hive, chave) as k:
+                            candidatos.append(winreg.QueryValueEx(k, None)[0])
+                    except OSError:
+                        continue
         except ImportError:
             pass
         for base in (os.environ.get("ProgramFiles", r"C:\Program Files"),
                      os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
                      os.environ.get("LOCALAPPDATA", "")):
             if base:
-                candidatos.append(str(Path(base) / "Google/Chrome/Application/chrome.exe"))
+                candidatos += [
+                    str(Path(base) / "Google/Chrome/Application/chrome.exe"),
+                    str(Path(base) / "BraveSoftware/Brave-Browser/Application/brave.exe"),
+                    str(Path(base) / "Microsoft/Edge/Application/msedge.exe"),
+                ]
     elif sys.platform == "darwin":
         candidatos += [
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
             "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         ]
     else:  # Linux e afins
-        for nome in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
-                     "brave-browser", "microsoft-edge"):
+        for nome in ("google-chrome", "google-chrome-stable", "brave-browser", "brave",
+                     "chromium", "chromium-browser", "microsoft-edge"):
             achado = shutil.which(nome)
             if achado:
                 candidatos.append(achado)
-        candidatos += ["/usr/bin/google-chrome", "/usr/bin/chromium",
-                       "/snap/bin/chromium", "/usr/bin/chromium-browser"]
+        candidatos += [
+            "/usr/bin/google-chrome",
+            "/usr/bin/brave-browser",
+            "/usr/bin/chromium",
+            "/snap/bin/chromium",
+            "/usr/bin/chromium-browser",
+        ]
 
     for c in candidatos:
         if c and Path(c).exists():
             return c
-    raise RuntimeError("Google Chrome não encontrado — instale o Google Chrome e tente de novo.")
+    raise RuntimeError("Nenhum navegador baseado em Chromium (Chrome, Brave ou Edge) encontrado.")
 
 
 def ml_login() -> None:
@@ -258,18 +268,14 @@ def _criar_links_api(page, urls: list[str], etiqueta: str) -> list[str]:
     return links
 
 
-def gerar_links_afiliado(ofertas: list[Oferta]) -> None:
-    """Preenche oferta.url_afiliado via API do Linkbuilder (lotes de 10 URLs)."""
+def _gerar_links_linkbuilder_batch(pendentes: list[Oferta], etiqueta: str) -> None:
+    """Executa a geração de links via Playwright e perfil persistente do Linkbuilder."""
     from playwright.sync_api import sync_playwright
 
     if not tem_sessao():
-        raise RuntimeError("Sessão do ML não encontrada — rode: uv run python -m ofertas ml-login")
-    if not config.ml_etiqueta:
-        raise RuntimeError("ML_ETIQUETA não configurada no .env "
-                           "(é a 'Etiqueta em uso' do Linkbuilder no painel de afiliados)")
-    pendentes = [o for o in ofertas if not o.url_afiliado and o.url_produto]
-    if not pendentes:
-        return
+        raise RuntimeError("Sessão do ML não encontrada — faça login via Linkbuilder")
+    if not etiqueta:
+        raise RuntimeError("ML_ETIQUETA não configurada")
 
     with sync_playwright() as pw:
         ctx = _abrir_contexto(pw, headless=True)
@@ -277,17 +283,22 @@ def gerar_links_afiliado(ofertas: list[Oferta]) -> None:
         try:
             page.goto(URL_LINKBUILDER, wait_until="domcontentloaded")
             if "login" in page.url or "registration" in page.url:
-                raise RuntimeError("Sessão do ML expirou — rode de novo: "
-                                   "uv run python -m ofertas ml-login")
-            page.wait_for_timeout(1500)  # deixa os scripts de sessão da página rodarem
+                raise RuntimeError("Sessão do ML expirou no Linkbuilder")
+            page.wait_for_timeout(1500)
             for i in range(0, len(pendentes), 10):
                 lote = pendentes[i:i + 10]
-                links = _criar_links_api(page, [o.url_produto for o in lote], config.ml_etiqueta)
+                links = _criar_links_api(page, [o.url_produto for o in lote], etiqueta)
                 for o, link in zip(lote, links):
                     o.url_afiliado = link
-            log.info("Mercado Livre: %d links de afiliado gerados", len(pendentes))
+            log.info("Mercado Livre: %d link(s) gerado(s) via Linkbuilder", len(pendentes))
         finally:
             ctx.close()
+
+
+def gerar_links_afiliado(ofertas: list[Oferta], bot: Any = None) -> None:
+    """Preenche oferta.url_afiliado via serviço em cascata: Link Builder -> Cookie -> Fallback seguro."""
+    from .ml_auth import ml_auth_service
+    ml_auth_service.gerar_links_afiliado(ofertas, bot=bot)
 
 
 def converter(url: str) -> Oferta:
