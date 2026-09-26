@@ -16,11 +16,9 @@ PAGINA = r"""<!doctype html>
     --bg-sidebar: #061220;
     --bg-card: #0B2035;
     --bg-card2: #0D263F;
-    --bg-card-hover: #112d4a;
     --bg-subcard: #081a2e;
     --border-color: #173957;
     --border-light: #204d75;
-    --border-glow: rgba(8, 123, 255, 0.35);
     --tx-main: #FFFFFF;
     --tx-muted: #8EA6BF;
     --tx-dim: #5c7896;
@@ -55,7 +53,6 @@ PAGINA = r"""<!doctype html>
     overflow-x: hidden;
   }
 
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #173957; border-radius: 99px; }
@@ -80,7 +77,6 @@ PAGINA = r"""<!doctype html>
     top: 0;
     height: 100vh;
     z-index: 50;
-    transition: transform 0.2s ease;
   }
 
   .brand {
@@ -292,13 +288,11 @@ PAGINA = r"""<!doctype html>
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--success);
-    box-shadow: 0 0 8px var(--success);
+    background: var(--tx-dim);
+    transition: 0.3s;
   }
 
-  .time-display {
-    text-align: right;
-  }
+  .time-display { text-align: right; }
   .time-display .clock {
     font-size: 15px;
     font-weight: 700;
@@ -327,9 +321,7 @@ PAGINA = r"""<!doctype html>
     justify-content: center;
     color: #93c5fd;
   }
-  .user-info {
-    line-height: 1.2;
-  }
+  .user-info { line-height: 1.2; }
   .user-info .name {
     font-size: 13px;
     font-weight: 700;
@@ -407,44 +399,45 @@ PAGINA = r"""<!doctype html>
 
   /* Content Body */
   .content-body {
-    padding: 8px 32px 32px;
+    padding: 24px 36px 40px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 26px;
     flex: 1;
   }
 
   .dash-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 20px;
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
     position: relative;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
     transition: border-color 0.2s;
   }
   .dash-card:hover { border-color: var(--border-light); }
 
-  /* ── 5 Symmetrical Marketplaces Cards on Dashboard ── */
+  /* ── 4 Symmetrical Marketplaces Cards on Dashboard ── */
   .marketplaces-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
   }
-  @media (max-width: 1200px) { .marketplaces-grid { grid-template-columns: repeat(3, 1fr); } }
-  @media (max-width: 768px) { .marketplaces-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 1100px) { .marketplaces-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 650px) { .marketplaces-grid { grid-template-columns: 1fr; } }
 
   .mp-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 18px 16px;
+    border-radius: var(--radius-lg);
+    padding: 22px 18px;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 8px;
+    gap: 10px;
     transition: transform 0.15s, border-color 0.15s;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   }
   .mp-card:hover {
     transform: translateY(-2px);
@@ -452,8 +445,8 @@ PAGINA = r"""<!doctype html>
   }
 
   .mp-icon-box {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -467,24 +460,23 @@ PAGINA = r"""<!doctype html>
   .icon-amazon { background: #ff9900; box-shadow: 0 4px 12px rgba(255, 153, 0, 0.2); }
   .icon-shopee { background: #ee4d2d; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.2); }
   .icon-aliexpress { background: #ff4747; box-shadow: 0 4px 12px rgba(255, 71, 71, 0.2); }
-  .icon-promogram { background: #8b5cf6; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2); }
 
   .mp-card h4 {
-    font-size: 14.5px;
+    font-size: 15px;
     font-weight: 700;
     color: #fff;
   }
   .mp-card .mp-sub {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--tx-dim);
     min-height: 18px;
   }
   .mp-card .btn-dark {
     width: 100%;
     justify-content: center;
-    padding: 7px 10px;
+    padding: 8px 12px;
     font-size: 12.5px;
-    margin-top: 6px;
+    margin-top: 8px;
   }
 
   .badge-connected {
@@ -528,7 +520,7 @@ PAGINA = r"""<!doctype html>
   .dash-main-grid {
     display: grid;
     grid-template-columns: 1fr 340px;
-    gap: 16px;
+    gap: 24px;
     align-items: start;
   }
   @media (max-width: 1100px) { .dash-main-grid { grid-template-columns: 1fr; } }
@@ -536,14 +528,14 @@ PAGINA = r"""<!doctype html>
   .dash-left-column {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
   }
 
   /* Metrics Row */
   .metrics-row {
     display: grid;
     grid-template-columns: 1.1fr 1fr 1.3fr;
-    gap: 14px;
+    gap: 20px;
   }
   @media (max-width: 900px) { .metrics-row { grid-template-columns: 1fr; } }
 
@@ -551,43 +543,46 @@ PAGINA = r"""<!doctype html>
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
   }
   .metric-title-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   .metric-title-group svg { color: var(--primary); }
   .metric-title-group h4 {
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 700;
     color: #fff;
   }
   .metric-subtitle {
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--tx-dim);
+    margin-top: 2px;
   }
   .metric-stat-group { text-align: right; }
   .metric-big-val {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 800;
     color: #fff;
     line-height: 1.1;
   }
   .metric-growth-badge {
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 700;
     color: var(--success);
     display: inline-flex;
     align-items: center;
     gap: 3px;
+    margin-top: 3px;
   }
 
   .chart-canvas-wrap {
     width: 100%;
     height: 140px;
     position: relative;
+    margin-top: 6px;
   }
   canvas {
     width: 100% !important;
@@ -597,20 +592,20 @@ PAGINA = r"""<!doctype html>
   .top-platforms-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 6px;
+    gap: 12px;
+    margin-top: 10px;
   }
   .top-platform-item {
     display: grid;
     grid-template-columns: 20px 80px 1fr 40px 45px;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-size: 12px;
   }
   .top-platform-icon {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -625,7 +620,7 @@ PAGINA = r"""<!doctype html>
     text-overflow: ellipsis;
   }
   .progress-bar-bg {
-    height: 6px;
+    height: 7px;
     background: #081a2e;
     border-radius: 99px;
     overflow: hidden;
@@ -651,18 +646,18 @@ PAGINA = r"""<!doctype html>
   .activity-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
   }
   .activity-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 12px;
+    gap: 12px;
+    font-size: 12.5px;
   }
   .act-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -685,7 +680,7 @@ PAGINA = r"""<!doctype html>
     text-overflow: ellipsis;
   }
   .act-content .desc {
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--tx-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -701,38 +696,38 @@ PAGINA = r"""<!doctype html>
   .dash-right-column {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
   }
 
   .right-panel-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 18px;
+    border-radius: var(--radius-lg);
+    padding: 24px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   }
 
   .recent-links-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 12px;
+    margin-top: 14px;
   }
   .recent-link-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: 10px;
+    padding: 10px 14px;
     background: var(--bg-subcard);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    font-size: 12px;
+    border-radius: var(--radius-md);
+    font-size: 12.5px;
   }
   .recent-link-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     overflow: hidden;
   }
   .recent-link-url {
@@ -745,17 +740,17 @@ PAGINA = r"""<!doctype html>
     text-overflow: ellipsis;
   }
   .recent-link-date {
-    font-size: 10.5px;
+    font-size: 11px;
     color: var(--tx-dim);
-    margin-top: 1px;
+    margin-top: 2px;
   }
   .btn-copy-icon {
     background: transparent;
     border: 0;
     color: var(--tx-muted);
     cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
+    padding: 5px;
+    border-radius: 6px;
     transition: 0.15s;
     display: flex;
   }
@@ -765,70 +760,76 @@ PAGINA = r"""<!doctype html>
   .platform-block {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 20px;
+    border-radius: var(--radius-lg);
+    padding: 26px 28px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
+    margin-bottom: 24px;
     transition: border-color 0.2s;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  }
+  .platform-block:last-child {
+    margin-bottom: 0;
   }
   .platform-block.highlighted {
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(8, 123, 255, 0.25);
+    box-shadow: 0 0 0 3px rgba(8, 123, 255, 0.3);
   }
   .pb-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: 12px;
+    padding-bottom: 16px;
     border-bottom: 1px solid var(--border-color);
   }
   .pb-header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
   }
   .pb-header-left h3 {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     color: #fff;
   }
   .pb-content-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
   }
   .pb-info-card {
     background: var(--bg-subcard);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
   }
   .pb-info-card label {
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
     color: var(--tx-muted);
     font-weight: 700;
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
   .pb-info-card .val {
-    font-size: 13.5px;
+    font-size: 14px;
     color: #fff;
     font-weight: 600;
     word-break: break-all;
   }
   .pb-actions {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
     align-items: center;
+    margin-top: 4px;
   }
 
   /* Global Footer */
   .global-footer {
-    padding: 14px 32px;
+    padding: 18px 36px;
     border-top: 1px solid var(--border-color);
     background: var(--bg-sidebar);
     display: flex;
@@ -868,20 +869,21 @@ PAGINA = r"""<!doctype html>
   .config-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px;
+    margin-top: 8px;
   }
   @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
   
   .form-group-title {
-    font-size: 13px;
+    font-size: 13.5px;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     color: #60a5fa;
     font-weight: 700;
-    margin: 16px 0 10px;
+    margin: 24px 0 14px;
   }
-  .form-group-title:first-of-type { margin-top: 0; }
-  .form-field { margin-bottom: 14px; }
+  .form-group-title:first-of-type { margin-top: 4px; }
+  .form-field { margin-bottom: 18px; }
   .form-field label {
     display: flex;
     align-items: center;
@@ -889,11 +891,11 @@ PAGINA = r"""<!doctype html>
     font-size: 13px;
     font-weight: 600;
     color: #cbd5e1;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
   }
   .form-field input, .form-field select {
     width: 100%;
-    padding: 10px 12px;
+    padding: 11px 14px;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
     background: var(--bg-subcard);
@@ -908,25 +910,26 @@ PAGINA = r"""<!doctype html>
     box-shadow: 0 0 0 3px rgba(8, 123, 255, 0.2);
   }
   .form-field .field-help {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--tx-dim);
-    margin-top: 4px;
+    margin-top: 6px;
+    line-height: 1.4;
   }
 
   .nichos-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-    gap: 8px;
-    margin: 12px 0;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 18px 0;
   }
   .nicho-card {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 12px 16px;
     background: var(--bg-subcard);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     cursor: pointer;
     user-select: none;
     transition: 0.15s;
@@ -949,33 +952,34 @@ PAGINA = r"""<!doctype html>
   .logs-terminal-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 24px;
     height: calc(100vh - 240px);
-    min-height: 400px;
+    min-height: 440px;
   }
   @media (max-width: 900px) { .logs-terminal-container { grid-template-columns: 1fr; height: auto; } }
 
   .terminal-box {
     background: #040d17;
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
   .terminal-header {
     background: var(--bg-subcard);
-    padding: 10px 16px;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 700;
   }
   .terminal-body {
     flex: 1;
-    padding: 14px;
+    padding: 16px 20px;
     font-family: var(--font-mono);
     font-size: 12px;
     color: #94a3b8;
@@ -988,6 +992,7 @@ PAGINA = r"""<!doctype html>
     overflow-x: auto;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
+    margin-top: 14px;
   }
   table.data-table {
     width: 100%;
@@ -997,13 +1002,13 @@ PAGINA = r"""<!doctype html>
   }
   table.data-table th {
     background: #081a2e;
-    padding: 12px 16px;
+    padding: 14px 20px;
     color: var(--tx-muted);
     font-weight: 700;
     border-bottom: 1px solid var(--border-color);
   }
   table.data-table td {
-    padding: 12px 16px;
+    padding: 14px 20px;
     border-bottom: 1px solid #102d4a;
     color: #cbd5e1;
   }
@@ -1181,9 +1186,9 @@ PAGINA = r"""<!doctype html>
       </div>
 
       <div class="header-actions">
-        <div class="sys-online-pill">
-          <span class="sys-dot"></span>
-          Sistema Online
+        <div class="sys-online-pill" id="headerBotPill">
+          <span class="sys-dot" id="headerBotDot"></span>
+          <span id="headerBotText">Bot Parado</span>
         </div>
 
         <div class="time-display">
@@ -1219,8 +1224,8 @@ PAGINA = r"""<!doctype html>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"></path><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8L15 14"></path></svg>
           </div>
           <h4>Mercado Livre</h4>
-          <span class="badge-pending" id="dashMlBadge"><span class="dot"></span>Verificando</span>
-          <span class="mp-sub" id="dashMlSub">Sessão Local</span>
+          <span class="badge-pending" id="dashMlBadge"><span class="dot"></span>Não configurado</span>
+          <span class="mp-sub" id="dashMlSub">Não configurado</span>
           <button class="btn-dark" onclick="gerenciarPlataforma('mercadolivre')">Gerenciar</button>
         </div>
 
@@ -1228,8 +1233,8 @@ PAGINA = r"""<!doctype html>
         <div class="mp-card">
           <div class="mp-icon-box icon-amazon">a</div>
           <h4>Amazon</h4>
-          <span class="badge-pending" id="dashAmzBadge"><span class="dot"></span>Verificando</span>
-          <span class="mp-sub" id="dashAmzSub">Creators API</span>
+          <span class="badge-pending" id="dashAmzBadge"><span class="dot"></span>Não configurado</span>
+          <span class="mp-sub" id="dashAmzSub">Não configurado</span>
           <button class="btn-dark" onclick="gerenciarPlataforma('amazon')">Gerenciar</button>
         </div>
 
@@ -1239,8 +1244,8 @@ PAGINA = r"""<!doctype html>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
           </div>
           <h4>Shopee</h4>
-          <span class="badge-pending" id="dashShpBadge"><span class="dot"></span>Verificando</span>
-          <span class="mp-sub" id="dashShpSub">Open API</span>
+          <span class="badge-pending" id="dashShpBadge"><span class="dot"></span>Não configurado</span>
+          <span class="mp-sub" id="dashShpSub">Não configurado</span>
           <button class="btn-dark" onclick="gerenciarPlataforma('shopee')">Gerenciar</button>
         </div>
 
@@ -1250,18 +1255,9 @@ PAGINA = r"""<!doctype html>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
           </div>
           <h4>AliExpress</h4>
-          <span class="badge-connected"><span class="dot"></span>Conectado</span>
-          <span class="mp-sub">Links de Afiliados</span>
+          <span class="badge-pending" id="dashAliBadge"><span class="dot"></span>Não configurado</span>
+          <span class="mp-sub" id="dashAliSub">Não configurado</span>
           <button class="btn-dark" onclick="gerenciarPlataforma('aliexpress')">Gerenciar</button>
-        </div>
-
-        <!-- Promogram -->
-        <div class="mp-card">
-          <div class="mp-icon-box icon-promogram">P</div>
-          <h4>Promogram</h4>
-          <span class="badge-connected"><span class="dot"></span>Conectado</span>
-          <span class="mp-sub">Canal & Ofertas</span>
-          <button class="btn-dark" onclick="gerenciarPlataforma('promogram')">Gerenciar</button>
         </div>
       </section>
 
@@ -1436,16 +1432,16 @@ PAGINA = r"""<!doctype html>
       </div>
     </div>
 
-    <!-- ── TAB 4: PLATAFORMAS (Dedicated Blocks) ── -->
+    <!-- ── TAB 4: PLATAFORMAS ── -->
     <div id="view-plataformas" class="content-body view-tab-content">
       
-      <div class="dash-card" style="margin-bottom: 6px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+      <div class="dash-card" style="margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
           <div>
-            <h3 style="font-size: 17px; font-weight: 800; color: #fff;">Plataformas de Afiliados</h3>
-            <p style="font-size: 13px; color: var(--tx-muted); margin-top: 2px;">Configure suas contas, autenticações e valide conexões de cada marketplace.</p>
+            <h3 style="font-size: 18px; font-weight: 800; color: #fff;">Plataformas de Afiliados</h3>
+            <p style="font-size: 13px; color: var(--tx-muted); margin-top: 4px;">Configure suas contas, autenticações e valide conexões de cada marketplace.</p>
           </div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn-dark" onclick="execAcao('instalar-navegador')" id="btnInstalarNav">⬇️ Instalar Playwright Chromium</button>
             <button class="btn-primary" onclick="execAcao('ciclo')">⚡ Executar 1 Ciclo de Postagem</button>
           </div>
@@ -1464,17 +1460,17 @@ PAGINA = r"""<!doctype html>
               <span style="font-size: 12px; color: var(--tx-muted);">Link Builder e Autenticação de Sessão Local</span>
             </div>
           </div>
-          <span class="badge-pending" id="pbMlBadge"><span class="dot"></span>Verificando</span>
+          <span class="badge-pending" id="pbMlBadge"><span class="dot"></span>Não configurado</span>
         </div>
 
         <div class="pb-content-grid">
           <div class="pb-info-card">
             <label>Etiqueta de Afiliado (ML_ETIQUETA)</label>
-            <div class="val" id="pbMlEtiqueta">—</div>
+            <div class="val" id="pbMlEtiqueta">Não configurado</div>
           </div>
           <div class="pb-info-card">
             <label>Sessão do Navegador Local</label>
-            <div class="val" id="pbMlSessaoStatus">Verificando...</div>
+            <div class="val" id="pbMlSessaoStatus">Não configurado</div>
           </div>
         </div>
 
@@ -1496,17 +1492,17 @@ PAGINA = r"""<!doctype html>
               <span style="font-size: 12px; color: var(--tx-muted);">Amazon Associados & Creators API</span>
             </div>
           </div>
-          <span class="badge-pending" id="pbAmzBadge"><span class="dot"></span>Verificando</span>
+          <span class="badge-pending" id="pbAmzBadge"><span class="dot"></span>Não configurado</span>
         </div>
 
         <div class="pb-content-grid">
           <div class="pb-info-card">
             <label>Tag de Associado (AMAZON_TAG)</label>
-            <div class="val" id="pbAmzTag">—</div>
+            <div class="val" id="pbAmzTag">Não configurado</div>
           </div>
           <div class="pb-info-card">
             <label>Creators API ID & Secret</label>
-            <div class="val" id="pbAmzApiStatus">Opcional (busca automática)</div>
+            <div class="val" id="pbAmzApiStatus">Não configurado</div>
           </div>
         </div>
 
@@ -1528,17 +1524,17 @@ PAGINA = r"""<!doctype html>
               <span style="font-size: 12px; color: var(--tx-muted);">Programa de Afiliados Shopee Open API</span>
             </div>
           </div>
-          <span class="badge-pending" id="pbShpBadge"><span class="dot"></span>Verificando</span>
+          <span class="badge-pending" id="pbShpBadge"><span class="dot"></span>Não configurado</span>
         </div>
 
         <div class="pb-content-grid">
           <div class="pb-info-card">
             <label>App ID (SHOPEE_APP_ID)</label>
-            <div class="val" id="pbShpAppId">—</div>
+            <div class="val" id="pbShpAppId">Não configurado</div>
           </div>
           <div class="pb-info-card">
             <label>App Secret</label>
-            <div class="val" id="pbShpSecretStatus">••••••</div>
+            <div class="val" id="pbShpSecretStatus">Não configurado</div>
           </div>
         </div>
 
@@ -1560,45 +1556,24 @@ PAGINA = r"""<!doctype html>
               <span style="font-size: 12px; color: var(--tx-muted);">Links diretos e promoções globais</span>
             </div>
           </div>
-          <span class="badge-connected"><span class="dot"></span>Conectado</span>
+          <span class="badge-pending" id="pbAliBadge"><span class="dot"></span>Não configurado</span>
         </div>
 
         <div class="pb-content-grid">
           <div class="pb-info-card">
             <label>Status da Integração</label>
-            <div class="val">Conversão direta de links ativa</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 5. Promogram Block -->
-      <div class="platform-block" id="block-promogram">
-        <div class="pb-header">
-          <div class="pb-header-left">
-            <div class="mp-icon-box icon-promogram">P</div>
-            <div>
-              <h3>Promogram</h3>
-              <span style="font-size: 12px; color: var(--tx-muted);">Curadoria e feeds de ofertas</span>
-            </div>
-          </div>
-          <span class="badge-connected"><span class="dot"></span>Conectado</span>
-        </div>
-
-        <div class="pb-content-grid">
-          <div class="pb-info-card">
-            <label>Status da Integração</label>
-            <div class="val">Canal de promoções ativo</div>
+            <div class="val" id="pbAliStatus">Não configurado</div>
           </div>
         </div>
       </div>
 
       <!-- Terminal de Ação das Plataformas -->
       <div class="dash-card" style="margin-top: 10px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-          <h4 style="font-size: 13.5px; font-weight: 700; color: #fff;">Saída do Terminal de Testes</h4>
-          <button class="btn-dark" style="padding: 4px 8px; font-size: 11px;" onclick="limparTerminal('logAcaoTerminal')">Limpar Terminal</button>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Saída do Terminal de Testes</h4>
+          <button class="btn-dark" style="padding: 4px 10px; font-size: 11.5px;" onclick="limparTerminal('logAcaoTerminal')">Limpar Terminal</button>
         </div>
-        <div class="terminal-body" id="logAcaoTerminal" style="height: 200px; background: #040d17; border-radius: 8px; border: 1px solid var(--border-color);">Aguardando execução de testes...</div>
+        <div class="terminal-body" id="logAcaoTerminal" style="height: 200px; background: #040d17; border-radius: 10px; border: 1px solid var(--border-color);">Aguardando execução de testes...</div>
       </div>
 
     </div>
@@ -1613,7 +1588,7 @@ PAGINA = r"""<!doctype html>
           </div>
           <button class="btn-primary" onclick="salvarConfig()">💾 Salvar Configurações</button>
         </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Gerencie suas chaves, credenciais do Telegram e tags de afiliados salvas com segurança no arquivo <code>.env</code>.</p>
+        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Gerencie suas chaves, credenciais do Telegram e tags de afiliados salvas no arquivo <code>.env</code>.</p>
 
         <div id="camposFormWrap" class="config-grid">Carregando campos...</div>
 
@@ -1645,7 +1620,6 @@ PAGINA = r"""<!doctype html>
     <!-- ── TAB 6: LOGS ── -->
     <div id="view-logs" class="content-body view-tab-content">
       <div class="logs-terminal-container">
-        <!-- Bot Live Log -->
         <div class="terminal-box">
           <div class="terminal-header">
             <span>● Log Contínuo do Bot</span>
@@ -1654,7 +1628,6 @@ PAGINA = r"""<!doctype html>
           <div class="terminal-body" id="logBotBody">O bot está pronto. Inicie pelo painel para acompanhar os logs em tempo real.</div>
         </div>
 
-        <!-- Action / Setup Log -->
         <div class="terminal-box">
           <div class="terminal-header">
             <span>● Log de Ações e Testes</span>
@@ -1991,6 +1964,14 @@ async function atualizarStatus() {
     if (sideTitle) sideTitle.textContent = on ? 'Bot Ativo' : 'Bot Parado';
     if (sideSub) sideSub.textContent = on ? 'Rodando normalmente' : 'Aguardando início';
 
+    const hDot = $("#headerBotDot");
+    const hText = $("#headerBotText");
+    if (hDot) {
+      hDot.style.background = on ? '#20D889' : '#5c7896';
+      hDot.style.boxShadow = on ? '0 0 8px #20D889' : 'none';
+    }
+    if (hText) hText.textContent = on ? 'Bot Rodando' : 'Bot Parado';
+
     const btnNav = $("#btnInstalarNav");
     if (btnNav) {
       btnNav.textContent = statusAtual.navegador ? '✓ Playwright Chromium Instalado' : '⬇️ Instalar Playwright Chromium';
@@ -2008,15 +1989,15 @@ async function atualizarStatus() {
       const mlConectado = ml && ml.conectado;
       if (bDashMl) {
         bDashMl.className = mlConectado ? 'badge-connected' : 'badge-pending';
-        bDashMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Conectado' : 'Pendente'}`;
+        bDashMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Conectado' : 'Não configurado'}`;
       }
       if (bPbMl) {
         bPbMl.className = mlConectado ? 'badge-connected' : 'badge-pending';
-        bPbMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Sessão Ativa' : 'Pendente'}`;
+        bPbMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Sessão Ativa' : 'Não configurado'}`;
       }
-      if (subDashMl) subDashMl.textContent = mlConectado ? 'Sessão Conectada' : 'Login Necessário';
-      if (etiqMl) etiqMl.textContent = (ml && ml.etiqueta) ? ml.etiqueta : 'Não preenchida no .env';
-      if (sttSessao) sttSessao.textContent = mlConectado ? '✓ Perfil data/ml_profile ativo' : 'Nenhuma sessão salva (faça login)';
+      if (subDashMl) subDashMl.textContent = mlConectado ? 'Sessão Conectada' : 'Não configurado';
+      if (etiqMl) etiqMl.textContent = (ml && ml.etiqueta) ? ml.etiqueta : 'Não configurado';
+      if (sttSessao) sttSessao.textContent = statusAtual.sessao_ml ? 'Perfil local salvo ✓' : 'Não configurado (sem sessão)';
 
       // Amazon
       const amz = statusAtual.plataformas.amazon;
@@ -2024,18 +2005,20 @@ async function atualizarStatus() {
       const bPbAmz = $("#pbAmzBadge");
       const subDashAmz = $("#dashAmzSub");
       const tagAmz = $("#pbAmzTag");
+      const apiAmz = $("#pbAmzApiStatus");
 
       const amzConectado = amz && amz.conectado;
       if (bDashAmz) {
         bDashAmz.className = amzConectado ? 'badge-connected' : 'badge-pending';
-        bDashAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Pendente'}`;
+        bDashAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Não configurado'}`;
       }
       if (bPbAmz) {
         bPbAmz.className = amzConectado ? 'badge-connected' : 'badge-pending';
-        bPbAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Pendente'}`;
+        bPbAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Não configurado'}`;
       }
-      if (subDashAmz) subDashAmz.textContent = amz ? amz.status : 'Pendente';
-      if (tagAmz) tagAmz.textContent = (amz && amz.tag) ? amz.tag : 'Não preenchida no .env';
+      if (subDashAmz) subDashAmz.textContent = amzConectado ? 'Tag configurada' : 'Não configurado';
+      if (tagAmz) tagAmz.textContent = (amz && amz.tag) ? amz.tag : 'Não configurado';
+      if (apiAmz) apiAmz.textContent = (amz && amz.api_ativa) ? 'Configurado ✓' : 'Não configurado';
 
       // Shopee
       const shp = statusAtual.plataformas.shopee;
@@ -2043,23 +2026,43 @@ async function atualizarStatus() {
       const bPbShp = $("#pbShpBadge");
       const subDashShp = $("#dashShpSub");
       const appIdShp = $("#pbShpAppId");
+      const secShp = $("#pbShpSecretStatus");
 
       const shpConectado = shp && shp.conectado;
       if (bDashShp) {
         bDashShp.className = shpConectado ? 'badge-connected' : 'badge-pending';
-        bDashShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Pendente'}`;
+        bDashShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Não configurado'}`;
       }
       if (bPbShp) {
         bPbShp.className = shpConectado ? 'badge-connected' : 'badge-pending';
-        bPbShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Pendente'}`;
+        bPbShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Não configurado'}`;
       }
-      if (subDashShp) subDashShp.textContent = shp ? shp.status : 'Pendente';
-      if (appIdShp) appIdShp.textContent = (shp && shp.app_id) ? shp.app_id : 'Não preenchido no .env';
+      if (subDashShp) subDashShp.textContent = shpConectado ? 'API configurada' : 'Não configurado';
+      if (appIdShp) appIdShp.textContent = (shp && shp.app_id) ? shp.app_id : 'Não configurado';
+      if (secShp) secShp.textContent = shpConectado ? '••••••••' : 'Não configurado';
+
+      // AliExpress
+      const ali = statusAtual.plataformas.aliexpress;
+      const bDashAli = $("#dashAliBadge");
+      const bPbAli = $("#pbAliBadge");
+      const subDashAli = $("#dashAliSub");
+      const sttAli = $("#pbAliStatus");
+      const aliConectado = ali && ali.conectado;
+      if (bDashAli) {
+        bDashAli.className = aliConectado ? 'badge-connected' : 'badge-pending';
+        bDashAli.innerHTML = `<span class="dot"></span>${aliConectado ? 'Conectado' : 'Não configurado'}`;
+      }
+      if (bPbAli) {
+        bPbAli.className = aliConectado ? 'badge-connected' : 'badge-pending';
+        bPbAli.innerHTML = `<span class="dot"></span>${aliConectado ? 'Conectado' : 'Não configurado'}`;
+      }
+      if (subDashAli) subDashAli.textContent = aliConectado ? 'Configurado' : 'Não configurado';
+      if (sttAli) sttAli.textContent = aliConectado ? 'Configurado ✓' : 'Não configurado';
     }
 
     const supInfo = $("#suporteAmbienteInfo");
     if (supInfo) {
-      supInfo.innerHTML = `Chromium: <b>${statusAtual.navegador ? 'Instalado ✓' : 'Pendente ✗'}</b> | Sessão ML: <b>${statusAtual.sessao_ml ? 'Ativa ✓' : 'Pendente'}</b> | Configurações Prontas: <b>${statusAtual.pronto ? 'Sim ✓' : 'Faltam campos no .env'}</b>`;
+      supInfo.innerHTML = `Chromium: <b>${statusAtual.navegador ? 'Instalado ✓' : 'Não instalado'}</b> | Sessão ML: <b>${statusAtual.sessao_ml ? 'Ativa ✓' : 'Não configurado'}</b> | Configurações (.env): <b>${statusAtual.pronto ? 'Pronto ✓' : 'Não configurado'}</b>`;
     }
   } catch (e) {
     console.error(e);
@@ -2133,7 +2136,7 @@ async function atualizarMetricas() {
       const html = d.links_recentes.map(l => `
         <div class="recent-link-item">
           <div class="recent-link-left">
-            <span class="sys-dot" style="width: 6px; height: 6px;"></span>
+            <span class="sys-dot" style="width: 6px; height: 6px; background: #20D889;"></span>
             <div>
               <a href="https://${l.url}" target="_blank" class="recent-link-url">${l.url}</a>
               <div class="recent-link-date">${l.data}</div>

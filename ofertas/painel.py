@@ -171,6 +171,11 @@ def status() -> dict:
     tem_navegador = bool(list((DATA_DIR / "pw-browsers").glob("chromium-*")))
     perfil = DATA_DIR / "ml_profile"
     tem_sessao_ml = perfil.exists() and any(perfil.iterdir())
+    tem_ml_etiqueta = bool(env.get("ML_ETIQUETA"))
+    ml_conectado = tem_sessao_ml and tem_ml_etiqueta
+    
+    amz_conectado = bool(env.get("AMAZON_TAG"))
+    shp_conectado = bool(env.get("SHOPEE_APP_ID") and env.get("SHOPEE_APP_SECRET"))
     total = total_postadas()
     
     return {
@@ -184,30 +189,29 @@ def status() -> dict:
         "total_postadas": total,
         "plataformas": {
             "mercadolivre": {
-                "conectado": tem_sessao_ml,
-                "status": "Link Builder ativo - Pronto para gerar links" if tem_sessao_ml else "Sessão pendente",
+                "conectado": ml_conectado,
+                "status": "Link Builder pronto" if ml_conectado else ("Sessão pendente" if not tem_sessao_ml else "Etiqueta não configurada"),
                 "etiqueta": env.get("ML_ETIQUETA", ""),
+                "sessao_ativa": tem_sessao_ml,
             },
             "amazon": {
-                "conectado": bool(env.get("AMAZON_TAG")),
-                "status": "API ativa" if (env.get("AMAZON_CREDENTIAL_ID") and env.get("AMAZON_CREDENTIAL_SECRET")) else ("Tag ativa" if env.get("AMAZON_TAG") else "Pendente"),
+                "conectado": amz_conectado,
+                "status": "Tag configurada" if amz_conectado else "Não configurado",
                 "tag": env.get("AMAZON_TAG", ""),
+                "api_ativa": bool(env.get("AMAZON_CREDENTIAL_ID") and env.get("AMAZON_CREDENTIAL_SECRET")),
             },
             "shopee": {
-                "conectado": bool(env.get("SHOPEE_APP_ID")),
-                "status": "API ativa" if bool(env.get("SHOPEE_APP_ID")) else "Pendente",
+                "conectado": shp_conectado,
+                "status": "API configurada" if shp_conectado else "Não configurado",
                 "app_id": env.get("SHOPEE_APP_ID", ""),
             },
             "aliexpress": {
-                "conectado": True,
-                "status": "API ativa",
-            },
-            "promogram": {
-                "conectado": True,
-                "status": "API ativa",
+                "conectado": False,
+                "status": "Não configurado",
             },
         },
     }
+
 
 
 def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
@@ -283,7 +287,6 @@ def obter_metricas() -> dict:
     amz_cnt = contagem.get("amazon", 0)
     shp_cnt = contagem.get("shopee", 0)
     ali_cnt = contagem.get("aliexpress", 0)
-    prom_cnt = contagem.get("promogram", 0)
 
     top_total = total_real if total_real > 0 else 1
     top_plataformas = [
@@ -291,7 +294,6 @@ def obter_metricas() -> dict:
         {"nome": "Amazon", "chave": "amazon", "cliques": amz_cnt, "pct": round((amz_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ff9900"},
         {"nome": "Shopee", "chave": "shopee", "cliques": shp_cnt, "pct": round((shp_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ee4d2d"},
         {"nome": "AliExpress", "chave": "aliexpress", "cliques": ali_cnt, "pct": round((ali_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ff4747"},
-        {"nome": "Promogram", "chave": "promogram", "cliques": prom_cnt, "pct": round((prom_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#8b5cf6"},
     ]
 
     # Atividades estritamente reais extraídas das postagens do banco
