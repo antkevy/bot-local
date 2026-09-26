@@ -54,19 +54,22 @@ CAMPOS = [
      "Painel de afiliados Shopee > menu 'Abrir API'."),
     ("SHOPEE_APP_SECRET", "App Secret", "Shopee", True,
      "Painel de afiliados Shopee > menu 'Abrir API'."),
-    ("PAINEL_USUARIO", "Usuário do painel", "Acesso ao painel", False,
-     "Obrigatório só se você for acessar de outro computador. "
-     "Vazio = painel liberado apenas em 127.0.0.1."),
-    ("PAINEL_SENHA", "Senha do painel", "Acesso ao painel", True,
-     "Sem isso o painel continua restrito à máquina local, mesmo exposto na rede."),
 ]
 CHAVES = [c[0] for c in CAMPOS]
+
+# Login do painel NÃO é um campo de configuração comum: tem validação e
+# confirmação própria, e é gerenciado pelo card "Acesso ao painel".
+CHAVES_ACESSO = ["PAINEL_USUARIO", "PAINEL_SENHA"]
+MIN_USUARIO, MIN_SENHA = 3, 8
 
 
 # ── .env ──────────────────────────────────────────────────────────────
 
 def ler_env() -> dict[str, str]:
-    valores = {k: "" for k in CHAVES}
+    # CHAVES_ACESSO entra na lista de conhecidas: o filtro abaixo só aceita
+    # chave já semeada, e sem isso a conta criada pelo painel nunca seria
+    # lida de volta — o arquivo tinha, a memória não.
+    valores = {k: "" for k in CHAVES + CHAVES_ACESSO}
     if ENV_PATH.exists():
         # utf-8-sig: um .env salvo pelo Bloco de Notas ou pelo PowerShell
         # costuma vir com BOM, e sem isso a PRIMEIRA variável da lista
@@ -95,10 +98,13 @@ def _linhas_env_extras(atual: dict[str, str]) -> list[str]:
     return extras
 
 
-def salvar_env(novos: dict[str, str]) -> None:
+def salvar_env(novos: dict[str, str], acessos: dict[str, str] | None = None) -> None:
     atuais = ler_env()
     for k, v in novos.items():
         if k in atuais:
+            atuais[k] = str(v).strip()
+    for k, v in (acessos or {}).items():
+        if k in CHAVES_ACESSO:
             atuais[k] = str(v).strip()
     extras = _linhas_env_extras(atuais)
     linhas = ["# Configuração do bot de ofertas (gerado pelo painel).",
@@ -108,6 +114,11 @@ def salvar_env(novos: dict[str, str]) -> None:
         if grupo != grupo_atual:
             linhas.append(f"# ── {grupo} ──")
             grupo_atual = grupo
+        linhas.append(f"{chave}={atuais.get(chave, '')}")
+    # A conta do painel é sempre reescrita, mesmo ao salvar outra seção:
+    # se ficasse de fora, um "Salvar credenciais" apagaria a senha.
+    linhas += ["", "# ── Acesso ao painel ──"]
+    for chave in CHAVES_ACESSO:
         linhas.append(f"{chave}={atuais.get(chave, '')}")
     if extras:
         linhas += ["", "# ── Mantidas do arquivo original ──", *extras]
@@ -184,6 +195,11 @@ def _criar_sessao(usuario: str) -> str:
 
 def _checar_sessao(token: str) -> str:
     """Usuário da sessão, ou string vazia se ausente/expirada."""
+    if not token:
+        # Guarda explícita: "" é o token de quem não mandou cookie. Se
+        # alguma vez houver sessão gravada sob essa chave, ela valeria para
+        # qualquer requisição anônima da internet. Melhor recusar sempre.
+        return ""
     with _lock:
         dados = _sessoes.get(token)
         if not dados:
@@ -661,6 +677,80 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True, "usuario": usuario_esperado},
                           cookie=self._cookie_criar(token))
 
+    def _conta(self, dados: dict):
+        """Cria a conta, ou troca a senha se ela já existir."""
+        usuario = str(dados.get("usuario", "")).strip()
+        senha = str(dados.get("senha", ""))
+        atual = str(dados.get("senha_atual", ""))
+
+        usuario_atual, senha_atual_real = _credenciais()
+        if senha_atual_real:
+            # Trocar senha exige a senha de agora. Só a sessão não basta:
+            # uma sessão esquecida num navegador aberto resolveria a conta
+            # inteira de quem estivesse na frente.
+            #
+            # 403 e não 401: aqui o usuário ESTÁ autenticado, só errou a
+            # senha. O 401 é reservado para "sem sessão" — e é o que o
+            # painel usa para mandar para a tela de login. Devolver 401
+            # aqui jogaria a pessoa para fora no meio da troca de senha.
+            if not hmac.compare_digest(_digest(atual), _digest(senha_atual_real)):
+                _registrar_falha(self._ip())
+                return self._json({"erro": "Senha atual incorreta."}, 403)
+            if not usuario:
+                usuario = usuario_atual          # manter o usuário é o normal
+        else:
+            _limpar_tentativas(self._ip())
+
+        if len(usuario) < MIN_USUARIO:
+            return self._json({
+                "erro": f"O usuário precisa de pelo menos {MIN_USUARIO} caracteres."
+            }, 400)
+        if len(senha) < MIN_SENHA:
+            return self._json({
+                "erro": f"A senha precisa de pelo menos {MIN_SENHA} caracteres."
+            }, 400)
+        if senha == usuario:
+            return self._json({"erro": "A senha não pode ser igual ao usuário."}, 400)
+        confirmar = str(dados.get("confirmar", ""))
+        if confirmar and confirmar != senha:
+            return self._json({"erro": "A confirmação não bate com a senha."}, 400)
+
+        salvar_env({}, acessos={"PAINEL_USUARIO": usuario, "PAINEL_SENHA": senha})
+
+        # Trocar a senha derruba as outras sessões; a atual continua, senão
+        # quem acabou de configurar a conta seria jogado para fora na hora.
+        # Sem token (primeira criação, ainda sem login) entra com uma
+        # sessão de verdade — nunca sob a chave "", que casaria com
+        # qualquer requisição anônima.
+        meu = _token_do_pedido(self)
+        with _lock:
+            for t in [t for t, (_, exp) in _sessoes.items() if t != meu and exp >= time.time()]:
+                _sessoes.pop(t, None)
+            if meu:
+                _sessoes[meu] = (usuario, time.time() + DURACAO_SESSAO)
+        # Fora do with: _criar_sessao() toma o mesmo lock, e Lock não é
+        # reentrante — chamado de dentro, trava a request inteira.
+        cookie = self._cookie_criar(_criar_sessao(usuario)) if not meu else None
+
+        return self._json({
+            "ok": True, "usuario": usuario,
+            "criada": not senha_atual_real,
+        }, cookie=cookie)
+
+    def _conta_remover(self, dados: dict):
+        """Volta ao modo loopback. Também exige a senha atual."""
+        _usuario, senha_atual = _credenciais()
+        if not senha_atual:
+            return self._json({"erro": "Não há conta para remover."}, 400)
+        if not hmac.compare_digest(_digest(str(dados.get("senha", ""))), _digest(senha_atual)):
+            _registrar_falha(self._ip())
+            return self._json({"erro": "Senha atual incorreta."}, 403)
+
+        salvar_env({}, acessos={"PAINEL_USUARIO": "", "PAINEL_SENHA": ""})
+        with _lock:
+            _sessoes.clear()
+        return self._json({"ok": True}, cookie=self._cookie_limpar())
+
     def do_GET(self):
         try:
             rota = urlparse(self.path).path
@@ -710,6 +800,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(obter_metricas())
             elif rota == "/api/produtos":
                 self._json({"produtos": listar_postadas(100)})
+            elif rota == "/api/conta":
+                # Nunca devolve a senha — só se existe e quem é.
+                usuario, senha = _credenciais()
+                self._json({
+                    "existe": bool(senha),
+                    "usuario": usuario if senha else "",
+                    "min_usuario": MIN_USUARIO,
+                    "min_senha": MIN_SENHA,
+                })
             elif rota == "/api/config":
                 env = ler_env()
                 saida = {}
@@ -744,6 +843,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True}, cookie=self._cookie_limpar())
             if not self._permitido():
                 return
+            if rota == "/api/conta":
+                return self._conta(dados)
+            if rota == "/api/conta/remover":
+                return self._conta_remover(dados)
 
             if rota == "/api/config":
                 atuais = ler_env()
@@ -769,6 +872,7 @@ class Handler(BaseHTTPRequestHandler):
                     "testar-ml": (["testar", "ml"], "Testando Mercado Livre"),
                     "testar-shopee": (["testar", "shopee"], "Testando Shopee"),
                     "testar-amazon": (["testar", "amazon"], "Testando Amazon"),
+                    "testar-aliexpress": (["testar", "aliexpress"], "Testando AliExpress"),
                     "ciclo": (["ciclo"], "Executando ciclo de postagem"),
                 }
                 if nome not in mapa:

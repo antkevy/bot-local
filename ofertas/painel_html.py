@@ -889,6 +889,28 @@ PAGINA = r"""<!doctype html>
     .link-url { white-space: normal; word-break: break-all; min-height: 0; padding: 0; margin: 0; }
   }
 
+  /* ══ Conta do painel ═══════════════════════════════════════════════ */
+  .forca { display: flex; align-items: center; gap: 10px; margin: 4px 0 0; }
+  .forca[hidden] { display: none; }
+  .forca-barra {
+    flex: 1; max-width: 220px; height: 5px; border-radius: var(--r-full);
+    background: var(--fundo-inset); border: 1px solid var(--borda-sutil);
+    overflow: hidden;
+  }
+  .forca-barra span {
+    display: block; height: 100%; width: 0;
+    border-radius: var(--r-full);
+    background: var(--erro);
+    transition: width var(--t-media) var(--ease), background var(--t-media) var(--ease);
+  }
+  .forca-texto { font-size: 12.5px; color: var(--texto-3); white-space: nowrap; }
+  .forca[data-nivel="2"] .forca-barra span { background: var(--alerta); }
+  .forca[data-nivel="3"] .forca-barra span,
+  .forca[data-nivel="4"] .forca-barra span { background: var(--ok); }
+  .forca[data-nivel="2"] .forca-texto { color: var(--alerta); }
+  .forca[data-nivel="3"] .forca-texto,
+  .forca[data-nivel="4"] .forca-texto { color: var(--ok); }
+
   /* ══ Tela de login ══════════════════════════════════════════════════ */
   /* Cobre tudo e some do tab order enquanto o app estiver bloqueado —
      o conteúdo continua no DOM porque é ele que carrega o script. */
@@ -1213,10 +1235,9 @@ PAGINA = r"""<!doctype html>
             <img src="/assets/aliexpress.png" alt="AliExpress" class="mp-logo-img">
           </div>
           <h4>AliExpress</h4>
-          <span class="selo selo-fora">Indisponível</span>
-          <span class="mp-sub">Sem integração oficial</span>
-          <button type="button" class="btn btn-neutro" disabled aria-disabled="true"
-                  title="O AliExpress ainda não tem integração neste projeto">Configurar</button>
+          <span class="selo selo-espera" id="seloAli"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
+          <span class="mp-sub" id="subAli">Sem credenciais de API</span>
+          <button type="button" class="btn btn-neutro" onclick="gerenciarPlataforma('aliexpress')">Configurar</button>
         </article>
       </section>
 
@@ -1474,6 +1495,40 @@ PAGINA = r"""<!doctype html>
         </div>
 
         <div id="caixaDeteccao" style="margin-top:16px"></div>
+      </div>
+
+      <div class="card" id="cardConta">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-shield"/></svg>
+              <h3>Acesso ao painel</h3>
+            </div>
+            <p class="card-sub" id="contaSub">Verificando…</p>
+          </div>
+          <span id="contaEstado"></span>
+        </div>
+
+        <form id="formConta" class="config-grade" novalidate>
+          <div class="vazio" style="grid-column:1/-1">Carregando…</div>
+        </form>
+
+        <div class="forca" id="forcaCaixa" hidden>
+          <div class="forca-barra"><span id="forcaFill"></span></div>
+          <span class="forca-texto" id="forcaTexto"></span>
+        </div>
+
+        <div class="acoes-form">
+          <button type="submit" form="formConta" class="btn btn-primario" id="btnSalvarConta">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-shield"/></svg>
+            <span id="btnSalvarContaTexto">Criar conta</span>
+          </button>
+          <button type="button" class="btn btn-perigo" id="btnRemoverConta" hidden>
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-trash"/></svg>
+            Remover acesso
+          </button>
+          <span id="contaAviso" aria-live="polite"></span>
+        </div>
       </div>
 
       <div class="card">
@@ -1750,6 +1805,9 @@ const CAMPOS = [
   ["AMAZON_CREDENTIAL_SECRET", "Creators API — Secret", "Amazon", true, "Opcional. Só aparece uma vez, na criação."],
   ["SHOPEE_APP_ID", "App ID", "Shopee", false, "Painel de afiliados da Shopee > menu 'Abrir API'."],
   ["SHOPEE_APP_SECRET", "App Secret", "Shopee", true, "Painel de afiliados da Shopee > menu 'Abrir API'."],
+  ["ALIEXPRESS_APP_KEY", "App Key", "AliExpress", false, "App Key gerado no AliExpress Open Platform / Portals."],
+  ["ALIEXPRESS_APP_SECRET", "App Secret", "AliExpress", true, "App Secret gerado no AliExpress Open Platform."],
+  ["ALIEXPRESS_TRACKING_ID", "Tracking ID", "AliExpress", false, "Seu Tracking ID de afiliado do AliExpress (ex: seunome_br)."],
 ];
 
 let statusAtual = {};
@@ -1802,7 +1860,7 @@ function switchView(nome) {
   if (location.hash.slice(1) !== nome) history.replaceState(null, "", "#" + nome);
 
   if (nome === "produtos") carregarProdutos();
-  if (nome === "config") { carregarConfig(); carregarNichos(); }
+  if (nome === "config") { carregarConfig(); carregarNichos(); carregarConta(); }
   if (nome === "dashboard") desenharGraficos();   // o canvas precisa de largura real
   if (nome === "suporte") renderDiagnostico();
 }
@@ -2379,6 +2437,150 @@ async function salvarConfig(event) {
   }
 }
 
+/* ══ Conta do painel ═════════════════════════════════════════════════
+   Criar conta é diferente de salvar uma credência: tem senha atual a
+   confirmar, senha a repetir e nível de força. O card inteiro é
+   redesenhado por `carregarConta` conforme exista conta ou não. */
+let contaAtual = { existe: false, usuario: "", min_usuario: 3, min_senha: 8 };
+
+/* Devolve 0..4. Não é criptografia — é só para a pessoa ver, antes de
+   salvar, se escolheu algo que adivinha fácil. */
+function forcaSenha(s) {
+  if (!s) return 0;
+  let p = 0;
+  if (s.length >= 8) p++;
+  if (s.length >= 12) p++;
+  if (/[a-z]/.test(s) && /[A-Z]/.test(s)) p++;
+  if (/\d/.test(s) && /[^\w\s]/.test(s)) p++;
+  if (s.length < contaAtual.min_senha) p = Math.min(p, 1);
+  return p;
+}
+
+function pintarForca() {
+  const s = ($("#contaSenha") || {}).value || "";
+  const caixa = $("#forcaCaixa");
+  caixa.hidden = !s;
+  if (!s) return;
+  const n = forcaSenha(s);
+  const rotulos = ["Muito fraca", "Fraca", "Razoável", "Boa", "Forte"];
+  caixa.dataset.nivel = String(n);
+  $("#forcaFill").style.width = (n * 25) + "%";
+  $("#forcaTexto").textContent = rotulos[n];
+}
+
+function campo(id, rotulo, tipo, ajuda, autocomplete) {
+  return `
+    <div class="campo">
+      <label for="${id}">${esc(rotulo)}</label>
+      <input id="${id}" type="${tipo}" autocomplete="${autocomplete}" spellcheck="false"
+             aria-describedby="aj_${id}">
+      <p class="ajuda" id="aj_${id}">${esc(ajuda)}</p>
+    </div>`;
+}
+
+async function carregarConta() {
+  const form = $("#formConta");
+  try {
+    const r = await fetch("/api/conta", { cache: "no-store" });
+    contaAtual = await r.json();
+  } catch (e) {
+    form.innerHTML = `<div class="alerta alerta-erro" style="grid-column:1/-1">${
+      icone("alert", "icone")}<div>Não consegui falar com o servidor.</div></div>`;
+    return;
+  }
+
+  const existe = contaAtual.existe;
+  $("#contaEstado").innerHTML = existe
+    ? `<span class="marca-ok">${icone("check")} conta ativa</span>`
+    : `<span class="selo selo-espera"><span class="ponto" aria-hidden="true"></span>sem conta</span>`;
+
+  $("#contaSub").textContent = existe
+    ? `Uma conta já existe (${contaAtual.usuario}). Trocar a senha exige a senha atual.`
+    : "Hoje o painel só responde à sua própria máquina. Crie uma conta para poder abrir de outro computador com segurança.";
+
+  $("#btnSalvarContaTexto").textContent = existe ? "Trocar senha" : "Criar conta";
+  $("#btnRemoverConta").hidden = !existe;
+
+  if (existe) {
+    form.innerHTML =
+      campo("contaSenhaAtual", "Senha atual", "password", "Confirma que é você.", "current-password") +
+      campo("contaSenha", "Nova senha", "password",
+            `Mínimo de ${contaAtual.min_senha} caracteres.`, "new-password") +
+      campo("contaConfirmar", "Repetir a nova senha", "password", "Os dois campos precisam bater.", "new-password");
+  } else {
+    form.innerHTML =
+      campo("contaUsuario", "Usuário", "text", `Mínimo de ${contaAtual.min_usuario} caracteres.`, "username") +
+      campo("contaSenha", "Senha", "password",
+            `Mínimo de ${contaAtual.min_senha} caracteres. Misture letras, números e símbolos.`, "new-password") +
+      campo("contaConfirmar", "Repetir a senha", "password", "Os dois campos precisam bater.", "new-password");
+  }
+
+  const senha = $("#contaSenha");
+  senha?.addEventListener("input", pintarForca);
+  $("#forcaCaixa").hidden = true;
+}
+
+async function salvarConta(event) {
+  if (event) event.preventDefault();
+  const btn = $("#btnSalvarConta");
+  const body = {
+    senha: ($("#contaSenha") || {}).value || "",
+    confirmar: ($("#contaConfirmar") || {}).value || "",
+  };
+  if (contaAtual.existe) {
+    body.senha_atual = ($("#contaSenhaAtual") || {}).value || "";
+  } else {
+    body.usuario = (($("#contaUsuario") || {}).value || "").trim();
+  }
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/conta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.erro) { toast(d.erro, "erro"); return; }
+    await carregarConta();
+    toast(d.criada ? `Conta "${d.usuario}" criada. Ela vale já na próxima abertura.`
+                   : "Senha trocada. As outras sessões foram encerradas.", "ok");
+  } catch (e) {
+    toast("Não consegui falar com o servidor.", "erro");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function removerConta() {
+  // Reaproveita o campo "Senha atual" em vez de abrir um prompt() do
+  // navegador: diálogo nativo quebra o visual do painel e não mostra
+  // o que está acontecendo. Se o campo estiver vazio, é só pedir.
+  const campoAtual = $("#contaSenhaAtual");
+  const senha = (campoAtual?.value || "").trim();
+  if (!senha) {
+    campoAtual?.focus();
+    toast("Digite a senha atual no campo acima para remover o acesso.", "erro");
+    return;
+  }
+  const btn = $("#btnRemoverConta");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/conta/remover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senha }),
+    });
+    const d = await r.json();
+    if (d.erro) { toast(d.erro, "erro"); return; }
+    // Recarrega para a tela sair do estado "logado" com um cookie morto.
+    location.reload();
+  } catch (e) {
+    toast("Não consegui falar com o servidor.", "erro");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function detectarIds() {
   const caixa = $("#caixaDeteccao");
   caixa.innerHTML = `<div class="alerta alerta-info">${icone("search", "icone")}<div>Consultando o Telegram…</div></div>`;
@@ -2711,6 +2913,14 @@ function toast(msg, tipo = "info") {
 
 /* ══ Ligações de eventos ═════════════════════════════════════════════ */
 function ligarEventos() {
+  // Conta do painel. O <form> é trocado de conteúdo por carregarConta(),
+  // mas o elemento em si continua o mesmo — por isso o ouvinte sobrevive.
+  $("#formConta")?.addEventListener("submit", ev => {
+    ev.preventDefault();
+    salvarConta();
+  });
+  $("#btnRemoverConta")?.addEventListener("click", removerConta);
+
   // Navegação (delegação — os itens nascem junto com o HTML)
   $$(".nav-item").forEach(el => el.addEventListener("click", ev => {
     ev.preventDefault();
@@ -2884,6 +3094,7 @@ async function iniciar() {
   await Promise.allSettled([atualizarStatus(), atualizarMetricas(), puxarLogs()]);
   carregarConfig();
   carregarNichos();
+  carregarConta();
 
   setInterval(atualizarStatus, 2500);
   setInterval(atualizarMetricas, 8000);
