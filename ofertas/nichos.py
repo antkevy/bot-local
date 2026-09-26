@@ -7,6 +7,9 @@ Cada nicho mapeia, de uma vez, as categorias equivalentes nas três plataformas:
 
 A seleção do usuário fica em data/nichos.json (lista de chaves). Nenhum nicho
 marcado = todas as categorias (comportamento padrão).
+
+O campo "icone" é o nome de um ícone do conjunto de ícones do painel (SVG inline);
+nada de emoji — emojis variam de máquina para máquina e não seguem o tema.
 """
 import json
 
@@ -14,83 +17,83 @@ from .config import DATA_DIR
 
 ARQ_SELECAO = DATA_DIR / "nichos.json"
 
-# chave -> {emoji, nome, ml{id:nome}, amazon_dep{alias:nome}, amazon_buscas[], shopee[]}
+# chave -> {icone, nome, ml{id:nome}, amazon_dep{alias:nome}, amazon_buscas[], shopee[]}
 NICHOS: dict[str, dict] = {
     "tecnologia": {
-        "emoji": "💻", "nome": "Tecnologia e Eletrônicos",
+        "icone": "cpu", "nome": "Tecnologia e Eletrônicos",
         "ml": {"MLB1648": "Informática", "MLB1000": "Eletrônicos, Áudio e Vídeo"},
         "amazon_dep": {"electronics": "Eletrônicos", "computers": "Informática",
                        "amazon-devices": "Dispositivos Amazon"},
         "shopee": ["fone bluetooth", "smartwatch", "mouse gamer", "ssd", "carregador turbo"],
     },
     "celulares": {
-        "emoji": "📱", "nome": "Celulares e Acessórios",
+        "icone": "smartphone", "nome": "Celulares e Acessórios",
         "ml": {"MLB1051": "Celulares e Telefones"},
         "amazon_buscas": ["celular", "smartphone", "capa celular"],
         "shopee": ["capa celular", "power bank", "carregador", "película"],
     },
     "games": {
-        "emoji": "🎮", "nome": "Games",
+        "icone": "gamepad", "nome": "Games",
         "ml": {"MLB1144": "Games"},
         "amazon_dep": {"videogames": "Games"},
         "shopee": ["controle", "headset gamer", "teclado mecânico"],
     },
     "casa": {
-        "emoji": "🏠", "nome": "Casa e Cozinha",
+        "icone": "sofa", "nome": "Casa e Cozinha",
         "ml": {"MLB1574": "Casa, Móveis e Decoração"},
         "amazon_dep": {"home": "Casa", "kitchen": "Cozinha", "furniture": "Móveis"},
         "shopee": ["organizador", "panela", "utensílios de cozinha"],
     },
     "eletrodomesticos": {
-        "emoji": "🔌", "nome": "Eletrodomésticos",
+        "icone": "plug", "nome": "Eletrodomésticos",
         "ml": {"MLB5726": "Eletrodomésticos"},
         "amazon_dep": {"appliances": "Eletrodomésticos"},
         "shopee": ["air fryer", "liquidificador", "aspirador de pó"],
     },
     "moda": {
-        "emoji": "👗", "nome": "Moda e Acessórios",
+        "icone": "shirt", "nome": "Moda e Acessórios",
         "ml": {"MLB1430": "Calçados, Roupas e Bolsas"},
         "amazon_dep": {"fashion": "Moda", "fashion-luggage": "Bolsas e Malas"},
         "shopee": ["tênis", "camiseta", "relógio", "mochila"],
     },
     "beleza": {
-        "emoji": "💄", "nome": "Beleza e Cuidados",
+        "icone": "sparkles", "nome": "Beleza e Cuidados",
         "ml": {"MLB1246": "Beleza e Cuidado Pessoal"},
         "amazon_dep": {"beauty": "Beleza", "luxury-beauty": "Beleza de Luxo"},
         "shopee": ["maquiagem", "perfume", "skincare"],
     },
     "esporte": {
-        "emoji": "💪", "nome": "Esporte e Fitness",
+        "icone": "dumbbell", "nome": "Esporte e Fitness",
         "ml": {"MLB1276": "Esportes e Fitness"},
         "amazon_dep": {"sporting": "Esportes"},
         "shopee": ["suplemento", "roupa academia", "garrafa térmica"],
     },
     "saude": {
-        "emoji": "🩺", "nome": "Saúde e Bem-estar",
+        "icone": "heart-pulse", "nome": "Saúde e Bem-estar",
         "ml": {"MLB264586": "Saúde"},
         "amazon_buscas": ["vitamina", "suplemento"],
         "shopee": ["vitamina", "creatina", "massageador"],
     },
     "brinquedos": {
-        "emoji": "🧸", "nome": "Brinquedos e Bebês",
+        "icone": "baby", "nome": "Brinquedos e Bebês",
         "ml": {"MLB1132": "Brinquedos e Hobbies"},
         "amazon_dep": {"toys": "Brinquedos", "baby": "Bebês"},
         "shopee": ["brinquedo", "lego", "fralda"],
     },
     "pet": {
-        "emoji": "🐶", "nome": "Pet",
+        "icone": "paw", "nome": "Pet",
         "ml": {"MLB1071": "Animais"},
         "amazon_dep": {"pets": "Pet Shop"},
         "shopee": ["ração", "brinquedo pet", "coleira"],
     },
     "automotivo": {
-        "emoji": "🚗", "nome": "Automotivo",
+        "icone": "car", "nome": "Automotivo",
         "ml": {"MLB5672": "Acessórios para Veículos"},
         "amazon_dep": {"automotive": "Automotivo"},
         "shopee": ["acessório carro", "suporte veicular", "capacete"],
     },
     "livros": {
-        "emoji": "📚", "nome": "Livros",
+        "icone": "book", "nome": "Livros",
         "ml": {"MLB1196": "Livros, Revistas e Comics"},
         "amazon_dep": {"stripbooks": "Livros"},
         "shopee": ["livro"],
@@ -99,8 +102,8 @@ NICHOS: dict[str, dict] = {
 
 
 def catalogo() -> list[dict]:
-    """Lista para o painel: [{chave, emoji, nome}]."""
-    return [{"chave": k, "emoji": v["emoji"], "nome": v["nome"]} for k, v in NICHOS.items()]
+    """Lista para o painel: [{chave, icone, nome}]."""
+    return [{"chave": k, "icone": v["icone"], "nome": v["nome"]} for k, v in NICHOS.items()]
 
 
 def ler_selecao() -> list[str]:
@@ -116,7 +119,8 @@ def ler_selecao() -> list[str]:
 
 def salvar_selecao(chaves: list[str]) -> None:
     validas = [c for c in chaves if c in NICHOS]
-    ARQ_SELECAO.write_text(json.dumps(validas), encoding="utf-8")
+    ARQ_SELECAO.parent.mkdir(parents=True, exist_ok=True)
+    ARQ_SELECAO.write_text(json.dumps(validas, ensure_ascii=False), encoding="utf-8")
 
 
 def expandir(chaves: list[str]) -> dict:
@@ -131,10 +135,8 @@ def expandir(chaves: list[str]) -> dict:
             continue
         ml.update(n.get("ml", {}))
         amazon_dep.update(n.get("amazon_dep", {}))
-        for kw in n.get("amazon_buscas", []):
-            if kw not in amazon_buscas:
-                amazon_buscas.append(kw)
-        for kw in n.get("shopee", []):
-            if kw not in shopee:
-                shopee.append(kw)
+        for lista, destino in (("amazon_buscas", amazon_buscas), ("shopee", shopee)):
+            for kw in n.get(lista, []):
+                if kw not in destino:
+                    destino.append(kw)
     return {"ml": ml, "amazon_dep": amazon_dep, "amazon_buscas": amazon_buscas, "shopee": shopee}

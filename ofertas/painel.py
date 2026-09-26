@@ -8,7 +8,9 @@ Roda um servidor só em 127.0.0.1 e abre no navegador. Dali dá para:
 
 Sobe com:  uv run python -m ofertas painel   (ou dê 2 cliques em PAINEL.bat)
 """
+import datetime as dt
 import json
+import shutil
 import subprocess
 import sys
 import threading
@@ -20,6 +22,7 @@ from urllib.parse import urlparse
 import requests
 
 from .config import BASE_DIR, DATA_DIR
+from .db import contar_por_plataforma, listar_postadas, posts_por_dias, total_postadas
 from .painel_html import PAGINA
 
 HOST, PORT = "127.0.0.1", 8481  # 8478=split-app, 8479=ClipOS/cortes — evita colisão
@@ -63,11 +66,27 @@ def ler_env() -> dict[str, str]:
     return valores
 
 
+def _linhas_env_extras(atual: dict[str, str]) -> list[str]:
+    """Chaves que o painel não conhece (comentadas) — preservadas ao salvar."""
+    extras: list[str] = []
+    if ENV_PATH.exists():
+        for linha in ENV_PATH.read_text(encoding="utf-8").splitlines():
+            limpa = linha.strip()
+            if not limpa or limpa.startswith("#") or "=" not in limpa:
+                continue
+            k, _, v = limpa.partition("=")
+            if k.strip() not in CHAVES and k.strip() not in atual:
+                atual[k.strip()] = v.strip()
+                extras.append(linha)
+    return extras
+
+
 def salvar_env(novos: dict[str, str]) -> None:
     atuais = ler_env()
     for k, v in novos.items():
         if k in atuais:
             atuais[k] = str(v).strip()
+    extras = _linhas_env_extras(atuais)
     linhas = ["# Configuração do bot de ofertas (gerado pelo painel).",
               "# Não compartilhe este arquivo — ele guarda seus segredos.", ""]
     grupo_atual = None
@@ -76,6 +95,8 @@ def salvar_env(novos: dict[str, str]) -> None:
             linhas.append(f"# ── {grupo} ──")
             grupo_atual = grupo
         linhas.append(f"{chave}={atuais.get(chave, '')}")
+    if extras:
+        linhas += ["", "# ── Mantidas do arquivo original ──", *extras]
     ENV_PATH.write_text("\n".join(linhas) + "\n", encoding="utf-8")
 
 
@@ -97,30 +118,38 @@ class Processo:
             return False
         self.rotulo = rotulo
         self.linhas.append(f"▶ {rotulo}...")
-        self.proc = subprocess.Popen(
+        proc = subprocess.Popen(
             [sys.executable, "-m", "ofertas", *args],
             cwd=str(BASE_DIR), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-        threading.Thread(target=self._ler, daemon=True).start()
+        self.proc = proc
+        # A thread guarda o processo localmente: se outra ação já tiver substituído
+        # self.proc, esta leitura continua apontando para o processo dela.
+        threading.Thread(target=self._ler, args=(proc,), daemon=True).start()
         return True
 
-    def _ler(self):
-        for linha in self.proc.stdout:
-            self.linhas.append(linha.rstrip())
-        cod = self.proc.wait()
-        fim = "concluído ✓" if cod == 0 else f"terminou (código {cod})"
-        self.linhas.append(f"■ {self.rotulo}: {fim}")
+    def _ler(self, proc: subprocess.Popen):
+        rotulo = self.rotulo
+        try:
+            for linha in proc.stdout:
+                self.linhas.append(linha.rstrip())
+        except (ValueError, OSError):
+            pass          # pipe fechado durante encerramento
+        cod = proc.wait()
+        fim = "concluído com sucesso" if cod == 0 else f"terminou (código {cod})"
+        self.linhas.append(f"[{rotulo}] {fim}")
 
     def parar(self):
-        if self.rodando():
-            self.proc.terminate()
+        proc = self.proc
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
             try:
-                self.proc.wait(timeout=8)
+                proc.wait(timeout=8)
             except subprocess.TimeoutExpired:
-                self.proc.kill()
-            self.linhas.append("■ Bot parado.")
+                proc.kill()
+            self.linhas.append("Bot parado.")
 
 
 bot = Processo()      # o bot (run), fica ligado
@@ -134,8 +163,17 @@ def detectar_ids() -> dict:
     token = ler_env().get("TELEGRAM_BOT_TOKEN", "")
     if not token:
         return {"erro": "Preencha e salve o token do bot primeiro."}
+    aviso = ""
+    if bot.rodando():
+        aviso = ("O bot está rodando e consome as atualizações antes do painel. "
+                 "Mande /id no privado do bot e encaminhe um post do canal para ele — "
+                 "a resposta dele já traz os dois IDs.")
     try:
-        r = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", timeout=20)
+        r = requests.get(
+            f"https://api.telegram.org/bot{token}/getUpdates",
+            params={"limit": 100, "timeout": 0,
+                    "allowed_updates": '["message","channel_post"]'},
+            timeout=20)
         dados = r.json()
     except Exception as e:
         return {"erro": f"Não consegui falar com o Telegram: {e}"}
@@ -158,6 +196,7 @@ def detectar_ids() -> dict:
         "pessoas": [{"id": i, "nome": n} for i, n in pessoas.items()],
         "canais": [{"id": i, "nome": n} for i, n in canais.items()],
         "vazio": not pessoas and not canais,
+        "aviso": aviso,
     }
 
 
@@ -166,18 +205,27 @@ import shutil
 from .db import total_postadas, listar_postadas, contar_por_plataforma
 
 
+def _sessao_ml_existe() -> bool:
+    perfil = DATA_DIR / "ml_profile"
+    return perfil.exists() and any(perfil.iterdir())
+
+
 def status() -> dict:
     env = ler_env()
     tem_navegador = bool(list((DATA_DIR / "pw-browsers").glob("chromium-*")))
-    perfil = DATA_DIR / "ml_profile"
-    tem_sessao_ml = perfil.exists() and any(perfil.iterdir())
+    tem_sessao_ml = _sessao_ml_existe()
     tem_ml_etiqueta = bool(env.get("ML_ETIQUETA"))
     ml_conectado = tem_sessao_ml and tem_ml_etiqueta
-    
+
     amz_conectado = bool(env.get("AMAZON_TAG"))
     shp_conectado = bool(env.get("SHOPEE_APP_ID") and env.get("SHOPEE_APP_SECRET"))
     total = total_postadas()
-    
+
+    from .config import config
+    fontes = [nome for nome, f in (("Mercado Livre", config.fonte_ml),
+                                   ("Shopee", config.fonte_shopee),
+                                   ("Amazon", config.fonte_amazon)) if f.get("ativa")]
+
     return {
         "bot_rodando": bot.rodando(),
         "acao_rodando": acao.rotulo if acao.rodando() else "",
@@ -187,6 +235,11 @@ def status() -> dict:
         "pronto": bool(env.get("TELEGRAM_BOT_TOKEN") and env.get("TELEGRAM_CHAT_ID")
                        and env.get("TELEGRAM_OWNER_ID")),
         "total_postadas": total,
+        "fontes_ativas": fontes,
+        "intervalo_minutos": config.intervalo_minutos,
+        "max_posts_por_ciclo": config.max_posts_por_ciclo,
+        "horario_ativo": config.horario_ativo or "24h",
+        "nichos": config.nichos,
         "plataformas": {
             "mercadolivre": {
                 "conectado": ml_conectado,
@@ -207,7 +260,8 @@ def status() -> dict:
             },
             "aliexpress": {
                 "conectado": False,
-                "status": "Não configurado",
+                "disponivel": False,
+                "status": "Integração indisponível",
             },
         },
     }
@@ -215,42 +269,58 @@ def status() -> dict:
 
 
 def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
+    """Monta o link de afiliado.
+
+    Devolve `erro` em vez de um link inventado: uma tag de exemplo no lugar da
+    sua mandaria a comissão para outra pessoa, e dizer "ok" para um link que
+    não é de afiliado engana o usuário.
+    """
     env = ler_env()
     url = url.strip()
     if not url:
-        return {"erro": "URL vazia"}
+        return {"erro": "Cole o link do produto."}
+    if not url.lower().startswith(("http://", "https://")):
+        return {"erro": "O link precisa começar com http:// ou https://."}
 
     url_lower = url.lower()
-    plat = plataforma.lower() if plataforma else ""
-    if not plat:
+    plat = plataforma.lower().strip()
+    if plat in ("", "auto"):
         if "amazon.com" in url_lower or "amzn.to" in url_lower:
             plat = "amazon"
-        elif "mercadolivre.com" in url_lower or "mercadolivre.com.br" in url_lower or "ml.com" in url_lower or "meli.la" in url_lower:
+        elif "mercadolivre.com" in url_lower or "ml.com" in url_lower or "meli.la" in url_lower:
             plat = "mercadolivre"
         elif "shopee.com" in url_lower or "shp.ee" in url_lower:
             plat = "shopee"
         elif "aliexpress.com" in url_lower:
             plat = "aliexpress"
         else:
-            plat = "geral"
+            return {"erro": ("Não reconheci o marketplace deste link. "
+                             "Escolha a plataforma manualmente em 'Plataforma'.")}
 
-    link_afiliado = url
+    if plat == "aliexpress":
+        return {"erro": "O AliExpress ainda não tem integração neste projeto."}
+
+    sep = "&" if "?" in url else "?"
     if plat == "amazon":
-        tag = env.get("AMAZON_TAG") or "associado-20"
-        sep = "&" if "?" in url else "?"
-        if "tag=" not in url:
-            link_afiliado = f"{url}{sep}tag={tag}"
-        else:
-            link_afiliado = url
+        tag = env.get("AMAZON_TAG", "").strip()
+        if not tag:
+            return {"erro": "Configure a tag de associado do Amazon em Configurações "
+                            "antes de gerar o link."}
+        link_afiliado = url if "tag=" in url else f"{url}{sep}tag={tag}"
     elif plat == "mercadolivre":
-        etiqueta = env.get("ML_ETIQUETA") or "afiliado"
-        sep = "&" if "?" in url else "?"
+        etiqueta = env.get("ML_ETIQUETA", "").strip()
+        if not etiqueta:
+            return {"erro": "Configure a etiqueta de afiliado do Mercado Livre em "
+                            "Configurações antes de gerar o link."}
         link_afiliado = f"{url}{sep}matt_tool=35282054&matt_word={etiqueta}"
     elif plat == "shopee":
-        app_id = env.get("SHOPEE_APP_ID")
-        link_afiliado = f"{url}?af_sub={app_id or 'promobot'}"
+        app_id = env.get("SHOPEE_APP_ID", "").strip()
+        if not app_id:
+            return {"erro": "Configure o App ID da Shopee em Configurações "
+                            "antes de gerar o link."}
+        link_afiliado = f"{url}{sep}af_sub={app_id}"
     else:
-        link_afiliado = url
+        return {"erro": f"Plataforma desconhecida: {plat}."}
 
     return {
         "ok": True,
@@ -261,72 +331,118 @@ def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
     }
 
 
+def _dt_br(valor: str) -> dt.datetime | None:
+    try:
+        return dt.datetime.fromisoformat(valor)
+    except (ValueError, TypeError):
+        return None
+
+
+NOMES_PLATAFORMA = {
+    "mercadolivre": "Mercado Livre",
+    "amazon": "Amazon",
+    "shopee": "Shopee",
+    "aliexpress": "AliExpress",
+}
+CORES_PLATAFORMA = {
+    # Mesmos tons usados no CSS do painel (--primaria-forte, --e2, --e3, roxo).
+    # São usados como cor de ÍCONE sobre fundo tingido — nunca como fundo com
+    # texto branco, que reprova contraste.
+    "mercadolivre": "#38A2FF",
+    "amazon": "#F5A623",
+    "shopee": "#F2583B",
+    "aliexpress": "#A78BFA",
+}
+ICONE_PLATAFORMA = {
+    "mercadolivre": "handshake",
+    "amazon": "package",
+    "shopee": "shopping-bag",
+    "aliexpress": "globe",
+}
+
+
 def obter_metricas() -> dict:
-    postadas = listar_postadas(50)
+    """Só dados reais lidos do banco — nada de estimativa inventada."""
+    postadas = listar_postadas(60)
     contagem = contar_por_plataforma()
-    
-    # 7 dias recentes
-    hoje = dt.date.today()
-    dias = [(hoje - dt.timedelta(days=i)) for i in range(6, -1, -1)]
+    total = sum(contagem.values())
+
+    # Série real dos últimos 7 dias (hoje por último)
+    dias = [(dt.date.today() - dt.timedelta(days=i)) for i in range(6, -1, -1)]
     labels = [d.strftime("%d/%m") for d in dias]
-    
-    # Contabiliza postadas reais por dia
-    valores_dias = [0] * 7
-    for p in postadas:
-        try:
-            p_data = dt.datetime.fromisoformat(p["postada_em"]).date()
-            if p_data in dias:
-                idx = dias.index(p_data)
-                valores_dias[idx] += 1
-        except Exception:
-            pass
+    valores_dias = posts_por_dias(7)
+    semana = sum(valores_dias)
+    ontem = valores_dias[-2] if len(valores_dias) > 1 else 0
+    hoje = valores_dias[-1] if valores_dias else 0
 
-    total_real = sum(contagem.values())
-    
-    ml_cnt = contagem.get("mercadolivre", 0)
-    amz_cnt = contagem.get("amazon", 0)
-    shp_cnt = contagem.get("shopee", 0)
-    ali_cnt = contagem.get("aliexpress", 0)
+    # Comparação com o dia anterior — número real, não um "+X%" inventado
+    if ontem > 0:
+        variacao = f"{'+' if hoje >= ontem else ''}{round((hoje - ontem) / ontem * 100):.0f}%"
+        variacao_ok = hoje >= ontem
+    elif hoje > 0:
+        variacao, variacao_ok = "novo", True
+    else:
+        variacao, variacao_ok = "estável", True
 
-    top_total = total_real if total_real > 0 else 1
+    ultima = next((p for p in postadas if _dt_br(p.get("postada_em"))), None)
+    if ultima:
+        quando = _dt_br(ultima["postada_em"])
+        delta = dt.datetime.now() - quando
+        minutos = int(delta.total_seconds() // 60)
+        if minutos < 1:
+            ultima_txt = "agora"
+        elif minutos < 60:
+            ultima_txt = f"ha {minutos} min"
+        elif minutos < 60 * 24:
+            ultima_txt = f"ha {minutos // 60} h"
+        else:
+            ultima_txt = f"ha {minutos // (60 * 24)} d"
+    else:
+        ultima_txt = "nenhuma ainda"
+
+    ranking = sorted(contagem.items(), key=lambda kv: kv[1], reverse=True)
     top_plataformas = [
-        {"nome": "Mercado Livre", "chave": "mercadolivre", "cliques": ml_cnt, "pct": round((ml_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ffe600"},
-        {"nome": "Amazon", "chave": "amazon", "cliques": amz_cnt, "pct": round((amz_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ff9900"},
-        {"nome": "Shopee", "chave": "shopee", "cliques": shp_cnt, "pct": round((shp_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ee4d2d"},
-        {"nome": "AliExpress", "chave": "aliexpress", "cliques": ali_cnt, "pct": round((ali_cnt / top_total) * 100, 1) if total_real > 0 else 0, "cor": "#ff4747"},
+        {"nome": NOMES_PLATAFORMA.get(k, k.capitalize()),
+         "chave": k, "cliques": v,
+         "pct": round(v / total * 100, 1) if total else 0,
+         "cor": CORES_PLATAFORMA.get(k, "#64748B"),
+         "icone": ICONE_PLATAFORMA.get(k, "store")}
+        for k, v in ranking
     ]
 
-    # Atividades estritamente reais extraídas das postagens do banco
-    atividades = []
-    for p in postadas[:5]:
-        atividades.append({
-            "tipo": "link",
-            "titulo": f"Link gerado ({p.get('plataforma', '').capitalize() or 'Oferta'})",
-            "detalhe": f"Produto: {p.get('titulo', '')[:45]}",
-            "hora": dt.datetime.fromisoformat(p["postada_em"]).strftime("%H:%M") if p.get("postada_em") else "Hoje",
-            "plataforma": p.get("plataforma", "mercadolivre"),
-        })
+    atividades = [
+        {"titulo": "Oferta publicada",
+         "detalhe": (p.get("titulo") or "").strip() or "Produto sem título",
+         "hora": (_dt_br(p["postada_em"]).strftime("%d/%m %H:%M")
+                  if _dt_br(p.get("postada_em")) else ""),
+         "plataforma": p.get("plataforma") or "mercadolivre"}
+        for p in postadas[:6]
+    ]
 
-    # Links recentes estritamente reais
+    # Links reais: só os que o bot gravou no banco. Sem link salvo, mostra o produto.
     links_rec = []
-    for p in postadas[:5]:
+    for p in postadas:
+        url = (p.get("url_afiliado") or "").strip()
         links_rec.append({
-            "url": f"meli.la/{p.get('uid', '')[:8]}" if p.get('plataforma') == 'mercadolivre' else f"amzn.to/{p.get('uid', '')[:8]}",
-            "data": dt.datetime.fromisoformat(p["postada_em"]).strftime("%d/%m/%Y %H:%M") if p.get("postada_em") else "",
-            "titulo": p.get("titulo", ""),
+            "url": url,
+            "data": (_dt_br(p["postada_em"]).strftime("%d/%m/%Y %H:%M")
+                     if _dt_br(p.get("postada_em")) else ""),
+            "titulo": (p.get("titulo") or "").strip(),
+            "plataforma": p.get("plataforma") or "mercadolivre",
+            "uid": p.get("uid") or "",
         })
-
-    # Conversão estimada baseada em cliques/links reais (0% se sem dados)
-    taxa_conv = "0,0%" if total_real == 0 else f"{min(round(total_real * 0.5, 1), 10.0)}%"
+        if len(links_rec) >= 12:
+            break
 
     return {
-        "links_gerados_total": total_real,
-        "links_gerados_crescimento": "0%" if total_real == 0 else f"+{min(total_real, 100)}%",
-        "conversao_taxa": taxa_conv,
-        "conversao_crescimento": "0%" if total_real == 0 else "+1,0%",
+        "total": total,
+        "semana": semana,
+        "hoje": hoje,
+        "ultima": ultima_txt,
+        "variacao": variacao,
+        "variacao_ok": variacao_ok,
         "grafico_dias_labels": labels,
         "grafico_dias_valores": valores_dias,
-        "grafico_conversao_valores": [round(v * 0.05, 1) for v in valores_dias],
         "top_plataformas": top_plataformas,
         "atividades": atividades,
         "links_recentes": links_rec,
@@ -358,107 +474,124 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def do_GET(self):
-        rota = urlparse(self.path).path
-        if rota == "/":
-            corpo = PAGINA.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(corpo)))
-            self.end_headers()
-            self.wfile.write(corpo)
-        elif rota == "/api/status":
-            self._json(status())
-        elif rota == "/api/metricas":
-            self._json(obter_metricas())
-        elif rota == "/api/produtos":
-            self._json({"produtos": listar_postadas(100)})
-        elif rota == "/api/config":
-            env = ler_env()
-            saida = {}
-            for chave, _, _, segredo, _ in CAMPOS:
-                saida[chave] = "" if (segredo and env.get(chave)) else env.get(chave, "")
-                saida[chave + "__set"] = bool(env.get(chave))
-            self._json(saida)
-        elif rota == "/api/logs":
-            fonte = urlparse(self.path).query
-            alvo = acao if "acao" in fonte else bot
-            self._json({"linhas": list(alvo.linhas)})
-        elif rota == "/api/nichos":
-            from .nichos import catalogo, ler_selecao
-            self._json({"catalogo": catalogo(), "selecionados": ler_selecao()})
-        else:
-            self._json({"erro": "rota desconhecida"}, 404)
+        try:
+            rota = urlparse(self.path).path
+            if rota == "/":
+                corpo = PAGINA.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+            elif rota == "/api/status":
+                self._json(status())
+            elif rota == "/api/metricas":
+                self._json(obter_metricas())
+            elif rota == "/api/produtos":
+                self._json({"produtos": listar_postadas(100)})
+            elif rota == "/api/config":
+                env = ler_env()
+                saida = {}
+                for chave, _, _, segredo, _ in CAMPOS:
+                    saida[chave] = "" if (segredo and env.get(chave)) else env.get(chave, "")
+                    saida[chave + "__set"] = bool(env.get(chave))
+                self._json(saida)
+            elif rota == "/api/logs":
+                fonte = urlparse(self.path).query
+                alvo = acao if "acao" in fonte else bot
+                self._json({"linhas": list(alvo.linhas)})
+            elif rota == "/api/nichos":
+                from .nichos import catalogo, ler_selecao
+                self._json({"catalogo": catalogo(), "selecionados": ler_selecao()})
+            else:
+                self._json({"erro": "rota desconhecida"}, 404)
+        except Exception as e:
+            try:
+                self._json({"erro": str(e)}, 500)
+            except Exception:
+                pass
 
     def do_POST(self):
-        rota = urlparse(self.path).path
-        dados = self._corpo_json()
-        if rota == "/api/config":
-            atuais = ler_env()
-            filtrados = {}
-            for chave, _, _, segredo, _ in CAMPOS:
-                v = dados.get(chave, "")
-                if segredo and not v and atuais.get(chave):
-                    continue
-                filtrados[chave] = v
-            salvar_env(filtrados)
-            self._json({"ok": True})
-        elif rota == "/api/start":
-            ok = bot.iniciar(["run"], "Bot")
-            self._json({"ok": ok, "rodando": bot.rodando()})
-        elif rota == "/api/stop":
-            bot.parar()
-            self._json({"ok": True, "rodando": bot.rodando()})
-        elif rota == "/api/acao":
-            nome = dados.get("nome", "")
-            mapa = {
-                "instalar-navegador": (["instalar-navegador"], "Instalando navegador"),
-                "ml-login": (["ml-login"], "Login no Mercado Livre"),
-                "testar-ml": (["testar", "ml"], "Testando Mercado Livre"),
-                "testar-shopee": (["testar", "shopee"], "Testando Shopee"),
-                "testar-amazon": (["testar", "amazon"], "Testando Amazon"),
-                "ciclo": (["ciclo"], "Executando ciclo de postagem"),
-            }
-            if nome not in mapa:
-                return self._json({"erro": "ação desconhecida"}, 400)
-            if acao.rodando():
-                return self._json({"erro": f"Já rodando: {acao.rotulo}"}, 409)
-            args, rotulo = mapa[nome]
-            acao.linhas.clear()
-            acao.iniciar(args, rotulo)
-            self._json({"ok": True})
-        elif rota == "/api/gerar-link":
-            url = dados.get("url", "")
-            plat = dados.get("plataforma", "")
-            self._json(gerar_link_afiliado(url, plat))
-        elif rota == "/api/verificar-sessao":
-            perfil = DATA_DIR / "ml_profile"
-            tem = perfil.exists() and any(perfil.iterdir())
-            self._json({
-                "sessao_ml": tem,
-                "arquivos": len(list(perfil.rglob("*"))) if tem else 0,
-                "caminho": str(perfil),
-            })
-        elif rota == "/api/limpar-sessao":
-            perfil = DATA_DIR / "ml_profile"
-            if perfil.exists():
-                try:
-                    shutil.rmtree(perfil)
-                    perfil.mkdir(exist_ok=True)
-                except Exception as e:
-                    return self._json({"erro": f"Erro ao limpar: {e}"}, 500)
-            self._json({"ok": True, "msg": "Sessão limpa com sucesso."})
-        elif rota == "/api/detectar-ids":
-            self._json(detectar_ids())
-        elif rota == "/api/nichos":
-            from .nichos import salvar_selecao
-            salvar_selecao(dados.get("selecionados") or [])
-            self._json({"ok": True})
-        else:
-            self._json({"erro": "rota desconhecida"}, 404)
+        try:
+            rota = urlparse(self.path).path
+            dados = self._corpo_json()
+            if rota == "/api/config":
+                atuais = ler_env()
+                filtrados = {}
+                for chave, _, _, segredo, _ in CAMPOS:
+                    v = dados.get(chave, "")
+                    if segredo and not v and atuais.get(chave):
+                        continue
+                    filtrados[chave] = v
+                salvar_env(filtrados)
+                self._json({"ok": True})
+            elif rota == "/api/start":
+                ok = bot.iniciar(["run"], "Bot")
+                self._json({"ok": ok, "rodando": bot.rodando()})
+            elif rota == "/api/stop":
+                bot.parar()
+                self._json({"ok": True, "rodando": bot.rodando()})
+            elif rota == "/api/acao":
+                nome = dados.get("nome", "")
+                mapa = {
+                    "instalar-navegador": (["instalar-navegador"], "Instalando navegador"),
+                    "ml-login": (["ml-login"], "Login no Mercado Livre"),
+                    "testar-ml": (["testar", "ml"], "Testando Mercado Livre"),
+                    "testar-shopee": (["testar", "shopee"], "Testando Shopee"),
+                    "testar-amazon": (["testar", "amazon"], "Testando Amazon"),
+                    "ciclo": (["ciclo"], "Executando ciclo de postagem"),
+                }
+                if nome not in mapa:
+                    return self._json({"erro": "ação desconhecida"}, 400)
+                if acao.rodando():
+                    return self._json({"erro": f"Já rodando: {acao.rotulo}"}, 409)
+                args, rotulo = mapa[nome]
+                acao.linhas.clear()
+                acao.iniciar(args, rotulo)
+                self._json({"ok": True})
+            elif rota == "/api/gerar-link":
+                url = dados.get("url", "")
+                plat = dados.get("plataforma", "")
+                self._json(gerar_link_afiliado(url, plat))
+            elif rota == "/api/verificar-sessao":
+                perfil = DATA_DIR / "ml_profile"
+                tem = _sessao_ml_existe()
+                self._json({
+                    "sessao_ml": tem,
+                    "arquivos": len(list(perfil.rglob("*"))) if tem else 0,
+                    "caminho": str(perfil),
+                })
+            elif rota == "/api/limpar-log":
+                alvo = acao if dados.get("alvo") == "acao" else bot
+                alvo.linhas.clear()
+                self._json({"ok": True})
+            elif rota == "/api/limpar-sessao":
+                perfil = DATA_DIR / "ml_profile"
+                if perfil.exists():
+                    try:
+                        shutil.rmtree(perfil)
+                        perfil.mkdir(exist_ok=True)
+                    except Exception as e:
+                        return self._json({"erro": f"Erro ao limpar: {e}"}, 500)
+                self._json({"ok": True, "msg": "Sessão limpa com sucesso."})
+            elif rota == "/api/detectar-ids":
+                self._json(detectar_ids())
+            elif rota == "/api/nichos":
+                from .nichos import salvar_selecao
+                salvar_selecao(dados.get("selecionados") or [])
+                self._json({"ok": True})
+            else:
+                self._json({"erro": "rota desconhecida"}, 404)
+        except Exception as e:
+            try:
+                self._json({"erro": str(e)}, 500)
+            except Exception:
+                pass
 
 
 def painel():
     url = f"http://{HOST}:{PORT}/"
+    ThreadingHTTPServer.allow_reuse_address = True
     servidor = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"\n  Painel de controle aberto em {url}")
     print("  (deixe esta janela aberta; feche-a para desligar o painel)\n")
@@ -466,11 +599,19 @@ def painel():
         webbrowser.open(url)
     except Exception:
         pass
+    while True:
+        try:
+            servidor.serve_forever()
+            break
+        except (KeyboardInterrupt, SystemExit):
+            break
+        except Exception as e:
+            print(f"Erro no servidor: {e}", file=sys.stderr)
+            import time
+            time.sleep(1)
     try:
-        servidor.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
         bot.parar()
-        servidor.shutdown()
+        servidor.server_close()
+    except Exception:
+        pass
 

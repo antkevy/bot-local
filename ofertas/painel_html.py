@@ -1,2531 +1,2591 @@
-"""Interface web do painel Ofertas Pro (servida localmente por painel.py)."""
+"""Interface web do painel Ofertas Pro (servida localmente por painel.py).
 
+Uma página só, sem build e sem CDN: a fonte cai para a system-ui se o
+computador estiver sem internet. Ícones são SVG inline (ver <svg id="icones">)
+— nada de emoji, que muda de desenho conforme o sistema e não segue o tema.
+"""
 PAGINA = r"""<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Ofertas Pro — Painel de Afiliados</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23087BFF'/%3E%3Cpath d='M16 6l7 5v10l-7 5-7-5V11z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* ══ Tokens ══════════════════════════════════════════════════════════
+     Uma escala de espaçamento (4/8), raios e cores semânticas. As
+     sombras carregam o tom azul do fundo — preto puro deixa "sujo". */
   :root {
-    --bg-main: #061525;
-    --bg-main2: #081A2B;
-    --bg-sidebar: #061220;
-    --bg-card: #0B2035;
-    --bg-card2: #0D263F;
-    --bg-subcard: #081a2e;
-    --border-color: #173957;
-    --border-light: #204d75;
-    --tx-main: #FFFFFF;
-    --tx-muted: #8EA6BF;
-    --tx-dim: #5c7896;
-    --primary: #087BFF;
-    --primary-hover: #0D8BFF;
-    --primary-glow: 0 0 20px rgba(8, 123, 255, 0.4);
-    --success: #20D889;
-    --success-bg: rgba(32, 216, 137, 0.12);
-    --warning: #ffb300;
-    --warning-bg: rgba(255, 179, 0, 0.12);
-    --danger: #ff4757;
-    --danger-bg: rgba(255, 71, 87, 0.12);
-    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', Consolas, monospace;
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
+    color-scheme: dark;
+
+    --fundo:          #071726;
+    --fundo-sidebar:  #05121F;
+    --fundo-card:     #0B2137;
+    --fundo-card-hi:  #0E2A44;
+    --fundo-sub:      #081B2D;
+    --fundo-inset:    #04101C;
+
+    --borda:          #183B58;
+    --borda-forte:    #22547F;
+    --borda-sutil:    #102D47;
+
+    --texto:          #F2F7FC;
+    --texto-2:        #A8C0D6;   /* secundário  — 7,4:1 no card  */
+    --texto-3:        #7E9CB8;   /* terciário   — 4,9:1 no card  */
+
+    --primaria:       #0B84FF;
+    --primaria-forte: #38A2FF;
+    /* O azul de marca é claro demais para receber texto branco (3,6:1).
+       Estes dois tons são só para preenchimentos sólidos — texto branco
+       sobre eles passa 4,5:1. Acentos, anéis de foco e gráficos usam
+       --primaria / --primaria-forte, que não carregam texto. */
+    --primaria-solida:        #0A6EDB;   /* branco 4,9:1 */
+    --primaria-solida-hover:  #0B74E0;   /* branco 4,6:1 */
+    --primaria-fundo: rgba(11, 132, 255, 0.13);
+    --primaria-borda: rgba(11, 132, 255, 0.42);
+    --primaria-texto: #9CC9FF;   /* links sobre card — 6,1:1        */
+
+    --ok:             #2FD99A;
+    --ok-fundo:       rgba(47, 217, 154, 0.13);
+    --ok-borda:       rgba(47, 217, 154, 0.30);
+    --alerta:         #FFC24D;
+    --alerta-fundo:   rgba(255, 194, 77, 0.13);
+    --alerta-borda:   rgba(255, 194, 77, 0.30);
+    --erro:           #FF6B7D;
+    --erro-fundo:     rgba(255, 107, 125, 0.13);
+    --erro-borda:     rgba(255, 107, 125, 0.34);
+
+    --e1: #0D4A80; --e2: #F5A623; --e3: #F2583B; --e4: #8B5CF6;
+
+    --fonte: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono:  'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+    --r-sm: 7px; --r-md: 11px; --r-lg: 15px; --r-full: 99px;
+
+    --sombra-1: 0 1px 2px rgba(2, 10, 20, 0.4);
+    --sombra-2: 0 6px 22px rgba(2, 12, 24, 0.42);
+    --sombra-3: 0 18px 50px rgba(1, 8, 18, 0.58);
+    --anel: 0 0 0 3px rgba(11, 132, 255, 0.42);
+
+    --z-base: 1; --z-sticky: 20; --z-overlay: 100; --z-toast: 200;
+
+    --t-rapida: 130ms; --t-media: 200ms; --t-lenta: 320ms;
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* ══ Base ═══════════════════════════════════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
   body {
-    background-color: var(--bg-main);
-    background-image: 
-      radial-gradient(circle at 15% 0%, rgba(8, 123, 255, 0.1) 0%, transparent 45%),
-      radial-gradient(circle at 85% 100%, rgba(32, 216, 137, 0.05) 0%, transparent 45%);
-    color: var(--tx-main);
-    font-family: var(--font-main);
-    font-size: 14px;
-    line-height: 1.5;
     min-height: 100vh;
+    background-color: var(--fundo);
+    background-image:
+      radial-gradient(900px 480px at 12% -8%, rgba(11, 132, 255, 0.14), transparent 62%),
+      radial-gradient(760px 420px at 92% 104%, rgba(47, 217, 154, 0.07), transparent 60%);
+    background-attachment: fixed;
+    color: var(--texto);
+    font: 400 14px/1.55 var(--fonte);
     display: flex;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
 
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #173957; border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: #204d75; }
+  ::-webkit-scrollbar-thumb { background: var(--borda); border-radius: var(--r-full); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--borda-forte); }
 
-  .app-layout {
-    display: flex;
-    width: 100%;
-    min-height: 100vh;
+  /* Foco visível em TUDO que é clicável — antes não havia nenhum. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--primaria-forte);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
   }
+  :where(button, a, input, select, .nicho, [role="button"]):focus:not(:focus-visible) { outline: none; }
+
+  .pular-para-conteudo {
+    position: absolute; left: 8px; top: -80px; z-index: var(--z-toast);
+    background: var(--primaria-solida); color: #fff; padding: 10px 18px;
+    border-radius: var(--r-sm); font-weight: 700; text-decoration: none;
+    transition: top var(--t-media) var(--ease);
+  }
+  .pular-para-conteudo:focus { top: 8px; }
+
+  .so-leitor {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .icone { width: 18px; height: 18px; flex: none; stroke: currentColor; }
+  .icone-sm { width: 15px; height: 15px; }
+  .icone-lg { width: 22px; height: 22px; }
+  .icone-xl { width: 26px; height: 26px; }
+
+  /* ══ Estrutura ══════════════════════════════════════════════════════ */
+  .app-layout { display: flex; width: 100%; min-height: 100vh; }
 
   /* ── Sidebar ── */
   .sidebar {
-    width: 230px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    padding: 22px 14px 18px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    z-index: 50;
+    width: 236px; flex: none;
+    background: var(--fundo-sidebar);
+    border-right: 1px solid var(--borda-sutil);
+    display: flex; flex-direction: column;
+    padding: 20px 12px 16px;
+    position: sticky; top: 0; height: 100vh;
+    z-index: var(--z-sticky);
   }
 
   .brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 8px 24px;
-    text-decoration: none;
+    display: flex; align-items: center; gap: 11px;
+    padding: 0 8px 22px; text-decoration: none; border-radius: var(--r-md);
   }
-  .brand-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #087BFF 0%, #0050b3 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 16px rgba(8, 123, 255, 0.5);
-    flex-shrink: 0;
-    color: #fff;
+  .brand-icone {
+    width: 36px; height: 36px; border-radius: var(--r-md); flex: none;
+    background: linear-gradient(145deg, #1E90FF, #0A5BC7);
+    display: grid; place-items: center; color: #fff;
+    box-shadow: 0 4px 16px rgba(11, 132, 255, 0.42), inset 0 1px 0 rgba(255,255,255,0.25);
   }
-  .brand-text h1 {
-    font-size: 16px;
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: -0.3px;
-    line-height: 1.2;
+  .brand-texto h1 {
+    font-size: 15.5px; font-weight: 800; letter-spacing: -0.35px;
+    line-height: 1.15; color: var(--texto);
   }
-  .brand-text span {
-    font-size: 11px;
-    color: var(--tx-muted);
-    font-weight: 500;
-    display: block;
-  }
+  .brand-texto span { font-size: 11px; font-weight: 500; color: var(--texto-3); }
 
-  .nav-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    list-style: none;
-    margin-bottom: auto;
-  }
+  .nav-menu { display: flex; flex-direction: column; gap: 2px; list-style: none; }
   .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    color: var(--tx-muted);
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 13.5px;
-    cursor: pointer;
-    transition: all 0.18s ease;
-    user-select: none;
-    border: 1px solid transparent;
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 12px; min-height: 40px;
+    border-radius: var(--r-sm); border: 1px solid transparent;
+    color: var(--texto-2); text-decoration: none;
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+    transition: background var(--t-rapida) var(--ease),
+                color var(--t-rapida) var(--ease),
+                border-color var(--t-rapida) var(--ease);
   }
-  .nav-item:hover {
-    color: var(--tx-main);
-    background: rgba(255, 255, 255, 0.04);
+  .nav-item:hover { background: rgba(255, 255, 255, 0.05); color: var(--texto); }
+  .nav-item[aria-current="page"] {
+    background: var(--primaria-fundo); color: #fff;
+    border-color: var(--primaria-borda);
   }
-  .nav-item.active {
-    background: var(--primary);
-    color: #fff;
-    box-shadow: var(--primary-glow);
-    border-color: rgba(255, 255, 255, 0.15);
-  }
-  .nav-item svg {
-    width: 18px;
-    height: 18px;
-    stroke-width: 2;
-    flex-shrink: 0;
-  }
+  .nav-item[aria-current="page"] .icone { color: var(--primaria-forte); }
   .nav-badge {
-    margin-left: auto;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 99px;
-    background: #081a2e;
-    color: #8EA6BF;
-    border: 1px solid #173957;
+    margin-left: auto; font-size: 11px; font-weight: 700;
+    min-width: 22px; text-align: center;
+    padding: 1px 7px; border-radius: var(--r-full);
+    background: var(--fundo-sub); color: var(--texto-3);
+    border: 1px solid var(--borda-sutil); font-variant-numeric: tabular-nums;
   }
-  .nav-item.active .nav-badge {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border-color: transparent;
+  .nav-item[aria-current="page"] .nav-badge {
+    background: var(--primaria); color: #fff; border-color: transparent;
   }
 
-  /* Sidebar Bot Status Card */
-  .sidebar-bot-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 12px 14px;
-    margin-top: 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  .sidebar-bot-card:hover {
-    border-color: var(--border-light);
-    background: var(--bg-card2);
-  }
-  .bot-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--tx-dim);
-    flex-shrink: 0;
-    transition: 0.3s;
-  }
-  .bot-status-dot.active {
-    background: var(--success);
-    box-shadow: 0 0 10px var(--success);
-  }
-  .bot-status-info {
-    flex: 1;
-    overflow: hidden;
-  }
-  .bot-status-info .title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #fff;
-    white-space: nowrap;
-  }
-  .bot-status-info .subtitle {
-    font-size: 11px;
-    color: var(--tx-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .bot-status-arrow {
-    color: var(--tx-muted);
-    font-size: 14px;
-  }
+  .sidebar-rodape { margin-top: auto; }
 
-  .sidebar-footer {
-    padding: 14px 6px 0;
-    font-size: 11px;
-    color: var(--tx-dim);
-    line-height: 1.4;
+  .bot-cartao {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    margin-top: 14px; padding: 11px 12px; min-height: 56px;
+    background: var(--fundo-card); border: 1px solid var(--borda);
+    border-radius: var(--r-md); cursor: pointer; text-align: left;
+    font: inherit; color: inherit;
+    transition: border-color var(--t-media) var(--ease),
+                background var(--t-media) var(--ease),
+                transform var(--t-rapida) var(--ease);
   }
-  .sidebar-footer strong {
-    color: var(--tx-muted);
-    font-weight: 600;
+  .bot-cartao:hover { border-color: var(--borda-forte); background: var(--fundo-card-hi); }
+  .bot-cartao:active { transform: scale(0.985); }
+  .ponto {
+    width: 8px; height: 8px; border-radius: 50%; flex: none;
+    background: var(--texto-3); transition: background var(--t-media) var(--ease);
   }
+  .ponto.ativo { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-fundo); }
+  .ponto.ocupado { background: var(--alerta); box-shadow: 0 0 0 3px var(--alerta-fundo); }
+  .ponto.erro { background: var(--erro); box-shadow: 0 0 0 3px var(--erro-fundo); }
+  .bot-cartao-texto { flex: 1; min-width: 0; line-height: 1.25; }
+  .bot-cartao-texto b { display: block; font-size: 13px; font-weight: 700; }
+  .bot-cartao-texto small {
+    display: block; font-size: 11px; color: var(--texto-3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bot-cartao .icone { color: var(--texto-3); }
 
-  /* ── Main Area ── */
-  .main-wrapper {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    overflow-y: auto;
-  }
+  .sidebar-nota { padding: 14px 8px 0; font-size: 11px; color: var(--texto-3); line-height: 1.5; }
+  .sidebar-nota strong { color: var(--texto-2); font-weight: 600; }
+
+  /* ── Coluna principal ── */
+  .main-wrapper { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
   .top-header {
-    padding: 24px 32px 16px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-    flex-wrap: wrap;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap;
+    padding: 22px 32px 14px;
   }
+  .saudacao h2 {
+    font-size: 24px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.18;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .saudacao h2 .icone { color: var(--primaria-forte); }
+  .saudacao p { font-size: 13px; color: var(--texto-2); margin-top: 5px; max-width: 60ch; }
 
-  .greeting-section h2 {
-    font-size: 26px;
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: -0.5px;
-    line-height: 1.2;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .header-acoes { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 12px 5px 10px; min-height: 32px;
+    font-size: 12.5px; font-weight: 600; color: var(--texto-2);
+    background: var(--fundo-card); border: 1px solid var(--borda);
+    border-radius: var(--r-full);
   }
-  .greeting-section h3 {
-    font-size: 15.5px;
+  .status-pill[data-ligado="1"] { color: var(--ok); border-color: var(--ok-borda); background: var(--ok-fundo); }
+
+  .relogio { text-align: right; line-height: 1.3; }
+  .relogio .hora {
+    font: 700 15px/1.2 var(--mono); color: var(--texto);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.3px;
+  }
+  .relogio .data { font-size: 11px; color: var(--texto-3); font-variant-numeric: tabular-nums; }
+
+  .perfil { display: flex; align-items: center; gap: 10px; padding-left: 14px; border-left: 1px solid var(--borda-sutil); }
+  .avatar {
+    width: 34px; height: 34px; border-radius: var(--r-md); flex: none;
+    background: linear-gradient(145deg, #12456F, #0B2B48);
+    border: 1px solid var(--borda);
+    display: grid; place-items: center; color: #9CC9FF;
+  }
+  .perfil-texto { line-height: 1.25; }
+  .perfil-texto b { display: block; font-size: 13px; font-weight: 700; }
+  .perfil-texto small { font-size: 11px; color: var(--texto-3); }
+
+  /* ══ Botões ════════════════════════════════════════════════════════ */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 9px 15px; min-height: 40px;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; line-height: 1.2;
+    border-radius: var(--r-sm); border: 1px solid transparent;
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+    transition: background var(--t-rapida) var(--ease),
+                border-color var(--t-rapida) var(--ease),
+                color var(--t-rapida) var(--ease),
+                transform var(--t-rapida) var(--ease),
+                box-shadow var(--t-rapida) var(--ease);
+  }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .btn-primario {
+    background: var(--primaria-solida); color: #fff; border-color: rgba(255,255,255,0.18);
+    font-weight: 700; box-shadow: 0 2px 12px rgba(10, 110, 219, 0.40);
+  }
+  .btn-primario:hover:not(:disabled) {
+    background: var(--primaria-solida-hover);
+    box-shadow: 0 4px 18px rgba(11, 132, 255, 0.46);
+  }
+  .btn-neutro {
+    background: var(--fundo-card); color: var(--texto-2);
+    border-color: var(--borda); font-weight: 600;
+  }
+  .btn-neutro:hover:not(:disabled) { background: var(--fundo-card-hi); color: var(--texto); border-color: var(--borda-forte); }
+  .btn-perigo {
+    background: transparent; color: var(--erro); border-color: var(--erro-borda);
     font-weight: 600;
-    color: #cbd5e1;
-    margin-top: 2px;
   }
-  .greeting-section p {
-    font-size: 13px;
-    color: var(--tx-muted);
-    margin-top: 4px;
-    max-width: 600px;
+  .btn-perigo:hover:not(:disabled) { background: var(--erro-fundo); border-color: var(--erro); }
+  .btn-fantasma {
+    background: transparent; color: var(--primaria-texto);
+    border-color: transparent; font-weight: 600; min-height: 36px; padding: 6px 12px;
   }
+  .btn-fantasma:hover:not(:disabled) { background: var(--primaria-fundo); }
+  .btn-sm { font-size: 12.5px; padding: 7px 12px; min-height: 36px; }
+  .btn-bloco { width: 100%; }
 
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
+  /* Botão só de ícone — 40px, alvo confortável mesmo com glifo pequeno. */
+  .btn-icone {
+    padding: 0; width: 40px; height: 40px; min-height: 40px; flex: none;
+    background: transparent; color: var(--texto-3);
+    border-color: transparent; border-radius: var(--r-sm);
   }
+  .btn-icone:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: var(--texto); }
 
-  .sys-online-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--tx-muted);
-  }
-  .sys-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--tx-dim);
-    transition: 0.3s;
-  }
+  .girando { animation: girar 900ms linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
 
-  .time-display { text-align: right; }
-  .time-display .clock {
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
-    font-variant-numeric: tabular-nums;
-  }
-  .time-display .date {
-    font-size: 11px;
-    color: var(--tx-dim);
-  }
-
-  .user-profile-pill {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-left: 6px;
-    border-left: 1px solid var(--border-color);
-  }
-  .user-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #0d3663;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #93c5fd;
-  }
-  .user-info { line-height: 1.2; }
-  .user-info .name {
-    font-size: 13px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .user-info .badge {
-    font-size: 10.5px;
-    color: var(--tx-muted);
-  }
-
-  /* Buttons */
-  .btn-primary {
-    background: var(--primary);
-    color: #fff;
-    font-family: inherit;
-    font-size: 13.5px;
-    font-weight: 700;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: var(--radius-sm);
-    padding: 10px 18px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    box-shadow: var(--primary-glow);
-    transition: all 0.18s ease;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-  .btn-primary:hover {
-    background: var(--primary-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 0 24px rgba(8, 123, 255, 0.55);
-  }
-  .btn-primary:active { transform: translateY(0); }
-
-  .btn-dark {
-    background: var(--bg-card);
-    color: #cbd5e1;
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 8px 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    text-decoration: none;
-  }
-  .btn-dark:hover {
-    background: var(--bg-card2);
-    color: #fff;
-    border-color: var(--border-light);
-  }
-
-  .btn-outline-danger {
-    background: transparent;
-    color: #ff6b81;
-    border: 1px solid rgba(255, 71, 87, 0.4);
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    border-radius: var(--radius-sm);
-    padding: 8px 14px;
-    cursor: pointer;
-    transition: 0.15s;
-  }
-  .btn-outline-danger:hover {
-    background: var(--danger-bg);
-    border-color: var(--danger);
-  }
-
-  /* Content Body */
-  .content-body {
-    padding: 24px 36px 40px;
-    display: flex;
-    flex-direction: column;
-    gap: 26px;
+  /* ══ Cartões e grades ══════════════════════════════════════════════ */
+  .view {
+    display: none;
     flex: 1;
+    flex-direction: column;
+    gap: 22px;
+    padding: 18px 32px 32px;
+  }
+  .view.ativa { display: flex; animation: entrar var(--t-media) var(--ease); }
+  @keyframes entrar { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+  .card {
+    background: var(--fundo-card);
+    border: 1px solid var(--borda);
+    border-radius: var(--r-lg);
+    padding: 20px 22px;
+    box-shadow: var(--sombra-2);
+  }
+  .card-titulo { display: flex; align-items: center; gap: 9px; }
+  .card-titulo .icone { color: var(--primaria-forte); }
+  .card-titulo h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .card-titulo h4 { font-size: 14px; font-weight: 700; }
+  .card-sub { font-size: 12.5px; color: var(--texto-2); margin-top: 5px; }
+  .card-topo {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
   }
 
-  .dash-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 24px 28px;
-    position: relative;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-    transition: border-color 0.2s;
-  }
-  .dash-card:hover { border-color: var(--border-light); }
+  .grade-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-  /* ── 4 Symmetrical Marketplaces Cards on Dashboard ── */
-  .marketplaces-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-  }
-  @media (max-width: 1100px) { .marketplaces-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 650px) { .marketplaces-grid { grid-template-columns: 1fr; } }
-
+  /* ══ Cartões de marketplace ════════════════════════════════════════ */
   .mp-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 22px 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 10px;
-    transition: transform 0.15s, border-color 0.15s;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    background: var(--fundo-card); border: 1px solid var(--borda);
+    border-radius: var(--r-lg); padding: 18px 16px;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 8px; box-shadow: var(--sombra-1);
+    transition: transform var(--t-media) var(--ease), border-color var(--t-media) var(--ease);
   }
-  .mp-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--border-light);
+  .mp-card:hover { transform: translateY(-2px); border-color: var(--borda-forte); }
+  .mp-icone {
+    width: 44px; height: 44px; border-radius: var(--r-md);
+    display: grid; place-items: center; color: #fff;
   }
+  .mp-icone.ml { background: var(--e1); }
+  .mp-icone.amz { background: var(--e2); color: #241701; }
+  .mp-icone.shp { background: var(--e3); }
+  .mp-icone.ali { background: var(--e4); }
+  .mp-card h4 { font-size: 14.5px; font-weight: 700; }
+  .mp-sub { font-size: 12px; color: var(--texto-3); min-height: 17px; }
+  .mp-card .btn { width: 100%; margin-top: auto; }
 
-  .mp-icon-box {
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 800;
-    color: #fff;
-    margin-bottom: 2px;
+  /* Selo de estado — cor + ponto, nunca só cor. */
+  .selo {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 9px; border-radius: var(--r-full);
+    font-size: 11px; font-weight: 600; white-space: nowrap;
   }
-  .icon-ml { background: #ffe600; color: #000; box-shadow: 0 4px 12px rgba(255, 230, 0, 0.2); }
-  .icon-amazon { background: #ff9900; box-shadow: 0 4px 12px rgba(255, 153, 0, 0.2); }
-  .icon-shopee { background: #ee4d2d; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.2); }
-  .icon-aliexpress { background: #ff4747; box-shadow: 0 4px 12px rgba(255, 71, 71, 0.2); }
+  .selo .ponto { width: 5px; height: 5px; background: currentColor; }
+  .selo-ok { color: var(--ok); background: var(--ok-fundo); border: 1px solid var(--ok-borda); }
+  .selo-espera { color: var(--alerta); background: var(--alerta-fundo); border: 1px solid var(--alerta-borda); }
+  .selo-neutro { color: var(--texto-3); background: var(--fundo-sub); border: 1px solid var(--borda); }
+  .selo-fora { color: var(--texto-3); background: transparent; border: 1px dashed var(--borda); }
 
-  .mp-card h4 {
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .mp-card .mp-sub {
-    font-size: 12px;
-    color: var(--tx-dim);
-    min-height: 18px;
-  }
-  .mp-card .btn-dark {
-    width: 100%;
-    justify-content: center;
-    padding: 8px 12px;
-    font-size: 12.5px;
-    margin-top: 8px;
-  }
+  /* ══ Dashboard ═════════════════════════════════════════════════════ */
+  .dash-grade { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 20px; align-items: start; }
+  .coluna { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
-  .badge-connected {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--success);
-    background: var(--success-bg);
-    border: 1px solid rgba(32, 216, 137, 0.25);
-    padding: 2px 8px;
-    border-radius: 99px;
-  }
-  .badge-connected .dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--success);
-  }
-  .badge-pending {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--warning);
-    background: var(--warning-bg);
-    border: 1px solid rgba(255, 179, 0, 0.25);
-    padding: 2px 8px;
-    border-radius: 99px;
-  }
-  .badge-pending .dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--warning);
-  }
-
-  /* 2-Column Split */
-  .dash-main-grid {
-    display: grid;
-    grid-template-columns: 1fr 340px;
-    gap: 24px;
-    align-items: start;
-  }
-  @media (max-width: 1100px) { .dash-main-grid { grid-template-columns: 1fr; } }
-
-  .dash-left-column {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-
-  /* Metrics Row */
-  .metrics-row {
-    display: grid;
-    grid-template-columns: 1.1fr 1fr 1.3fr;
-    gap: 20px;
-  }
-  @media (max-width: 900px) { .metrics-row { grid-template-columns: 1fr; } }
-
-  .metric-card-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  .metric-title-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .metric-title-group svg { color: var(--primary); }
-  .metric-title-group h4 {
-    font-size: 14px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .metric-subtitle {
-    font-size: 11.5px;
-    color: var(--tx-dim);
-    margin-top: 2px;
-  }
-  .metric-stat-group { text-align: right; }
-  .metric-big-val {
-    font-size: 22px;
-    font-weight: 800;
-    color: #fff;
-    line-height: 1.1;
-  }
-  .metric-growth-badge {
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--success);
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    margin-top: 3px;
-  }
-
-  .chart-canvas-wrap {
-    width: 100%;
-    height: 140px;
-    position: relative;
-    margin-top: 6px;
-  }
-  canvas {
-    width: 100% !important;
-    height: 100% !important;
-  }
-
-  .top-platforms-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 10px;
-  }
-  .top-platform-item {
-    display: grid;
-    grid-template-columns: 20px 80px 1fr 40px 45px;
-    align-items: center;
-    gap: 10px;
-    font-size: 12px;
-  }
-  .top-platform-icon {
-    width: 20px;
-    height: 20px;
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
-  }
-  .top-platform-name {
-    font-weight: 600;
-    color: #cbd5e1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .progress-bar-bg {
-    height: 7px;
-    background: #081a2e;
-    border-radius: 99px;
-    overflow: hidden;
-  }
-  .progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #087BFF, #38bdf8);
-    border-radius: 99px;
-  }
-  .top-platform-clicks {
-    text-align: right;
-    color: #cbd5e1;
-    font-weight: 600;
+  .metricas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .metrica-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .metrica-valor {
+    font: 800 26px/1.05 var(--fonte); letter-spacing: -0.9px;
     font-variant-numeric: tabular-nums;
   }
-  .top-platform-pct {
-    text-align: right;
-    color: var(--tx-dim);
+  .metrica-valor.txt { font-size: 17px; letter-spacing: -0.2px; }
+  .metrica-delta {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 11.5px; font-weight: 700; margin-top: 3px;
     font-variant-numeric: tabular-nums;
   }
+  .metrica-delta.ok { color: var(--ok); }
+  .metrica-delta.parado { color: var(--texto-3); }
+  .metrica-rotulo { font-size: 11.5px; color: var(--texto-3); margin-top: 1px; }
 
-  /* Activity List */
-  .activity-list {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .activity-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 12.5px;
-  }
-  .act-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .act-icon.green { background: rgba(32, 216, 137, 0.15); color: var(--success); }
-  .act-icon.blue { background: rgba(8, 123, 255, 0.15); color: #60a5fa; }
-  .act-icon.orange { background: rgba(255, 153, 0, 0.15); color: #ff9900; }
-  .act-icon.purple { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
-  
-  .act-content {
-    flex: 1;
-    overflow: hidden;
-  }
-  .act-content .title {
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .act-content .desc {
-    font-size: 11.5px;
-    color: var(--tx-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .act-time {
-    font-size: 11px;
-    color: var(--tx-dim);
-    font-variant-numeric: tabular-nums;
-  }
+  .grafico-caixa { position: relative; width: 100%; height: 132px; margin-top: 8px; }
+  .grafico-caixa canvas { display: block; width: 100%; height: 100%; }
 
-  /* Right Side Panels */
-  .dash-right-column {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+  .vazio {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 26px 16px; text-align: center;
+    color: var(--texto-3); font-size: 12.5px;
   }
+  .vazio .icone { width: 24px; height: 24px; opacity: 0.5; }
+  .vazio strong { color: var(--texto-2); font-size: 13px; font-weight: 600; }
 
-  .right-panel-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  /* Top plataformas — colunas fixas curtas para a barra sempre aparecer. */
+  .top-lista { display: flex; flex-direction: column; gap: 11px; margin-top: 4px; }
+  .top-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) 34px; gap: 8px 10px; align-items: center; }
+  .top-marca {
+    width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+    /* Fundo tingido + ícone na cor da plataforma. A cor de marca pura como
+       fundo deixava o ícone branco em 2,1:1 na Amazon (#FF9900). */
+    background: var(--fundo-card-hi);
+    background: color-mix(in srgb, var(--c, var(--primaria)) 18%, transparent);
+    color: var(--c, var(--primaria-forte));
   }
+  .top-nome { font-size: 12.5px; font-weight: 600; color: var(--texto); min-width: 0;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-num { font-size: 12.5px; font-weight: 700; text-align: right;
+             font-variant-numeric: tabular-nums; }
+  .top-barra-linha { grid-column: 2 / -1; }
+  .barra { height: 6px; background: var(--fundo-inset); border-radius: var(--r-full); overflow: hidden; }
+  .barra > i { display: block; height: 100%; border-radius: var(--r-full);
+               background: linear-gradient(90deg, var(--primaria), var(--primaria-forte));
+               transition: width var(--t-lenta) var(--ease); }
 
-  .recent-links-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 14px;
+  .atividade { display: flex; flex-direction: column; gap: 12px; }
+  .ativ-item { display: flex; align-items: center; gap: 11px; font-size: 12.5px; }
+  .ativ-icone {
+    width: 30px; height: 30px; border-radius: var(--r-sm); flex: none;
+    display: grid; place-items: center; background: var(--primaria-fundo); color: var(--primaria-forte);
   }
-  .recent-link-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 14px;
-    background: var(--bg-subcard);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    font-size: 12.5px;
-  }
-  .recent-link-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    overflow: hidden;
-  }
-  .recent-link-url {
-    color: #93c5fd;
-    font-family: var(--font-mono);
-    font-weight: 500;
-    text-decoration: none;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .recent-link-date {
-    font-size: 11px;
-    color: var(--tx-dim);
-    margin-top: 2px;
-  }
-  .btn-copy-icon {
-    background: transparent;
-    border: 0;
-    color: var(--tx-muted);
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 6px;
-    transition: 0.15s;
-    display: flex;
-  }
-  .btn-copy-icon:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+  .ativ-icone.amz { background: rgba(245, 166, 35, 0.15); color: var(--e2); }
+  .ativ-icone.shp { background: rgba(242, 88, 59, 0.15); color: var(--e3); }
+  .ativ-icone.ali { background: rgba(139, 92, 246, 0.15); color: #A78BFA; }
+  .ativ-texto { flex: 1; min-width: 0; }
+  .ativ-texto b { display: block; font-weight: 600; color: var(--texto);
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ativ-texto small { display: block; font-size: 11.5px; color: var(--texto-3);
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ativ-hora { font-size: 11px; color: var(--texto-3); font-variant-numeric: tabular-nums; flex: none; }
 
-  /* ── Dedicated Plataformas Blocks ── */
-  .platform-block {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 26px 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    margin-bottom: 24px;
-    transition: border-color 0.2s;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  /* Lista de links */
+  .link-lista { display: flex; flex-direction: column; gap: 9px; margin-top: 4px; }
+  .link-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 11px; background: var(--fundo-sub);
+    border: 1px solid var(--borda-sutil); border-radius: var(--r-md);
+    transition: border-color var(--t-rapida) var(--ease);
   }
-  .platform-block:last-child {
-    margin-bottom: 0;
+  .link-item:hover { border-color: var(--borda-forte); }
+  .link-corpo { flex: 1; min-width: 0; line-height: 1.35; }
+  /* min-height 26px: o link abre a oferta, então o alvo precisa ter pelo
+     menos 24px de altura (WCAG 2.5.8) mesmo com texto de 12px. */
+  .link-url {
+    display: block; min-height: 26px; padding: 5px 0; margin: -5px 0;
+    font: 500 12px var(--mono); color: var(--primaria-texto);
+    text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .platform-block.highlighted {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(8, 123, 255, 0.3);
+  .link-url:hover { text-decoration: underline; }
+  .link-meta { font-size: 11px; color: var(--texto-3); white-space: nowrap;
+               overflow: hidden; text-overflow: ellipsis; }
+  /* 34px: a linha inteira do link é o alvo; o botão é o alvo secundário. */
+  .link-item .btn-icone { width: 34px; height: 34px; min-height: 34px; }
+
+  /* ══ Plataformas ═══════════════════════════════════════════════════ */
+  .bloco {
+    background: var(--fundo-card); border: 1px solid var(--borda);
+    border-radius: var(--r-lg); padding: 20px 22px;
+    display: flex; flex-direction: column; gap: 16px; box-shadow: var(--sombra-1);
+    transition: border-color var(--t-media) var(--ease), box-shadow var(--t-media) var(--ease);
+    scroll-margin-top: 20px;
   }
-  .pb-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border-color);
+  .bloco.destaque { border-color: var(--primaria); box-shadow: var(--anel); }
+  .bloco-topo {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap; padding-bottom: 14px;
+    border-bottom: 1px solid var(--borda-sutil);
   }
-  .pb-header-left {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+  .bloco-id { display: flex; align-items: center; gap: 13px; }
+  .bloco-id h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .bloco-id small { font-size: 12px; color: var(--texto-3); }
+  .bloco-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .info-card {
+    background: var(--fundo-sub); border: 1px solid var(--borda-sutil);
+    border-radius: var(--r-md); padding: 11px 14px;
   }
-  .pb-header-left h3 {
-    font-size: 17px;
-    font-weight: 700;
-    color: #fff;
+  .info-card dt {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.7px; color: var(--texto-3);
   }
-  .pb-content-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
+  .info-card dd {
+    font-size: 13.5px; font-weight: 600; color: var(--texto);
+    margin-top: 4px; word-break: break-all;
   }
-  .pb-info-card {
-    background: var(--bg-subcard);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 14px 18px;
+  .info-card dd.mono { font-family: var(--mono); font-size: 12.5px; }
+  .bloco-acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* ══ Formulário ════════════════════════════════════════════════════ */
+  .config-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; }
+  .grupo-titulo {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.9px; color: var(--primaria-texto);
+    margin-top: 8px; padding-bottom: 7px; border-bottom: 1px solid var(--borda-sutil);
   }
-  .pb-info-card label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--tx-muted);
-    font-weight: 700;
-    display: block;
-    margin-bottom: 6px;
+  .grupo-titulo:first-child { margin-top: 0; }
+  .campo { margin-bottom: 2px; }
+  .campo label { display: flex; align-items: center; gap: 7px; font-size: 13px;
+                 font-weight: 600; color: var(--texto); margin-bottom: 7px; }
+  .campo input, .campo select {
+    width: 100%; padding: 10px 13px; min-height: 40px;
+    border-radius: var(--r-sm); border: 1px solid var(--borda);
+    background: var(--fundo-inset); color: var(--texto);
+    font-family: inherit; font-size: 13.5px;
+    transition: border-color var(--t-rapida) var(--ease), box-shadow var(--t-rapida) var(--ease);
   }
-  .pb-info-card .val {
-    font-size: 14px;
-    color: #fff;
-    font-weight: 600;
-    word-break: break-all;
-  }
-  .pb-actions {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-top: 4px;
+  .campo input::placeholder { color: var(--texto-3); }
+  .campo input:focus, .campo select:focus { outline: none; border-color: var(--primaria); box-shadow: var(--anel); }
+  .campo .ajuda { font-size: 12px; color: var(--texto-3); margin-top: 5px; line-height: 1.45; }
+  .marca-ok { display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+              font-weight: 600; color: var(--ok); margin-left: auto; }
+
+  .acoes-form {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--borda-sutil);
   }
 
-  /* Global Footer */
-  .global-footer {
-    padding: 18px 36px;
-    border-top: 1px solid var(--border-color);
-    background: var(--bg-sidebar);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--tx-dim);
-    margin-top: auto;
+  /* Nichos */
+  .nichos { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 10px; }
+  .nicho {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 11px 13px; min-height: 52px; text-align: left;
+    background: var(--fundo-sub); border: 1px solid var(--borda);
+    border-radius: var(--r-md); color: var(--texto-2);
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background var(--t-rapida) var(--ease),
+                border-color var(--t-rapida) var(--ease),
+                color var(--t-rapida) var(--ease);
   }
-  .footer-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .nicho:hover { border-color: var(--borda-forte); color: var(--texto); }
+  .nicho .icone { color: var(--texto-3); transition: color var(--t-rapida) var(--ease); }
+  .nicho .rot { flex: 1; min-width: 0; line-height: 1.3; }
+  .nicho[aria-checked="true"] {
+    background: var(--primaria-fundo); border-color: var(--primaria-borda); color: #fff;
   }
-  .footer-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .nicho[aria-checked="true"] .icone { color: var(--primaria-forte); }
+  .nicho-caixa {
+    width: 17px; height: 17px; flex: none; border-radius: 5px;
+    border: 1.5px solid var(--borda-forte); display: grid; place-items: center;
+    color: transparent; transition: background var(--t-rapida) var(--ease),
+                                   border-color var(--t-rapida) var(--ease),
+                                   color var(--t-rapida) var(--ease);
   }
-
-  /* Views Switching */
-  .view-tab-content { display: none; }
-  .view-tab-content.active-view {
-    display: block;
-    animation: fadeIn 0.2s ease-in-out;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-
-  .empty-placeholder {
-    padding: 24px 12px;
-    text-align: center;
-    color: var(--tx-dim);
-    font-size: 12.5px;
+  .nicho[aria-checked="true"] .nicho-caixa {
+    background: var(--primaria); border-color: var(--primaria); color: #fff;
   }
 
-  /* Config / Form */
-  .config-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-top: 8px;
+  /* ══ Tabelas e terminais ═══════════════════════════════════════════ */
+  .tabela-caixa { overflow-x: auto; border: 1px solid var(--borda); border-radius: var(--r-md); }
+  table.tabela { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+  .tabela th {
+    background: var(--fundo-sub); padding: 11px 16px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--texto-3);
+    border-bottom: 1px solid var(--borda); white-space: nowrap;
   }
-  @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
-  
-  .form-group-title {
-    font-size: 13.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #60a5fa;
-    font-weight: 700;
-    margin: 24px 0 14px;
+  .tabela td { padding: 11px 16px; border-bottom: 1px solid var(--borda-sutil); color: var(--texto-2); }
+  .tabela tbody tr:last-child td { border-bottom: 0; }
+  .tabela tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
+  .tabela .tit { color: var(--texto); font-weight: 600; max-width: 460px; }
+  .tabela .preco { color: var(--ok); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tabela .quando { color: var(--texto-3); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .logs-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+                height: calc(100vh - 250px); min-height: 420px; }
+  .terminal {
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    background: var(--fundo-inset); border: 1px solid var(--borda);
+    border-radius: var(--r-lg); box-shadow: var(--sombra-2);
   }
-  .form-group-title:first-of-type { margin-top: 4px; }
-  .form-field { margin-bottom: 18px; }
-  .form-field label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #cbd5e1;
-    margin-bottom: 8px;
+  .terminal-topo {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; background: var(--fundo-sub);
+    border-bottom: 1px solid var(--borda);
+    font-size: 12.5px; font-weight: 700; color: var(--texto);
   }
-  .form-field input, .form-field select {
-    width: 100%;
-    padding: 11px 14px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    background: var(--bg-subcard);
-    color: #fff;
-    font-family: inherit;
-    font-size: 13.5px;
-    transition: 0.15s;
+  .terminal-topo .rot { display: flex; align-items: center; gap: 8px; }
+  .terminal-corpo {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: 14px 16px; font: 400 12px/1.65 var(--mono);
+    color: #9FB6CC; white-space: pre-wrap; word-break: break-word;
   }
-  .form-field input:focus, .form-field select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(8, 123, 255, 0.2);
+  .terminal-corpo .vazio-terminal { font-family: var(--fonte); color: var(--texto-3); }
+
+  /* ══ Suporte ══════════════════════════════════════════════════════ */
+  .faq { display: flex; flex-direction: column; gap: 10px; }
+  .faq details {
+    background: var(--fundo-sub); border: 1px solid var(--borda);
+    border-radius: var(--r-md); overflow: hidden;
   }
-  .form-field .field-help {
-    font-size: 12px;
-    color: var(--tx-dim);
-    margin-top: 6px;
-    line-height: 1.4;
+  .faq summary {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px; cursor: pointer; font-size: 13.5px; font-weight: 600;
+    list-style: none;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary .icone:last-child { margin-left: auto; color: var(--texto-3); transition: transform var(--t-media) var(--ease); }
+  .faq details[open] summary .icone:last-child { transform: rotate(180deg); }
+  .faq summary:hover { background: var(--fundo-card-hi); }
+  .faq-corpo { padding: 0 16px 15px 46px; font-size: 13px; color: var(--texto-2); line-height: 1.6; }
+
+  code {
+    font: 500 12.5px var(--mono); background: var(--fundo-inset);
+    border: 1px solid var(--borda-sutil); border-radius: 5px;
+    padding: 1px 5px; color: var(--primaria-texto);
   }
 
-  .nichos-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px;
-    margin: 18px 0;
+  .diagnostico { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 4px; }
+  .diag-item {
+    display: flex; align-items: center; gap: 9px; padding: 11px 13px;
+    background: var(--fundo-sub); border: 1px solid var(--borda);
+    border-radius: var(--r-md); font-size: 12.5px; font-weight: 600;
   }
-  .nicho-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: var(--bg-subcard);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    user-select: none;
-    transition: 0.15s;
-  }
-  .nicho-card:hover { border-color: var(--primary); }
-  .nicho-card.selected {
-    background: rgba(8, 123, 255, 0.15);
-    border-color: var(--primary);
-    color: #fff;
-  }
-  .nicho-card .n-check {
-    margin-left: auto;
-    font-size: 12px;
-    color: var(--primary);
-    opacity: 0;
-  }
-  .nicho-card.selected .n-check { opacity: 1; }
+  .diag-item .icone-ok { color: var(--ok); }
+  .diag-item .icone-falta { color: var(--texto-3); }
+  .diag-item b { font-weight: 700; }
+  .diag-item span { color: var(--texto-3); font-weight: 500; }
 
-  /* Terminals */
-  .logs-terminal-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    height: calc(100vh - 240px);
-    min-height: 440px;
+  /* ══ Rodapé ════════════════════════════════════════════════════════ */
+  .rodape {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap;
+    margin-top: auto; padding: 15px 32px;
+    background: var(--fundo-sidebar); border-top: 1px solid var(--borda-sutil);
+    font-size: 12px; color: var(--texto-3);
   }
-  @media (max-width: 900px) { .logs-terminal-container { grid-template-columns: 1fr; height: auto; } }
+  .rodape .esq, .rodape .dir { display: flex; align-items: center; gap: 7px; }
+  .rodape .icone { color: var(--ok); }
 
-  .terminal-box {
-    background: #040d17;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* ══ Modal ═════════════════════════════════════════════════════════ */
+  /* `display` aqui tem especificidade (0,1,0) e vencia o `display:none` do
+     atributo `hidden` vindo do navegador — os dois modais ficavam SEMPRE no
+     layout (invisíveis, mas focáveis por Tab e lidos por leitores de tela).
+     A regra do `[hidden]` abaixo tem (0,2,0) e realmente esconde.          */
+  .overlay[hidden] { display: none; }
+  .overlay {
+    position: fixed; inset: 0; z-index: var(--z-overlay);
+    display: grid; place-items: center; padding: 20px;
+    background: rgba(2, 9, 18, 0.72);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity var(--t-media) var(--ease), visibility var(--t-media) var(--ease);
   }
-  .terminal-header {
-    background: var(--bg-subcard);
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 13px;
-    font-weight: 700;
+  .overlay.aberto { opacity: 1; visibility: visible; pointer-events: auto; }
+  .modal {
+    width: 100%; max-width: 540px; max-height: calc(100vh - 40px);
+    display: flex; flex-direction: column;
+    background: var(--fundo-card); border: 1px solid var(--borda-forte);
+    border-radius: var(--r-lg); box-shadow: var(--sombra-3); overflow: hidden;
+    transform: scale(0.96) translateY(8px);
+    transition: transform var(--t-media) var(--ease);
   }
-  .terminal-body {
-    flex: 1;
-    padding: 16px 20px;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: #94a3b8;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    line-height: 1.6;
+  .overlay.aberto .modal { transform: none; }
+  .modal-topo {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--borda);
+  }
+  .modal-topo h3 { flex: 1; font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .modal-topo .icone { color: var(--primaria-forte); }
+  .modal-corpo { padding: 18px; overflow-y: auto; }
+  .modal-pe { display: flex; justify-content: flex-end; gap: 9px;
+              padding: 13px 18px; background: var(--fundo-sub); border-top: 1px solid var(--borda); }
+
+  .saida-link {
+    display: flex; gap: 8px; align-items: stretch; margin-top: 6px;
+  }
+  .saida-link input {
+    flex: 1; min-width: 0; padding: 10px 12px; min-height: 40px;
+    background: var(--fundo-inset); border: 1px solid var(--borda);
+    border-radius: var(--r-sm); color: var(--texto);
+    font: 500 12.5px var(--mono);
+  }
+  .saida-link input:focus { border-color: var(--primaria); box-shadow: var(--anel); }
+  .resultado-caixa {
+    margin-top: 16px; padding: 13px 15px;
+    background: var(--primaria-fundo); border: 1px solid var(--primaria-borda);
+    border-radius: var(--r-md);
+  }
+  .resultado-caixa .rot {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.7px; color: var(--primaria-texto); margin-bottom: 7px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .painel-info {
+    padding: 13px 15px; background: var(--fundo-sub);
+    border: 1px solid var(--borda); border-radius: var(--r-md);
+    font-size: 13px; line-height: 1.6;
+  }
+  .painel-info p + p { margin-top: 7px; }
+  .painel-info dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: baseline; }
+  .painel-info dt { color: var(--texto-3); font-size: 12.5px; }
+  .painel-info dd { margin: 0; font-weight: 600; }
+  .painel-info .caminho { grid-column: 1 / -1; font: 400 11px var(--mono);
+                         color: var(--texto-3); word-break: break-all; }
+
+  /* ══ Aviso dentro da página ═══════════════════════════════════════ */
+  .alerta {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px; border-radius: var(--r-md); font-size: 13px; line-height: 1.5;
+  }
+  .alerta .icone { flex: none; margin-top: 1px; }
+  .alerta strong { display: block; margin-bottom: 2px; }
+  .alerta-info { background: var(--primaria-fundo); border: 1px solid var(--primaria-borda); color: var(--texto-2); }
+  .alerta-info .icone { color: var(--primaria-forte); }
+  .alerta-espera { background: var(--alerta-fundo); border: 1px solid var(--alerta-borda); color: var(--texto-2); }
+  .alerta-espera .icone { color: var(--alerta); }
+  .alerta-erro { background: var(--erro-fundo); border: 1px solid var(--erro-borda); color: var(--texto-2); }
+  .alerta-erro .icone { color: var(--erro); }
+
+  /* Botões de escolha do Telegram detectado */
+  .escolhas { display: flex; flex-direction: column; gap: 8px; }
+  .escolha-rot { font-size: 12px; font-weight: 700; text-transform: uppercase;
+                 letter-spacing: 0.6px; color: var(--texto-3); }
+  .escolha {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 13px; min-height: 44px; text-align: left;
+    background: var(--fundo-sub); border: 1px solid var(--borda);
+    border-radius: var(--r-md); color: var(--texto);
+    font: inherit; font-size: 13px; cursor: pointer;
+    transition: border-color var(--t-rapida) var(--ease), background var(--t-rapida) var(--ease);
+  }
+  .escolha:hover { border-color: var(--primaria); background: var(--fundo-card-hi); }
+  .escolha .icone { color: var(--primaria-forte); flex: none; }
+  .escolha b { font-weight: 600; }
+  .escolha code { margin-left: auto; }
+
+  /* ══ Toasts ════════════════════════════════════════════════════════ */
+  .toasts {
+    position: fixed; right: 20px; bottom: 20px; z-index: var(--z-toast);
+    display: flex; flex-direction: column; gap: 9px;
+    max-width: min(400px, calc(100vw - 40px)); pointer-events: none;
+  }
+  .toast {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 15px; pointer-events: auto;
+    background: var(--fundo-card-hi); border: 1px solid var(--borda-forte);
+    border-radius: var(--r-md); box-shadow: var(--sombra-3);
+    font-size: 13px; font-weight: 500; color: var(--texto);
+    transform: translateY(14px) scale(0.97); opacity: 0;
+    transition: transform var(--t-lenta) var(--ease), opacity var(--t-lenta) var(--ease);
+  }
+  .toast.entrou { transform: none; opacity: 1; }
+  .toast .icone { flex: none; margin-top: 1px; }
+  .toast-ok { border-color: var(--ok-borda); }
+  .toast-ok .icone { color: var(--ok); }
+  .toast-erro { border-color: var(--erro-borda); }
+  .toast-erro .icone { color: var(--erro); }
+  .toast-espera { border-color: var(--alerta-borda); }
+  .toast-espera .icone { color: var(--alerta); }
+  .toast-info { border-color: var(--primaria-borda); }
+  .toast-info .icone { color: var(--primaria-forte); }
+
+  /* ══ Responsivo ════════════════════════════════════════════════════ */
+  @media (max-width: 1240px) {
+    .dash-grade { grid-template-columns: 1fr; }
+    .grade-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 1000px) {
+    .metricas { grid-template-columns: 1fr; }
+    .config-grade { grid-template-columns: 1fr; }
+    .logs-grade { grid-template-columns: 1fr; height: auto; }
+    .terminal { height: 300px; }
+  }
+  @media (max-width: 860px) {
+    .app-layout { flex-direction: column; }
+    .sidebar {
+      position: static; width: 100%; height: auto; flex-direction: row;
+      align-items: center; gap: 14px; overflow-x: auto;
+      border-right: 0; border-bottom: 1px solid var(--borda-sutil);
+      padding: 10px 14px;
+    }
+    .brand { padding: 0; flex: none; }
+    .brand-texto { display: none; }
+    .nav-menu { flex-direction: row; margin: 0; }
+    .nav-item span.rot { display: none; }
+    .nav-item { padding: 9px; }
+    .nav-badge { display: none; }
+    .sidebar-rodape { margin: 0 0 0 auto; display: flex; align-items: center; gap: 10px; }
+    .bot-cartao { margin: 0; width: auto; min-height: 44px; }
+    .bot-cartao-texto small { display: none; }
+    .sidebar-nota { display: none; }
+    .top-header, .view { padding-left: 18px; padding-right: 18px; }
+    .saudacao h2 { font-size: 20px; }
+    .perfil { display: none; }
+    .grade-2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .grade-4 { grid-template-columns: 1fr; }
+    .top-header { padding-top: 16px; }
+    .header-acoes { width: 100%; }
+    .btn-primario { width: 100%; }
   }
 
-  .data-table-wrap {
-    overflow-x: auto;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    margin-top: 14px;
-  }
-  table.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-    font-size: 13px;
-  }
-  table.data-table th {
-    background: #081a2e;
-    padding: 14px 20px;
-    color: var(--tx-muted);
-    font-weight: 700;
-    border-bottom: 1px solid var(--border-color);
-  }
-  table.data-table td {
-    padding: 14px 20px;
-    border-bottom: 1px solid #102d4a;
-    color: #cbd5e1;
-  }
-  table.data-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
-
-  /* Modals */
-  .modal-overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(3, 7, 18, 0.75);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    z-index: 999;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-  .modal-overlay.show {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .modal-container {
-    background: var(--bg-card);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-lg);
-    width: 100%;
-    max-width: 540px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-    overflow: hidden;
-    transform: scale(0.95);
-    transition: transform 0.2s ease;
-  }
-  .modal-overlay.show .modal-container { transform: scale(1); }
-  .modal-header {
-    padding: 18px 22px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .modal-header h3 {
-    font-size: 16px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .btn-modal-close {
-    background: transparent;
-    border: 0;
-    color: var(--tx-muted);
-    font-size: 20px;
-    cursor: pointer;
-    line-height: 1;
-  }
-  .modal-body { padding: 22px; }
-  .modal-footer {
-    padding: 14px 22px;
-    background: var(--bg-subcard);
-    border-top: 1px solid var(--border-color);
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
-  .toast-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    pointer-events: none;
+  /* ══ Impressão ══════════════════════════════════════════════════════
+     Sem isso o painel imprime como um retângulo azul-escuro com letras
+     claras — quase nada de tinta e ilegível. Aqui vira papel.            */
+  @media print {
+    :root {
+      --fundo: #fff; --fundo-sidebar: #fff; --fundo-card: #fff; --fundo-card-hi: #fff;
+      --fundo-sub: #fff; --fundo-inset: #fff;
+      --borda: #c8d0d8; --borda-forte: #8b98a5; --borda-sutil: #dde3e9;
+      --texto: #000; --texto-2: #26313c; --texto-3: #4a5764;
+      --primaria: #0A6EDB; --primaria-forte: #0A6EDB;
+      --primaria-texto: #0A4E9B; --ok: #0d7a52; --alerta: #8a5a00; --erro: #b3261e;
+      --e1: #0d4a80; --e2: #a06a00; --e3: #a8331f; --e4: #6b3fd4;
+      --sombra-1: none; --sombra-2: none; --sombra-3: none; --anel: none;
+    }
+    html, body { background: #fff !important; color: #000; }
+    .sidebar, .top-header, .rodape, .toasts, .overlay,
+    .pular-para-conteudo, .btn, .btn-icone, .acoes-form, .bloco-acoes { display: none !important; }
+    .app-layout { display: block; }
+    .view { display: none !important; padding: 0; }
+    .view.ativa { display: block !important; }
+    .card, .bloco, .mp-card, .info-card {
+      break-inside: avoid; page-break-inside: avoid;
+      box-shadow: none !important; border-color: #c8d0d8 !important;
+    }
+    .tabela-caixa { overflow: visible; }
+    a[href]::after { content: " (" attr(href) ")"; font-size: 10px; color: #4a5764; }
+    .link-url { white-space: normal; word-break: break-all; min-height: 0; padding: 0; margin: 0; }
   }
-  .toast-card {
-    background: #0d2a4a;
-    border: 1px solid var(--border-light);
-    color: #fff;
-    padding: 12px 20px;
-    border-radius: var(--radius-sm);
-    font-weight: 600;
-    font-size: 13px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transform: translateY(20px);
-    opacity: 0;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    pointer-events: auto;
-  }
-  .toast-card.show {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  .toast-card.success { border-color: var(--success); }
-  .toast-card.error { border-color: var(--danger); }
 </style>
 </head>
 <body>
 
+<!-- ══ Conjunto de ícones (Lucide, 24×24, traço 2) ══════════════════════
+     Um <symbol> por ícone; usar com <svg class="icone"><use href="#i-nome"/></svg>.
+     Substitui todos os emojis e glifos de texto do painel. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11.7 5.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-link-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7"/><path d="M15 7h2a5 5 0 0 1 3.5 8.5"/><path d="M8 12h4"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M9 21v-6h6v6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 9l3 3-3 3M12 15h5"/></symbol>
+  <symbol id="i-headset" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17v-5a9 9 0 0 1 18 0v5"/><path d="M21 18a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 18a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.6 2.6 4.4-4.6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4h.01"/></symbol>
+  <symbol id="i-alert-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L2 18.5A2 2 0 0 0 3.7 21.5h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17.4h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4v6h-6"/><path d="M3.5 15a9 9 0 1 0 2-9.4L3 10"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3l1.5 1.5-1.5 1.5 1.5 1.5-2 2-1.5-1.5-2 2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.7-4.7"/></symbol>
+  <symbol id="i-zoom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.7-4.7M8 10.5h5M10.5 8v5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 12.2A2 2 0 0 0 9 21h6a2 2 0 0 0 2-1.8L18 7"/><path d="M10 11.5v5M14 11.5v5"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5L11 13"/><path d="M21.5 2.5l-6.8 19-3.7-8.5L2.5 9.3z"/></symbol>
+  <symbol id="i-handshake" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="M7 21l1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8L15 14"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 7.5L12 3 3.5 7.5v9L12 21l8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/></symbol>
+  <symbol id="i-shopping-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l1 14H4z"/><path d="M9 7V5.5a3 3 0 0 1 6 0V7"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.2 9.5h17.6M3.2 14.5h17.6"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v17a1 1 0 0 0 1 1h17"/><path d="M7 15l4-5 3.5 3L20 6"/></symbol>
+  <symbol id="i-bar-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v17a1 1 0 0 0 1 1h17"/><path d="M7.5 16v-4M12 16V8M16.5 16v-6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 15a9 9 0 1 0 2-9.4L3 10"/><path d="M3 4v6h6"/><path d="M12 8v4.4l3 1.8"/></symbol>
+  <symbol id="i-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.2 14.2L7 22l5-2.6L17 22l-1.2-7.8"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3.6 8-9.5V5.2L12 2.4 4 5.2v7.3C4 18.4 12 22 12 22z"/><path d="M9 12l2.2 2.2L15.5 10"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1.5A5.5 5.5 0 0 1 9.5 14h5a5.5 5.5 0 0 1 5.5 5.5V21"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20v-1A4.5 4.5 0 0 1 7 14.5h4a4.5 4.5 0 0 1 4.5 4.5v1"/><path d="M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14.8a4.5 4.5 0 0 1 3.5 4.4V20"/></symbol>
+  <symbol id="i-megaphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a2 2 0 0 0 2 2h2l8 5V4L7 9H5a2 2 0 0 0-2 2z"/><path d="M19 8.5a4.5 4.5 0 0 1 0 7"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3l2.5-6 3 12 3-9 2 3h3.5"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l1.5 3h5L16 12h5"/><path d="M5.4 5.2L3 12v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-2.4-6.8A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.9 1.2z"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l1.5 3h5L16 12h5"/><path d="M5.4 5.2L3 12v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-2.4-6.8A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.9 1.2z"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  <symbol id="i-smartphone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-gamepad" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12h4M9 10v4"/><circle cx="15.5" cy="11" r=".8"/><circle cx="17.5" cy="13" r=".8"/><path d="M6.5 6h11a5 5 0 0 1 5 5v3a4 4 0 0 1-7 2.4l-.6-.9H9.1l-.6.9A4 4 0 0 1 1.5 14v-3a5 5 0 0 1 5-5z"/></symbol>
+  <symbol id="i-sofa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3"/><path d="M2 13a2 2 0 0 1 4 0v3h12v-3a2 2 0 0 1 4 0v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="M6 19v2M18 19v2"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/></symbol>
+  <symbol id="i-shirt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3a3 3 0 0 1-6 0L4.5 5 3 9l3 1.5V21h12V10.5L21 9l-1.5-4z"/></symbol>
+  <symbol id="i-heart-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S3.5 15 3.5 9.2A4.7 4.7 0 0 1 12 6.4a4.7 4.7 0 0 1 8.5 2.8c0 5.8-8.5 11.3-8.5 11.3z"/><path d="M3.8 12.5h3l1.4-2.4 2 4.4 1.6-3 1.2 1h3.2"/></symbol>
+  <symbol id="i-baby" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 10.5h.01M15 10.5h.01"/><path d="M9 15a4 4 0 0 0 6 0"/><path d="M12 3c-1-1.5-3-1.5-4 0"/></symbol>
+  <symbol id="i-paw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="6" cy="9.5" rx="2.1" ry="2.6"/><ellipse cx="18" cy="9.5" rx="2.1" ry="2.6"/><ellipse cx="9.7" cy="5.6" rx="1.9" ry="2.4"/><ellipse cx="14.3" cy="5.6" rx="1.9" ry="2.4"/><path d="M12 13.5c3 0 5.5 2.2 5.5 4.6 0 1.7-1.4 2.9-3 2.9-1.1 0-1.8-.5-2.5-.5s-1.4.5-2.5.5c-1.6 0-3-1.2-3-2.9 0-2.4 2.5-4.6 5.5-4.6z"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l1.4-4.4A2 2 0 0 1 8.3 7.2h7.4a2 2 0 0 1 1.9 1.4L19 13"/><path d="M3.5 13h17a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1H15v-2H9v2H4a1 1 0 0 1-1-1v-2.5A1.5 1.5 0 0 1 3.5 13z"/><path d="M6.5 16h.01M17.5 16h.01"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v18H5.5A1.5 1.5 0 0 1 4 19.5z"/><path d="M8 3v18M11 8h4M11 12h4"/></symbol>
+  <symbol id="i-dumbbell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M3.5 9v6M17.5 6.5v11M20.5 9v6M6.5 12h11"/></symbol>
+</svg>
+
+<a href="#conteudo" class="pular-para-conteudo">Pular para o conteúdo</a>
+
 <div class="app-layout">
-  
-  <!-- ── Sidebar ── -->
+
+  <!-- ══ Sidebar ══════════════════════════════════════════════════════ -->
   <aside class="sidebar">
-    <a href="#" class="brand" onclick="switchView('dashboard')">
-      <div class="brand-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
-      </div>
-      <div class="brand-text">
+    <a href="#dashboard" class="brand" data-ir="dashboard">
+      <span class="brand-icone" aria-hidden="true">
+        <svg class="icone"><use href="#i-tag"/></svg>
+      </span>
+      <span class="brand-texto">
         <h1>Ofertas Pro</h1>
-        <span>Painel de Afiliados</span>
-      </div>
+        <span>Painel de afiliados</span>
+      </span>
     </a>
 
-    <nav class="nav-menu">
-      <a class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>
-        Dashboard
+    <nav class="nav-menu" aria-label="Seções do painel">
+      <a class="nav-item" href="#dashboard" data-view="dashboard" aria-current="page">
+        <svg class="icone" aria-hidden="true"><use href="#i-dashboard"/></svg>
+        <span class="rot">Dashboard</span>
       </a>
-      <a class="nav-item" data-view="produtos" onclick="switchView('produtos')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-        Produtos
+      <a class="nav-item" href="#produtos" data-view="produtos">
+        <svg class="icone" aria-hidden="true"><use href="#i-tag"/></svg>
+        <span class="rot">Produtos</span>
       </a>
-      <a class="nav-item" data-view="links" onclick="switchView('links')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-        Links
+      <a class="nav-item" href="#links" data-view="links">
+        <svg class="icone" aria-hidden="true"><use href="#i-link"/></svg>
+        <span class="rot">Links</span>
         <span class="nav-badge" id="navLinkCount">0</span>
       </a>
-      <a class="nav-item" data-view="plataformas" onclick="switchView('plataformas')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
-        Plataformas
+      <a class="nav-item" href="#plataformas" data-view="plataformas">
+        <svg class="icone" aria-hidden="true"><use href="#i-layers"/></svg>
+        <span class="rot">Plataformas</span>
       </a>
-      <a class="nav-item" data-view="config" onclick="switchView('config')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-        Configurações
+      <a class="nav-item" href="#config" data-view="config">
+        <svg class="icone" aria-hidden="true"><use href="#i-sliders"/></svg>
+        <span class="rot">Configurações</span>
       </a>
-      <a class="nav-item" data-view="logs" onclick="switchView('logs')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-        Logs
+      <a class="nav-item" href="#logs" data-view="logs">
+        <svg class="icone" aria-hidden="true"><use href="#i-terminal"/></svg>
+        <span class="rot">Logs</span>
       </a>
-      <a class="nav-item" data-view="suporte" onclick="switchView('suporte')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-        Suporte
+      <a class="nav-item" href="#suporte" data-view="suporte">
+        <svg class="icone" aria-hidden="true"><use href="#i-headset"/></svg>
+        <span class="rot">Suporte</span>
       </a>
     </nav>
 
-    <!-- Bot Status Widget -->
-    <div class="sidebar-bot-card" onclick="toggleBot()">
-      <div class="bot-status-dot" id="sideBotDot"></div>
-      <div class="bot-status-info">
-        <div class="title" id="sideBotTitle">Bot Parado</div>
-        <div class="subtitle" id="sideBotSub">Aguardando início</div>
-      </div>
-      <div class="bot-status-arrow">›</div>
-    </div>
-
-    <div class="sidebar-footer">
-      <strong>Ofertas Pro v2.0.0</strong><br>
-      Painel Local
+    <div class="sidebar-rodape">
+      <button type="button" class="bot-cartao" id="botCartao" aria-live="polite">
+        <span class="ponto" id="ladoPonto" aria-hidden="true"></span>
+        <span class="bot-cartao-texto">
+          <b id="ladoTitulo">Bot parado</b>
+          <small id="ladoSub">Aguardando início</small>
+        </span>
+        <svg class="icone icone-sm" aria-hidden="true"><use id="ladoIcone" href="#i-play"/></svg>
+      </button>
+      <p class="sidebar-nota">
+        <strong>Ofertas Pro 2.0</strong><br>
+        Servidor local — nada sai do seu PC.
+      </p>
     </div>
   </aside>
 
-  <!-- ── Main Content ── -->
-  <main class="main-wrapper">
-    
-    <!-- Top Header -->
+  <!-- ══ Conteúdo ════════════════════════════════════════════════════ -->
+  <main class="main-wrapper" id="conteudo">
+
     <header class="top-header">
-      <div class="greeting-section">
-        <h2>Olá! 👋</h2>
-        <h3>Bem-vindo ao seu painel de afiliados</h3>
-        <p>Aqui você gerencia seus links, acompanha o desempenho e controla suas ofertas.</p>
+      <div class="saudacao">
+        <h2>
+          <svg class="icone" aria-hidden="true"><use href="#i-wave"/></svg>
+          Olá, por aqui
+        </h2>
+        <p>Acompanhe o que o bot postou, ligue e desligue o serviço e ajuste suas credenciais — tudo neste painel.</p>
       </div>
 
-      <div class="header-actions">
-        <div class="sys-online-pill" id="headerBotPill">
-          <span class="sys-dot" id="headerBotDot"></span>
-          <span id="headerBotText">Bot Parado</span>
+      <div class="header-acoes">
+        <span class="status-pill" id="headerPill" data-ligado="0">
+          <span class="ponto" id="headerPonto" aria-hidden="true"></span>
+          <span id="headerTexto">Bot parado</span>
+        </span>
+
+        <div class="relogio">
+          <div class="hora" id="relogioHora">--:--</div>
+          <div class="data" id="relogioData">--/--/----</div>
         </div>
 
-        <div class="time-display">
-          <div class="clock" id="liveClock">--:--</div>
-          <div class="date" id="liveDate">--/--/----</div>
+        <div class="perfil">
+          <span class="avatar" aria-hidden="true"><svg class="icone"><use href="#i-user"/></svg></span>
+          <span class="perfil-texto">
+            <b>Você</b>
+            <small id="perfilDono">ID não detectado</small>
+          </span>
         </div>
 
-        <div class="user-profile-pill">
-          <div class="user-avatar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          </div>
-          <div class="user-info">
-            <div class="name">Usuário</div>
-            <div class="badge">Local</div>
-          </div>
-        </div>
-
-        <button class="btn-primary" onclick="abrirModalLink()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-          Gerar Link Rápido
+        <button type="button" class="btn btn-primario" onclick="abrirModalLink()">
+          <svg class="icone icone-sm" aria-hidden="true"><use href="#i-link"/></svg>
+          Gerar link
         </button>
       </div>
     </header>
 
-    <!-- ── TAB 1: DASHBOARD ── -->
-    <div id="view-dashboard" class="content-body view-tab-content active-view">
-      
-      <!-- 5 Symmetrical Marketplaces Row -->
-      <section class="marketplaces-grid">
-        <!-- Mercado Livre -->
-        <div class="mp-card">
-          <div class="mp-icon-box icon-ml">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"></path><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8L15 14"></path></svg>
-          </div>
+    <!-- ── Dashboard ──────────────────────────────────────────────── -->
+    <section class="view ativa" id="view-dashboard" aria-labelledby="t-dash">
+      <h2 class="so-leitor" id="t-dash">Dashboard</h2>
+
+      <section class="grade-4" aria-label="Marketplaces">
+        <article class="mp-card">
+          <span class="mp-icone ml" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-handshake"/></svg></span>
           <h4>Mercado Livre</h4>
-          <span class="badge-pending" id="dashMlBadge"><span class="dot"></span>Não configurado</span>
-          <span class="mp-sub" id="dashMlSub">Não configurado</span>
-          <button class="btn-dark" onclick="gerenciarPlataforma('mercadolivre')">Gerenciar</button>
-        </div>
+          <span class="selo selo-espera" id="seloMl"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
+          <span class="mp-sub" id="subMl">Sem credenciais</span>
+          <button type="button" class="btn btn-neutro" onclick="gerenciarPlataforma('mercadolivre')">Configurar</button>
+        </article>
 
-        <!-- Amazon -->
-        <div class="mp-card">
-          <div class="mp-icon-box icon-amazon">a</div>
+        <article class="mp-card">
+          <span class="mp-icone amz" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-package"/></svg></span>
           <h4>Amazon</h4>
-          <span class="badge-pending" id="dashAmzBadge"><span class="dot"></span>Não configurado</span>
-          <span class="mp-sub" id="dashAmzSub">Não configurado</span>
-          <button class="btn-dark" onclick="gerenciarPlataforma('amazon')">Gerenciar</button>
-        </div>
+          <span class="selo selo-espera" id="seloAmz"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
+          <span class="mp-sub" id="subAmz">Sem tag de associado</span>
+          <button type="button" class="btn btn-neutro" onclick="gerenciarPlataforma('amazon')">Configurar</button>
+        </article>
 
-        <!-- Shopee -->
-        <div class="mp-card">
-          <div class="mp-icon-box icon-shopee">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-          </div>
+        <article class="mp-card">
+          <span class="mp-icone shp" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-shopping-bag"/></svg></span>
           <h4>Shopee</h4>
-          <span class="badge-pending" id="dashShpBadge"><span class="dot"></span>Não configurado</span>
-          <span class="mp-sub" id="dashShpSub">Não configurado</span>
-          <button class="btn-dark" onclick="gerenciarPlataforma('shopee')">Gerenciar</button>
-        </div>
+          <span class="selo selo-espera" id="seloShp"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
+          <span class="mp-sub" id="subShp">Sem credenciais de API</span>
+          <button type="button" class="btn btn-neutro" onclick="gerenciarPlataforma('shopee')">Configurar</button>
+        </article>
 
-        <!-- AliExpress -->
-        <div class="mp-card">
-          <div class="mp-icon-box icon-aliexpress">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-          </div>
+        <article class="mp-card">
+          <span class="mp-icone ali" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-globe"/></svg></span>
           <h4>AliExpress</h4>
-          <span class="badge-pending" id="dashAliBadge"><span class="dot"></span>Não configurado</span>
-          <span class="mp-sub" id="dashAliSub">Não configurado</span>
-          <button class="btn-dark" onclick="gerenciarPlataforma('aliexpress')">Gerenciar</button>
-        </div>
+          <span class="selo selo-fora">Indisponível</span>
+          <span class="mp-sub">Sem integração oficial</span>
+          <button type="button" class="btn btn-neutro" disabled aria-disabled="true"
+                  title="O AliExpress ainda não tem integração neste projeto">Configurar</button>
+        </article>
       </section>
 
-      <!-- Main 2-Column Split -->
-      <div class="dash-main-grid">
-        
-        <!-- Left Section (Metrics + Activity) -->
-        <div class="dash-left-column">
-          
-          <section class="metrics-row">
-            <!-- Card 1: Links Gerados -->
-            <div class="dash-card">
-              <div class="metric-card-header">
+      <div class="dash-grade">
+        <div class="coluna">
+          <section class="metricas" aria-label="Indicadores">
+            <article class="card">
+              <div class="metrica-topo">
                 <div>
-                  <div class="metric-title-group">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                    <h4>Links Gerados</h4>
+                  <div class="card-titulo">
+                    <svg class="icone icone-sm" aria-hidden="true"><use href="#i-bar-chart"/></svg>
+                    <h4>Ofertas postadas</h4>
                   </div>
-                  <div class="metric-subtitle">Últimos 7 dias</div>
+                  <div class="metrica-rotulo">Últimos 7 dias</div>
                 </div>
-                <div class="metric-stat-group">
-                  <div class="metric-big-val" id="valLinksGerados">0</div>
-                  <div class="metric-growth-badge" id="badgeLinksCresc">0%</div>
-                </div>
-              </div>
-              <div class="chart-canvas-wrap">
-                <canvas id="chartLinks"></canvas>
-              </div>
-            </div>
-
-            <!-- Card 2: Conversão -->
-            <div class="dash-card">
-              <div class="metric-card-header">
                 <div>
-                  <div class="metric-title-group">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                    <h4>Conversão</h4>
-                  </div>
-                  <div class="metric-subtitle">Últimos 7 dias</div>
-                </div>
-                <div class="metric-stat-group">
-                  <div class="metric-big-val" id="valConversao">0,0%</div>
-                  <div class="metric-growth-badge" id="badgeConvCresc">0%</div>
+                  <div class="metrica-valor" id="valSemana">0</div>
+                  <div class="metrica-delta parado" id="deltaSemana">estável</div>
                 </div>
               </div>
-              <div class="chart-canvas-wrap">
-                <canvas id="chartConversao"></canvas>
+              <div class="grafico-caixa">
+                <canvas id="graficoSemana" role="img"
+                        aria-label="Ofertas postadas por dia nos últimos 7 dias"></canvas>
               </div>
-            </div>
+            </article>
 
-            <!-- Card 3: Top Plataformas -->
-            <div class="dash-card">
-              <div class="metric-card-header" style="margin-bottom: 8px;">
+            <article class="card">
+              <div class="metrica-topo">
                 <div>
-                  <div class="metric-title-group">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
-                    <h4>Top Plataformas</h4>
+                  <div class="card-titulo">
+                    <svg class="icone icone-sm" aria-hidden="true"><use href="#i-award"/></svg>
+                    <h4>Histórico total</h4>
                   </div>
-                  <div class="metric-subtitle">Cliques no período</div>
+                  <div class="metrica-rotulo">Tudo que já foi publicado</div>
+                </div>
+                <div>
+                  <div class="metrica-valor" id="valTotal">0</div>
+                  <div class="metrica-delta parado">no banco</div>
                 </div>
               </div>
-
-              <div class="top-platforms-list" id="topPlataformasWrap">
-                <div class="empty-placeholder">Nenhum clique registrado ainda.</div>
+              <div class="metrica-topo" style="margin:0; padding-top:12px; border-top:1px solid var(--borda-sutil);">
+                <div>
+                  <div class="metrica-rotulo">Última publicação</div>
+                  <div style="font-size:17px; font-weight:800; letter-spacing:-0.3px; margin-top:2px;" id="valUltima">nenhuma ainda</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="metrica-rotulo">Hoje</div>
+                  <div style="font-size:17px; font-weight:800; margin-top:2px;" id="valHoje">0</div>
+                </div>
               </div>
-            </div>
+            </article>
           </section>
 
-          <!-- Atividade Recente Card -->
-          <div class="dash-card">
-            <div class="card-top-title" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Atividade Recente</h4>
+          <section class="card" aria-labelledby="t-top">
+            <div class="card-topo">
+              <div>
+                <div class="card-titulo">
+                  <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chart"/></svg>
+                  <h4 id="t-top">Ofertas por plataforma</h4>
+                </div>
+                <div class="metrica-rotulo">Distribuição de tudo que já foi postado</div>
               </div>
-              <a href="#" onclick="switchView('logs')" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 600;">Ver todos os logs</a>
+              <button type="button" class="btn btn-fantasma" onclick="switchView('produtos')">
+                Ver produtos
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+              </button>
             </div>
+            <div class="top-lista" id="topLista"></div>
+          </section>
 
-            <div class="activity-list" id="activityListWrap">
-              <div class="empty-placeholder">Nenhuma atividade registrada ainda.</div>
+          <section class="card" aria-labelledby="t-ativ">
+            <div class="card-topo">
+              <div>
+                <div class="card-titulo">
+                  <svg class="icone icone-sm" aria-hidden="true"><use href="#i-history"/></svg>
+                  <h4 id="t-ativ">Publicações recentes</h4>
+                </div>
+                <div class="metrica-rotulo">Últimas ofertas que chegaram ao canal</div>
+              </div>
+              <button type="button" class="btn btn-fantasma" onclick="switchView('logs')">
+                Ver logs
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+              </button>
             </div>
-          </div>
-
+            <div class="atividade" id="atividadeLista"></div>
+          </section>
         </div>
 
-        <!-- Right Side Panel -->
-        <div class="dash-right-column">
-          
-          <!-- Link Builder Quick Trigger -->
-          <div class="right-panel-card">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-              <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Link Builder Rápido</h4>
+        <div class="coluna">
+          <section class="card" aria-labelledby="t-builder">
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-link"/></svg>
+              <h4 id="t-builder">Link builder</h4>
             </div>
-            <p style="font-size: 12px; color: var(--tx-muted); margin: 6px 0 14px;">Converta qualquer link em link de afiliado instantaneamente.</p>
-
-            <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="abrirModalLink()">
-              Abrir Link Builder ↗
+            <p class="card-sub" style="margin:7px 0 14px;">
+              Transforme qualquer link de produto em link com a sua tag de afiliado.
+            </p>
+            <button type="button" class="btn btn-primario btn-bloco" onclick="abrirModalLink()">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-wand"/></svg>
+              Abrir link builder
             </button>
-          </div>
+            <button type="button" class="btn btn-neutro btn-bloco" style="margin-top:8px;"
+                    onclick="executarCiclo()" id="btnCiclo">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-refresh"/></svg>
+              Rodar um ciclo agora
+            </button>
+          </section>
 
-          <!-- Links Recentes -->
-          <div class="right-panel-card">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Links Recentes</h4>
+          <section class="card" aria-labelledby="t-links">
+            <div class="card-topo" style="margin-bottom:10px">
+              <div class="card-titulo">
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-link"/></svg>
+                <h4 id="t-links">Links do canal</h4>
               </div>
-              <a href="#" onclick="switchView('links')" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 600;">Ver todos</a>
+              <button type="button" class="btn btn-fantasma" onclick="switchView('links')">
+                Ver todos
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+              </button>
             </div>
-
-            <div class="recent-links-list" id="recentLinksListWrap">
-              <div class="empty-placeholder">Nenhum link recente postado.</div>
-            </div>
-          </div>
-
+            <div class="link-lista" id="linksRecentes"></div>
+          </section>
         </div>
-
       </div>
+    </section>
 
-    </div>
-
-    <!-- ── TAB 2: PRODUTOS ── -->
-    <div id="view-produtos" class="content-body view-tab-content">
-      <div class="dash-card">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-            <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Produtos & Ofertas Postadas</h3>
+    <!-- ── Produtos ──────────────────────────────────────────────── -->
+    <section class="view" id="view-produtos" aria-labelledby="t-prod">
+      <div class="card">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-tag"/></svg>
+              <h3 id="t-prod">Produtos publicados</h3>
+            </div>
+            <p class="card-sub">Tudo que o bot postou no canal, do mais novo para o mais antigo.</p>
           </div>
-          <button class="btn-dark" onclick="carregarProdutos()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+          <button type="button" class="btn btn-neutro" onclick="carregarProdutos()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-refresh"/></svg>
             Atualizar
           </button>
         </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">Histórico de todas as ofertas capturadas e publicadas automaticamente no seu canal do Telegram.</p>
-
-        <div class="data-table-wrap">
-          <table class="data-table" id="produtosTable">
+        <div class="tabela-caixa">
+          <table class="tabela">
             <thead>
               <tr>
-                <th>Plataforma</th>
-                <th>Título do Produto</th>
-                <th>Preço</th>
-                <th>Data / Hora</th>
-                <th>Ações</th>
+                <th scope="col">Plataforma</th>
+                <th scope="col">Título</th>
+                <th scope="col">Preço</th>
+                <th scope="col">Publicado em</th>
+                <th scope="col">Link</th>
               </tr>
             </thead>
-            <tbody id="produtosTableBody">
-              <tr><td colspan="5" style="text-align: center; color: var(--tx-dim);">Carregando produtos...</td></tr>
+            <tbody id="produtosCorpo">
+              <tr><td colspan="5"><div class="vazio">Carregando…</div></td></tr>
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- ── TAB 3: LINKS ── -->
-    <div id="view-links" class="content-body view-tab-content">
-      <div class="dash-card">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-            <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Gerenciador de Links de Afiliado</h3>
-          </div>
-          <button class="btn-primary" onclick="abrirModalLink()">+ Novo Link Rápido</button>
-        </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">Acompanhe e copie os links de afiliados gerados para suas postagens e promoções.</p>
-
-        <div class="recent-links-list" id="allLinksListWrap">
-          <div class="empty-placeholder">Nenhum link gerado ainda.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── TAB 4: PLATAFORMAS ── -->
-    <div id="view-plataformas" class="content-body view-tab-content">
-      
-      <div class="dash-card" style="margin-bottom: 24px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+    <!-- ── Links ─────────────────────────────────────────────────── -->
+    <section class="view" id="view-links" aria-labelledby="t-links2">
+      <div class="card">
+        <div class="card-topo">
           <div>
-            <h3 style="font-size: 18px; font-weight: 800; color: #fff;">Plataformas de Afiliados</h3>
-            <p style="font-size: 13px; color: var(--tx-muted); margin-top: 4px;">Configure suas contas, autenticações e valide conexões de cada marketplace.</p>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-link"/></svg>
+              <h3 id="t-links2">Links de afiliado</h3>
+            </div>
+            <p class="card-sub">Os links reais gravados a cada postagem. Clique para abrir ou copie.</p>
           </div>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button class="btn-dark" onclick="execAcao('instalar-navegador')" id="btnInstalarNav">⬇️ Instalar Playwright Chromium</button>
-            <button class="btn-primary" onclick="execAcao('ciclo')">⚡ Executar 1 Ciclo de Postagem</button>
+          <button type="button" class="btn btn-primario" onclick="abrirModalLink()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-link"/></svg>
+            Gerar link
+          </button>
+        </div>
+        <div class="link-lista" id="linksTodos"></div>
+      </div>
+    </section>
+
+    <!-- ── Plataformas ──────────────────────────────────────────── -->
+    <section class="view" id="view-plataformas" aria-labelledby="t-plat">
+      <div class="card">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-layers"/></svg>
+              <h3 id="t-plat">Marketplaces</h3>
+            </div>
+            <p class="card-sub">Credenciais, sessões e testes de cada plataforma.</p>
           </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <button type="button" class="btn btn-neutro" id="btnInstalarNav" onclick="executarAcao('instalar-navegador')">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-download"/></svg>
+              <span id="btnInstalarNavTxt">Instalar navegador</span>
+            </button>
+            <button type="button" class="btn btn-primario" id="btnCicloPlat" onclick="executarCiclo()">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-play"/></svg>
+              Rodar um ciclo
+            </button>
+          </div>
+        </div>
+        <div class="alerta alerta-info">
+          <svg class="icone" aria-hidden="true"><use href="#i-alert"/></svg>
+          <div id="resumoAmbiente">Aguardando o diagnóstico do ambiente…</div>
         </div>
       </div>
 
-      <!-- 1. Mercado Livre Block -->
-      <div class="platform-block" id="block-mercadolivre">
-        <div class="pb-header">
-          <div class="pb-header-left">
-            <div class="mp-icon-box icon-ml">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"></path><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8L15 14"></path></svg>
-            </div>
-            <div>
-              <h3>Mercado Livre</h3>
-              <span style="font-size: 12px; color: var(--tx-muted);">Link Builder e Autenticação de Sessão Local</span>
-            </div>
-          </div>
-          <span class="badge-pending" id="pbMlBadge"><span class="dot"></span>Não configurado</span>
-        </div>
+      <div id="blocosPlataforma" style="display:flex; flex-direction:column; gap:16px"></div>
 
-        <div class="pb-content-grid">
-          <div class="pb-info-card">
-            <label>Etiqueta de Afiliado (ML_ETIQUETA)</label>
-            <div class="val" id="pbMlEtiqueta">Não configurado</div>
+      <div class="card">
+        <div class="card-topo" style="margin-bottom:10px">
+          <div class="card-titulo">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-terminal"/></svg>
+            <h4>Saída dos testes</h4>
           </div>
-          <div class="pb-info-card">
-            <label>Sessão do Navegador Local</label>
-            <div class="val" id="pbMlSessaoStatus">Não configurado</div>
-          </div>
+          <button type="button" class="btn btn-neutro btn-sm" onclick="limparTerminal('acao')">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-trash"/></svg>
+            Limpar
+          </button>
         </div>
-
-        <div class="pb-actions">
-          <button class="btn-primary" onclick="execAcao('ml-login')">🔑 Fazer Login no Mercado Livre</button>
-          <button class="btn-dark" onclick="execAcao('testar-ml')">🧪 Testar Conexão ML</button>
-          <button class="btn-dark" onclick="verificarSessaoModal()">🔍 Detalhes da Sessão</button>
-          <button class="btn-outline-danger" onclick="limparSessao()">Limpar Sessão Local</button>
+        <div class="terminal" style="height:210px">
+          <div class="terminal-corpo" id="terminalAcaoPlataformas"></div>
         </div>
       </div>
+    </section>
 
-      <!-- 2. Amazon Block -->
-      <div class="platform-block" id="block-amazon">
-        <div class="pb-header">
-          <div class="pb-header-left">
-            <div class="mp-icon-box icon-amazon">a</div>
-            <div>
-              <h3>Amazon</h3>
-              <span style="font-size: 12px; color: var(--tx-muted);">Amazon Associados & Creators API</span>
+    <!-- ── Configurações ────────────────────────────────────────── -->
+    <section class="view" id="view-config" aria-labelledby="t-config">
+      <div class="card">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-sliders"/></svg>
+              <h3 id="t-config">Credenciais</h3>
             </div>
-          </div>
-          <span class="badge-pending" id="pbAmzBadge"><span class="dot"></span>Não configurado</span>
-        </div>
-
-        <div class="pb-content-grid">
-          <div class="pb-info-card">
-            <label>Tag de Associado (AMAZON_TAG)</label>
-            <div class="val" id="pbAmzTag">Não configurado</div>
-          </div>
-          <div class="pb-info-card">
-            <label>Creators API ID & Secret</label>
-            <div class="val" id="pbAmzApiStatus">Não configurado</div>
+            <p class="card-sub">Salvas no arquivo <code>.env</code> da pasta do projeto. Campos de segredo nunca são enviados de volta para a tela.</p>
           </div>
         </div>
 
-        <div class="pb-actions">
-          <button class="btn-dark" onclick="execAcao('testar-amazon')">🧪 Testar Conexão Amazon</button>
-          <button class="btn-dark" onclick="switchView('config')">⚙️ Editar Credenciais Amazon</button>
+        <form id="formConfig" class="config-grade" novalidate>
+          <div class="vazio" style="grid-column:1/-1">Carregando campos…</div>
+        </form>
+
+        <div class="acoes-form">
+          <button type="submit" form="formConfig" class="btn btn-primario" id="btnSalvarConfig">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+            Salvar credenciais
+          </button>
+          <button type="button" class="btn btn-neutro" onclick="detectarIds()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-search"/></svg>
+            Detectar IDs do Telegram
+          </button>
+          <span id="configAviso" aria-live="polite"></span>
         </div>
+
+        <div id="caixaDeteccao" style="margin-top:16px"></div>
       </div>
 
-      <!-- 3. Shopee Block -->
-      <div class="platform-block" id="block-shopee">
-        <div class="pb-header">
-          <div class="pb-header-left">
-            <div class="mp-icon-box icon-shopee">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-            </div>
-            <div>
-              <h3>Shopee</h3>
-              <span style="font-size: 12px; color: var(--tx-muted);">Programa de Afiliados Shopee Open API</span>
-            </div>
-          </div>
-          <span class="badge-pending" id="pbShpBadge"><span class="dot"></span>Não configurado</span>
+      <div class="card">
+        <div class="card-titulo">
+          <svg class="icone" aria-hidden="true"><use href="#i-store"/></svg>
+          <h3>Categorias do canal</h3>
         </div>
-
-        <div class="pb-content-grid">
-          <div class="pb-info-card">
-            <label>App ID (SHOPEE_APP_ID)</label>
-            <div class="val" id="pbShpAppId">Não configurado</div>
-          </div>
-          <div class="pb-info-card">
-            <label>App Secret</label>
-            <div class="val" id="pbShpSecretStatus">Não configurado</div>
-          </div>
-        </div>
-
-        <div class="pb-actions">
-          <button class="btn-dark" onclick="execAcao('testar-shopee')">🧪 Testar Conexão Shopee</button>
-          <button class="btn-dark" onclick="switchView('config')">⚙️ Editar Credenciais Shopee</button>
-        </div>
-      </div>
-
-      <!-- 4. AliExpress Block -->
-      <div class="platform-block" id="block-aliexpress">
-        <div class="pb-header">
-          <div class="pb-header-left">
-            <div class="mp-icon-box icon-aliexpress">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-            </div>
-            <div>
-              <h3>AliExpress</h3>
-              <span style="font-size: 12px; color: var(--tx-muted);">Links diretos e promoções globais</span>
-            </div>
-          </div>
-          <span class="badge-pending" id="pbAliBadge"><span class="dot"></span>Não configurado</span>
-        </div>
-
-        <div class="pb-content-grid">
-          <div class="pb-info-card">
-            <label>Status da Integração</label>
-            <div class="val" id="pbAliStatus">Não configurado</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Terminal de Ação das Plataformas -->
-      <div class="dash-card" style="margin-top: 10px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Saída do Terminal de Testes</h4>
-          <button class="btn-dark" style="padding: 4px 10px; font-size: 11.5px;" onclick="limparTerminal('logAcaoTerminal')">Limpar Terminal</button>
-        </div>
-        <div class="terminal-body" id="logAcaoTerminal" style="height: 200px; background: #040d17; border-radius: 10px; border: 1px solid var(--border-color);">Aguardando execução de testes...</div>
-      </div>
-
-    </div>
-
-    <!-- ── TAB 5: CONFIGURAÇÕES ── -->
-    <div id="view-config" class="content-body view-tab-content">
-      <div class="dash-card">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Configurações do Sistema & Credenciais</h3>
-          </div>
-          <button class="btn-primary" onclick="salvarConfig()">💾 Salvar Configurações</button>
-        </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Gerencie suas chaves, credenciais do Telegram e tags de afiliados salvas no arquivo <code>.env</code>.</p>
-
-        <div id="camposFormWrap" class="config-grid">Carregando campos...</div>
-
-        <div style="display: flex; gap: 12px; margin-top: 24px; align-items: center; border-top: 1px solid var(--border-color); padding-top: 18px;">
-          <button class="btn-primary" onclick="salvarConfig()">💾 Salvar Tudo</button>
-          <button class="btn-dark" onclick="detectarIds()">🔎 Detectar IDs do Telegram</button>
-        </div>
-
-        <div id="idsDetectionBox" style="margin-top: 16px; display: none;"></div>
-      </div>
-
-      <!-- Categorias & Nichos Card -->
-      <div class="dash-card">
-        <h3 style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px;">Categorias & Nichos do Canal</h3>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">
-          Selecione os nichos de produtos para publicação no Telegram. <strong>Nenhum nicho selecionado = busca em todas as categorias.</strong>
+        <p class="card-sub">
+          Marque os nichos que o bot deve buscar. <strong style="color:var(--texto)">Nada marcado = todas as categorias.</strong>
         </p>
-
-        <div class="nichos-grid" id="nichosGrid">Carregando categorias...</div>
-
-        <div style="display: flex; gap: 12px; margin-top: 18px; align-items: center;">
-          <button class="btn-primary" onclick="salvarNichos()">💾 Salvar Categorias</button>
-          <button class="btn-dark" onclick="limparNichos()">Limpar (Pegar Tudo)</button>
-          <span style="font-size: 12.5px; color: var(--tx-muted);" id="nichosCountLabel"></span>
+        <div class="nichos" id="nichosGrade" role="group" aria-label="Nichos de produto"></div>
+        <div class="acoes-form">
+          <button type="button" class="btn btn-primario" onclick="salvarNichos()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+            Salvar categorias
+          </button>
+          <button type="button" class="btn btn-neutro" onclick="limparNichos()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-x"/></svg>
+            Limpar seleção
+          </button>
+          <span id="nichosContador" class="metrica-rotulo" aria-live="polite"></span>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- ── TAB 6: LOGS ── -->
-    <div id="view-logs" class="content-body view-tab-content">
-      <div class="logs-terminal-container">
-        <div class="terminal-box">
-          <div class="terminal-header">
-            <span>● Log Contínuo do Bot</span>
-            <button class="btn-dark" style="padding: 4px 8px; font-size: 11px;" onclick="limparTerminal('logBotBody')">Limpar</button>
+    <!-- ── Logs ─────────────────────────────────────────────────── -->
+    <section class="view" id="view-logs" aria-labelledby="t-logs">
+      <h2 class="so-leitor" id="t-logs">Logs</h2>
+      <div class="logs-grade">
+        <div class="terminal">
+          <div class="terminal-topo">
+            <span class="rot">
+              <span class="ponto" id="logBotPonto" aria-hidden="true"></span>
+              Log do bot
+            </span>
+            <button type="button" class="btn btn-neutro btn-sm" onclick="limparTerminal('bot')">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-trash"/></svg>
+              Limpar
+            </button>
           </div>
-          <div class="terminal-body" id="logBotBody">O bot está pronto. Inicie pelo painel para acompanhar os logs em tempo real.</div>
+          <div class="terminal-corpo" id="terminalBot" tabindex="0" role="log" aria-live="off" aria-label="Log contínuo do bot"></div>
         </div>
-
-        <div class="terminal-box">
-          <div class="terminal-header">
-            <span>● Log de Ações e Testes</span>
-            <button class="btn-dark" style="padding: 4px 8px; font-size: 11px;" onclick="limparTerminal('logAcaoBody')">Limpar</button>
+        <div class="terminal">
+          <div class="terminal-topo">
+            <span class="rot">
+              <span class="ponto" id="logAcaoPonto" aria-hidden="true"></span>
+              Ações e testes
+            </span>
+            <button type="button" class="btn btn-neutro btn-sm" onclick="limparTerminal('acao')">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-trash"/></svg>
+              Limpar
+            </button>
           </div>
-          <div class="terminal-body" id="logAcaoBody">Nenhuma ação executada recentemente.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── TAB 7: SUPORTE ── -->
-    <div id="view-suporte" class="content-body view-tab-content">
-      <div class="dash-card">
-        <h3 style="font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 6px;">Central de Ajuda e Suporte</h3>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Documentação rápida e diagnóstico do seu ambiente local.</p>
-
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          <div class="pb-info-card">
-            <h4 style="color: #fff; margin-bottom: 6px;">Como obter o Token do Bot no Telegram?</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);">Abra o Telegram, pesquise por <code>@BotFather</code>, envie o comando <code>/newbot</code> e siga as instruções para obter seu Token. Cole o token na aba <strong>Configurações</strong>.</p>
-          </div>
-
-          <div class="pb-info-card">
-            <h4 style="color: #fff; margin-bottom: 6px;">Como descobrir os IDs de Dono e Canal?</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);">Após salvar o token, adicione o bot como Administrador do canal. Envie uma mensagem no canal e uma mensagem no privado do bot, depois use o botão <strong>"Detectar IDs do Telegram"</strong>.</p>
-          </div>
-
-          <div class="pb-info-card">
-            <h4 style="color: #fff; margin-bottom: 6px;">Como funciona o Login no Mercado Livre?</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);">Clique em <strong>"Fazer Login no Mercado Livre"</strong> na aba Plataformas. Uma janela do Chromium abrirá no seu computador para você fazer o login. A sessão será salva localmente em <code>data/ml_profile</code>.</p>
-          </div>
-
-          <div class="pb-info-card">
-            <h4 style="color: #fff; margin-bottom: 6px;">Status do Ambiente Local</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);" id="suporteAmbienteInfo">Carregando diagnóstico do sistema...</p>
-          </div>
+          <div class="terminal-corpo" id="terminalAcao" tabindex="0" role="log" aria-live="off" aria-label="Log de ações e testes"></div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- ── Footer ── -->
-    <footer class="global-footer">
-      <div class="footer-left">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#20D889" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-        Ofertas Pro — Ambiente Local Ativo e Seguro
-      </div>
+    <!-- ── Suporte ──────────────────────────────────────────────── -->
+    <section class="view" id="view-suporte" aria-labelledby="t-sup">
+      <div class="card">
+        <div class="card-titulo">
+          <svg class="icone" aria-hidden="true"><use href="#i-headset"/></svg>
+          <h3 id="t-sup">Central de ajuda</h3>
+        </div>
+        <p class="card-sub">As dúvidas que mais aparecem, e o diagnóstico do seu ambiente.</p>
 
-      <div class="footer-right">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-        Última atualização: <span id="footerTime">--/--/---- --:--</span>
+        <h4 style="font-size:12px; text-transform:uppercase; letter-spacing:0.7px; color:var(--texto-3); margin:20px 0 10px">Diagnóstico</h4>
+        <div class="diagnostico" id="diagnostico"></div>
+
+        <h4 style="font-size:12px; text-transform:uppercase; letter-spacing:0.7px; color:var(--texto-3); margin:22px 0 10px">Perguntas frequentes</h4>
+        <div class="faq">
+          <details>
+            <summary>
+              <svg class="icone icone-sm" style="color:var(--primaria-forte)" aria-hidden="true"><use href="#i-key"/></svg>
+              Como pego o token do bot?
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </summary>
+            <div class="faq-corpo">
+              No Telegram, procure por <code>@BotFather</code>, envie <code>/newbot</code> e siga os passos.
+              Ele devolve um token — cole em <strong>Token do bot</strong> e salve. Guarde esse token em
+              lugar seguro: quem tem ele controla o bot.
+            </div>
+          </details>
+          <details>
+            <summary>
+              <svg class="icone icone-sm" style="color:var(--primaria-forte)" aria-hidden="true"><use href="#i-search"/></svg>
+              Como descubro meu ID e o ID do canal?
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </summary>
+            <div class="faq-corpo">
+              Adicione o bot como administrador do canal. Mande <code>/id</code> no privado dele e
+              encaminhe qualquer post do canal para o mesmo chat — as duas respostas trazem os IDs.
+              Depois use <strong>Detectar IDs do Telegram</strong> em Configurações para preencher os campos.
+            </div>
+          </details>
+          <details>
+            <summary>
+              <svg class="icone icone-sm" style="color:var(--primaria-forte)" aria-hidden="true"><use href="#i-lock"/></svg>
+              Como funciona o login do Mercado Livre?
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </summary>
+            <div class="faq-corpo">
+              Em Plataformas, use <strong>Fazer login</strong>. Abre um navegador na sua tela para você
+              entrar na conta de afiliado. A sessão fica salva em <code>data/ml_profile</code> e é usada
+              só pelo link builder — nada é enviado para fora do seu computador.
+            </div>
+          </details>
+          <details>
+            <summary>
+              <svg class="icone icone-sm" style="color:var(--primaria-forte)" aria-hidden="true"><use href="#i-alert-triangle"/></svg>
+              O bot posta nada. O que verifico?
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </summary>
+            <div class="faq-corpo">
+              Na ordem: o <strong>horário ativo</strong> no <code>config.yaml</code> (por padrão só posta das
+              08:00 às 23:00); se o token do canal está certo; e a aba <strong>Logs</strong>, que mostra o motivo
+              de cada ciclo pulado. Se aparecer “sem link de afiliado”, refaça o login do Mercado Livre.
+            </div>
+          </details>
+        </div>
       </div>
+    </section>
+
+    <footer class="rodape">
+      <span class="esq">
+        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-shield"/></svg>
+        Servidor local — suas credenciais não saem deste computador
+      </span>
+      <span class="dir">
+        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-refresh"/></svg>
+        Atualizado em <span id="rodapeHora">--/--/---- --:--</span>
+      </span>
     </footer>
-
   </main>
 </div>
 
-<!-- ── MODAL 1: LINK BUILDER ── -->
-<div class="modal-overlay" id="modalLinkBuilder">
-  <div class="modal-container">
-    <div class="modal-header">
-      <h3>🔗 Link Builder — Gerar Link de Afiliado</h3>
-      <button class="btn-modal-close" onclick="fecharModalLink()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-field">
-        <label>Cole a URL do Produto</label>
-        <input type="text" id="modalInputUrl" placeholder="https://www.mercadolivre.com.br/p/MLB... ou amazon.com.br/dp/...">
-      </div>
-
-      <div class="form-field">
-        <label>Plataforma (Opcional)</label>
-        <select id="modalSelectPlat">
-          <option value="">Detecção Automática</option>
-          <option value="mercadolivre">Mercado Livre</option>
-          <option value="amazon">Amazon</option>
-          <option value="shopee">Shopee</option>
-          <option value="aliexpress">AliExpress</option>
-        </select>
-      </div>
-
-      <button class="btn-primary" style="width: 100%; justify-content: center; margin-top: 8px;" onclick="converterLinkModal()">
-        ⚡ Gerar Link de Afiliado
+<!-- ══ Modal: link builder ═════════════════════════════════════════════ -->
+<div class="overlay" id="modalLink" role="dialog" aria-modal="true" aria-labelledby="modalLinkTitulo" tabindex="-1" hidden>
+  <div class="modal">
+    <div class="modal-topo">
+      <svg class="icone" aria-hidden="true"><use href="#i-link"/></svg>
+      <h3 id="modalLinkTitulo">Gerar link de afiliado</h3>
+      <button type="button" class="btn btn-icone" data-fechar="modalLink" aria-label="Fechar">
+        <svg class="icone" aria-hidden="true"><use href="#i-x"/></svg>
       </button>
-
-      <div id="modalLinkResult" style="display: none; margin-top: 16px;">
-        <label style="font-size: 12px; color: var(--tx-muted); font-weight: 600;">Link Pronto para Postar:</label>
-        <div style="display: flex; gap: 8px; margin-top: 5px;">
-          <input type="text" id="modalOutputUrl" readonly style="font-family: var(--font-mono); font-size: 12.5px; background: #081a2e;">
-          <button class="btn-primary" onclick="copiarOutputModal()">Copiar</button>
+    </div>
+    <div class="modal-corpo">
+      <form id="formLink" novalidate>
+        <div class="campo">
+          <label for="entradaUrl">Link do produto</label>
+          <input type="url" id="entradaUrl" name="url" placeholder="https://www.mercadolivre.com.br/…" autocomplete="off" spellcheck="false">
+          <p class="ajuda" id="erroUrl" role="alert"></p>
         </div>
-      </div>
+        <div class="campo">
+          <label for="entradaPlataforma">Plataforma</label>
+          <select id="entradaPlataforma" name="plataforma">
+            <option value="">Detectar pelo link</option>
+            <option value="mercadolivre">Mercado Livre</option>
+            <option value="amazon">Amazon</option>
+            <option value="shopee">Shopee</option>
+            <option value="aliexpress">AliExpress</option>
+          </select>
+        </div>
+        <div class="resultado-caixa" id="caixaResultado" hidden>
+          <div class="rot">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-check-circle"/></svg>
+            Link pronto para postar
+          </div>
+          <div class="saida-link">
+            <input type="text" id="saidaUrl" readonly aria-label="Link de afiliado gerado">
+            <button type="button" class="btn btn-neutro" onclick="copiarSaida()">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-copy"/></svg>
+              Copiar
+            </button>
+          </div>
+          <p class="ajuda" id="saidaInfo"></p>
+        </div>
+      </form>
     </div>
-    <div class="modal-footer">
-      <button class="btn-dark" onclick="fecharModalLink()">Fechar</button>
+    <div class="modal-pe">
+      <button type="button" class="btn btn-neutro" data-fechar="modalLink">Fechar</button>
+      <button type="submit" form="formLink" class="btn btn-primario" id="btnGerarLink">
+        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-wand"/></svg>
+        Gerar link
+      </button>
     </div>
   </div>
 </div>
 
-<!-- ── MODAL 2: DETALHES DA SESSÃO ── -->
-<div class="modal-overlay" id="modalSessao">
-  <div class="modal-container">
-    <div class="modal-header">
-      <h3>🛡️ Detalhes da Sessão Local do Mercado Livre</h3>
-      <button class="btn-modal-close" onclick="fecharModalSessao()">&times;</button>
+<!-- ══ Modal: sessão do Mercado Livre ══════════════════════════════════ -->
+<div class="overlay" id="modalSessao" role="dialog" aria-modal="true" aria-labelledby="modalSessaoTitulo" tabindex="-1" hidden>
+  <div class="modal">
+    <div class="modal-topo">
+      <svg class="icone" aria-hidden="true"><use href="#i-shield"/></svg>
+      <h3 id="modalSessaoTitulo">Sessão local do Mercado Livre</h3>
+      <button type="button" class="btn btn-icone" data-fechar="modalSessao" aria-label="Fechar">
+        <svg class="icone" aria-hidden="true"><use href="#i-x"/></svg>
+      </button>
     </div>
-    <div class="modal-body">
-      <div id="modalSessaoConteudo" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-        Verificando sessão...
-      </div>
+    <div class="modal-corpo" id="modalSessaoCorpo">
+      <div class="vazio">Verificando a sessão…</div>
     </div>
-    <div class="modal-footer">
-      <button class="btn-dark" onclick="fecharModalSessao()">Fechar</button>
-      <button class="btn-primary" onclick="execAcao('ml-login')">Abrir Login Local</button>
+    <div class="modal-pe">
+      <button type="button" class="btn btn-neutro" data-fechar="modalSessao">Fechar</button>
+      <button type="button" class="btn btn-primario" onclick="abrirLoginMl()">
+        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-key"/></svg>
+        Refazer login
+      </button>
     </div>
   </div>
 </div>
 
-<!-- Toast Box -->
-<div class="toast-container" id="toastBox"></div>
+<div class="toasts" id="caixaToasts" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <script>
-const $ = s => document.querySelector(s);
-const $$ = s => document.querySelectorAll(s);
+"use strict";
 
-let CFG = {};
-let statusAtual = {};
+/* ══ Utilidades ═══════════════════════════════════════════════════════ */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
+/** Escapa texto antes de entrar em innerHTML — títulos de produto vêm de fora. */
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+const icone = (nome, classe = "icone-sm") =>
+  `<svg class="${classe}" aria-hidden="true"><use href="#i-${esc(nome)}"/></svg>`;
+
+const vazio = (titulo, sub = "", ic = "inbox") => `
+  <div class="vazio">
+    ${icone(ic, "icone")}
+    <strong>${esc(titulo)}</strong>
+    ${sub ? `<span>${esc(sub)}</span>` : ""}
+  </div>`;
+
+const NOME_PLATAFORMA = {
+  mercadolivre: "Mercado Livre", amazon: "Amazon",
+  shopee: "Shopee", aliexpress: "AliExpress"
+};
+const ICONE_PLATAFORMA = {
+  mercadolivre: "handshake", amazon: "package", shopee: "shopping-bag", aliexpress: "globe"
+};
+const NOME_ICONE_NICHO = {
+  cpu: "cpu", smartphone: "smartphone", gamepad: "gamepad", sofa: "sofa", plug: "plug",
+  shirt: "shirt", sparkles: "sparkles", dumbbell: "dumbbell", "heart-pulse": "heart-pulse",
+  baby: "baby", paw: "paw", car: "car", book: "book"
+};
+
+/* Campos do .env: [chave, rótulo, grupo, é segredo, ajuda] */
 const CAMPOS = [
-  ["TELEGRAM_BOT_TOKEN", "Token do Bot", "Telegram", true, "Crie no @BotFather com /newbot e cole aqui."],
-  ["TELEGRAM_OWNER_ID", "Seu User ID", "Telegram", false, "Use o botão 'Detectar IDs' para preencher automaticamente."],
-  ["TELEGRAM_CHAT_ID", "ID do Canal", "Telegram", false, "O canal onde o bot posta as ofertas."],
-  ["ML_ETIQUETA", "Etiqueta do Afiliado", "Mercado Livre", false, "A 'Etiqueta em uso' que aparece no Linkbuilder do ML."],
-  ["AMAZON_TAG", "Tag de Associado", "Amazon", false, "Sua tag do Amazon Associados (ex: seunome-20)."],
-  ["AMAZON_CREDENTIAL_ID", "Creators API — ID", "Amazon", false, "Opcional. Associates Central > Creators API."],
-  ["AMAZON_CREDENTIAL_SECRET", "Creators API — Secret", "Amazon", true, "Opcional. Creators API Secret."],
-  ["SHOPEE_APP_ID", "App ID", "Shopee", false, "Painel de afiliados Shopee > menu 'Abrir API'."],
-  ["SHOPEE_APP_SECRET", "App Secret", "Shopee", true, "Painel de afiliados Shopee > menu 'Abrir API'."],
+  ["TELEGRAM_BOT_TOKEN", "Token do bot", "Telegram", true, "Criado no @BotFather com /newbot."],
+  ["TELEGRAM_OWNER_ID", "Seu user ID", "Telegram", false, "Só você envia links para o bot. Use 'Detectar IDs'."],
+  ["TELEGRAM_CHAT_ID", "ID do canal", "Telegram", false, "Canal onde o bot posta. Use 'Detectar IDs'."],
+  ["ML_ETIQUETA", "Etiqueta de afiliado", "Mercado Livre", false, "A 'Etiqueta em uso' que aparece no Linkbuilder do Mercado Livre."],
+  ["AMAZON_TAG", "Tag de associado", "Amazon", false, "Sua tag do Amazon Associados, ex: seunome-20."],
+  ["AMAZON_CREDENTIAL_ID", "Creators API — ID", "Amazon", false, "Opcional. Habilita a busca oficial da Amazon."],
+  ["AMAZON_CREDENTIAL_SECRET", "Creators API — Secret", "Amazon", true, "Opcional. Só aparece uma vez, na criação."],
+  ["SHOPEE_APP_ID", "App ID", "Shopee", false, "Painel de afiliados da Shopee > menu 'Abrir API'."],
+  ["SHOPEE_APP_SECRET", "App Secret", "Shopee", true, "Painel de afiliados da Shopee > menu 'Abrir API'."],
 ];
 
-function switchView(viewName) {
-  $$('.nav-item').forEach(el => {
-    el.classList.toggle('active', el.getAttribute('data-view') === viewName);
-  });
-  $$('.view-tab-content').forEach(el => {
-    el.classList.remove('active-view');
-  });
-  const target = $(`#view-${viewName}`);
-  if (target) target.classList.add('active-view');
+let statusAtual = {};
+let metricasAtual = {};
+let configCarregada = false;
+let configSuja = false;
+let ultimoFoco = null;
+const NICHOS_SEL = new Set();
+const TERMINAIS_LIMPOS = { bot: true, acao: true };
 
-  if (viewName === 'produtos') carregarProdutos();
-  if (viewName === 'config') { carregarConfig(); carregarNichos(); }
-}
-
-function gerenciarPlataforma(platKey) {
-  switchView('plataformas');
-  $$('.platform-block').forEach(b => b.classList.remove('highlighted'));
-  const el = $(`#block-${platKey}`);
-  if (el) {
-    el.classList.add('highlighted');
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+/* ══ Ícones extras usados via <use> ═══════════════════════════════════ */
+/* Dois ícones não estão no <symbol> estático do corpo; entram por JS para
+   não duplicar o mesmo traço em dois lugares do arquivo.                */
+function injetarIconesFaltantes() {
+  const FALTANDO = {
+    "i-wand": "M14.7 6.3a2 2 0 0 1 2.8 2.8L10 16.6l-3.7 1 1-3.7zM18 2v3M21.5 5.5h-3M3 21l7-7",
+    "i-lock": "M6 10.5V7.8a6 6 0 0 1 12 0v2.7M5 10.5h14a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 21.5H5A1.5 1.5 0 0 1 3.5 20v-8A1.5 1.5 0 0 1 5 10.5z",
+  };
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.querySelector("body > svg");
+  if (!svg) return;
+  for (const [id, d] of Object.entries(FALTANDO)) {
+    if (document.getElementById(id)) continue;
+    const s = document.createElementNS(NS, "symbol");
+    s.setAttribute("id", id);
+    s.setAttribute("viewBox", "0 0 24 24");
+    s.setAttribute("fill", "none");
+    s.setAttribute("stroke", "currentColor");
+    s.setAttribute("stroke-width", "2");
+    s.setAttribute("stroke-linecap", "round");
+    s.setAttribute("stroke-linejoin", "round");
+    s.innerHTML = d.split("M").filter(Boolean).map(p => `<path d="M${p}"/>`).join("");
+    svg.appendChild(s);
   }
 }
 
-function updateClock() {
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  
-  const elTime = $("#liveClock");
-  const elDate = $("#liveDate");
-  const elFooter = $("#footerTime");
-  if (elTime) elTime.textContent = timeStr;
-  if (elDate) elDate.textContent = dateStr;
-  if (elFooter) elFooter.textContent = `${dateStr} ${timeStr}`;
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-function renderLineChart(canvasId, labels, values) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
-
-  const w = rect.width, h = rect.height;
-  const padTop = 15, padBottom = 25, padLeft = 32, padRight = 15;
-  const chartW = w - padLeft - padRight;
-  const chartH = h - padTop - padBottom;
-
-  ctx.clearRect(0, 0, w, h);
-
-  const rawMax = Math.max(...values, 0);
-  const maxVal = rawMax > 0 ? rawMax * 1.25 : 10;
-
-  ctx.strokeStyle = '#173957';
-  ctx.lineWidth = 1;
-  ctx.fillStyle = '#8EA6BF';
-  ctx.font = '10px Plus Jakarta Sans, sans-serif';
-
-  const gridSteps = 4;
-  for (let i = 0; i <= gridSteps; i++) {
-    const y = padTop + (chartH / gridSteps) * i;
-    const val = Math.round(maxVal - (maxVal / gridSteps) * i);
-    ctx.beginPath();
-    ctx.moveTo(padLeft, y);
-    ctx.lineTo(w - padRight, y);
-    ctx.stroke();
-    ctx.fillText(val, 5, y + 3);
-  }
-
-  const pts = values.map((v, i) => {
-    const x = padLeft + (chartW / (values.length - 1 || 1)) * i;
-    const y = padTop + chartH - (v / maxVal) * chartH;
-    return { x, y, val: v, label: labels[i] || '' };
+/* ══ Navegação entre abas ════════════════════════════════════════════ */
+function switchView(nome) {
+  if (!$("#view-" + nome)) return;
+  $$(".nav-item").forEach(el => {
+    const ativo = el.dataset.view === nome;
+    if (ativo) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
   });
+  $$(".view").forEach(v => v.classList.toggle("ativa", v.id === "view-" + nome));
+  // "instant" ignora o `scroll-behavior: smooth` do html; "auto" respeitaria
+  // e a troca de aba viraria uma animação longa.
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 
-  const grad = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
-  grad.addColorStop(0, 'rgba(8, 123, 255, 0.35)');
-  grad.addColorStop(1, 'rgba(8, 123, 255, 0.0)');
+  if (location.hash.slice(1) !== nome) history.replaceState(null, "", "#" + nome);
 
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, padTop + chartH);
-  pts.forEach((p, idx) => {
-    if (idx === 0) ctx.lineTo(p.x, p.y);
-    else {
-      const prev = pts[idx - 1];
-      const cx = (prev.x + p.x) / 2;
-      ctx.bezierCurveTo(cx, prev.y, cx, p.y, p.x, p.y);
-    }
-  });
-  ctx.lineTo(pts[pts.length - 1].x, padTop + chartH);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.strokeStyle = '#087BFF';
-  ctx.lineWidth = 2.5;
-  pts.forEach((p, idx) => {
-    if (idx === 0) ctx.moveTo(p.x, p.y);
-    else {
-      const prev = pts[idx - 1];
-      const cx = (prev.x + p.x) / 2;
-      ctx.bezierCurveTo(cx, prev.y, cx, p.y, p.x, p.y);
-    }
-  });
-  ctx.stroke();
-
-  pts.forEach(p => {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#087BFF';
-    ctx.stroke();
-
-    ctx.fillStyle = '#8EA6BF';
-    ctx.textAlign = 'center';
-    ctx.fillText(p.label, p.x, h - 6);
-  });
+  if (nome === "produtos") carregarProdutos();
+  if (nome === "config") { carregarConfig(); carregarNichos(); }
+  if (nome === "dashboard") desenharGraficos();   // o canvas precisa de largura real
+  if (nome === "suporte") renderDiagnostico();
 }
 
-function renderBarChart(canvasId, values) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
+function irPara(view) {
+  switchView(view);
+  const link = $(`.nav-item[data-view="${view}"]`);
+  if (link) link.focus({ preventScroll: true });
+}
 
-  const w = rect.width, h = rect.height;
-  const padTop = 15, padBottom = 20, padLeft = 32, padRight = 10;
-  const chartW = w - padLeft - padRight;
-  const chartH = h - padTop - padBottom;
-
-  ctx.clearRect(0, 0, w, h);
-
-  const rawMax = Math.max(...values, 0);
-  const maxVal = rawMax > 0 ? rawMax * 1.3 : 5;
-  const gridSteps = 4;
-  ctx.strokeStyle = '#173957';
-  ctx.lineWidth = 1;
-  ctx.fillStyle = '#8EA6BF';
-  ctx.font = '10px Plus Jakarta Sans, sans-serif';
-
-  for (let i = 0; i <= gridSteps; i++) {
-    const y = padTop + (chartH / gridSteps) * i;
-    const val = (Math.round((maxVal - (maxVal / gridSteps) * i) * 10) / 10) + '%';
-    ctx.beginPath();
-    ctx.moveTo(padLeft, y);
-    ctx.lineTo(w - padRight, y);
-    ctx.stroke();
-    ctx.fillText(val, 5, y + 3);
+function gerenciarPlataforma(chave) {
+  switchView("plataformas");
+  $$(".bloco").forEach(b => b.classList.remove("destaque"));
+  const alvo = $("#bloco-" + chave);
+  if (alvo) {
+    alvo.classList.add("destaque");
+    setTimeout(() => {
+      alvo.scrollIntoView({ behavior: "smooth", block: "center" });
+      const btn = $("button", alvo);
+      if (btn) btn.focus({ preventScroll: true });
+    }, 60);
   }
+}
 
-  const barWidth = 14;
-  const gap = (chartW - (values.length * barWidth)) / (values.length + 1);
+/* ══ Relógio ══════════════════════════════════════════════════════════ */
+function tickRelogio() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  const hora = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  const data = `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+  $("#relogioHora").textContent = hora;
+  $("#relogioData").textContent = data;
+  $("#rodapeHora").textContent = `${data} ${hora}`;
+}
 
-  values.forEach((v, i) => {
-    const x = padLeft + gap + i * (barWidth + gap);
-    const barH = v > 0 ? (v / maxVal) * chartH : 2;
-    const y = padTop + chartH - barH;
-
-    const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-    grad.addColorStop(0, '#20D889');
-    grad.addColorStop(1, '#059669');
-
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
-    ctx.fill();
-  });
+/* ══ Status ═══════════════════════════════════════════════════════════ */
+function selo(el, ok, texto) {
+  if (!el) return;
+  el.className = "selo " + (ok ? "selo-ok" : "selo-espera");
+  el.innerHTML = `<span class="ponto" aria-hidden="true"></span>${esc(texto)}`;
 }
 
 async function atualizarStatus() {
   try {
-    const r = await fetch('/api/status');
-    statusAtual = await r.json();
+    const s = await (await fetch("/api/status", { cache: "no-store" })).json();
+    statusAtual = s;
+    const on = !!s.bot_rodando;
+    const acao = s.acao_rodando || "";
 
-    const on = statusAtual.bot_rodando;
-    const sideDot = $("#sideBotDot");
-    const sideTitle = $("#sideBotTitle");
-    const sideSub = $("#sideBotSub");
+    // Cartão da sidebar
+    $("#ladoPonto").className = "ponto" + (acao ? " ocupado" : on ? " ativo" : "");
+    $("#ladoTitulo").textContent = acao ? "Ação em curso" : on ? "Bot ativo" : "Bot parado";
+    $("#ladoSub").textContent = acao || (on ? "Postando normalmente" : "Clique para ligar");
+    $("#ladoIcone").setAttribute("href", on ? "#i-stop" : "#i-play");
 
-    if (sideDot) sideDot.className = 'bot-status-dot' + (on ? ' active' : '');
-    if (sideTitle) sideTitle.textContent = on ? 'Bot Ativo' : 'Bot Parado';
-    if (sideSub) sideSub.textContent = on ? 'Rodando normalmente' : 'Aguardando início';
+    // Selo do cabeçalho
+    $("#headerPill").dataset.ligado = on ? "1" : "0";
+    $("#headerPonto").className = "ponto" + (on ? " ativo" : "");
+    $("#headerTexto").textContent = on ? "Bot rodando" : "Bot parado";
 
-    const hDot = $("#headerBotDot");
-    const hText = $("#headerBotText");
-    if (hDot) {
-      hDot.style.background = on ? '#20D889' : '#5c7896';
-      hDot.style.boxShadow = on ? '0 0 8px #20D889' : 'none';
-    }
-    if (hText) hText.textContent = on ? 'Bot Rodando' : 'Bot Parado';
+    // Ações ficam travadas enquanto algo roda — evita clique repetido e erro 409.
+    const ocupado = !!acao;
+    ["#btnInstalarNav", "#btnCiclo", "#btnCicloPlat"].forEach(sel => {
+      const b = $(sel);
+      if (b) b.disabled = ocupado;
+    });
+    $("#btnInstalarNavTxt").textContent =
+      s.navegador ? "Navegador instalado" : "Instalar navegador";
 
-    const btnNav = $("#btnInstalarNav");
-    if (btnNav) {
-      btnNav.textContent = statusAtual.navegador ? '✓ Playwright Chromium Instalado' : '⬇️ Instalar Playwright Chromium';
-    }
+    if (s.plataformas) {
+      const ml = s.plataformas.mercadolivre || {};
+      selo($("#seloMl"), ml.conectado, ml.conectado ? "Conectado" : "Não configurado");
+      $("#subMl").textContent = ml.conectado ? "Link builder pronto"
+        : ml.sessao_ativa ? "Falta a etiqueta" : "Falta fazer o login";
 
-    if (statusAtual.plataformas) {
-      // Mercado Livre
-      const ml = statusAtual.plataformas.mercadolivre;
-      const bDashMl = $("#dashMlBadge");
-      const bPbMl = $("#pbMlBadge");
-      const subDashMl = $("#dashMlSub");
-      const etiqMl = $("#pbMlEtiqueta");
-      const sttSessao = $("#pbMlSessaoStatus");
+      const amz = s.plataformas.amazon || {};
+      selo($("#seloAmz"), amz.conectado, amz.conectado ? "Conectado" : "Não configurado");
+      $("#subAmz").textContent = amz.conectado
+        ? (amz.api_ativa ? "Creators API ativa" : "Tag + busca por scraping") : "Sem tag de associado";
 
-      const mlConectado = ml && ml.conectado;
-      if (bDashMl) {
-        bDashMl.className = mlConectado ? 'badge-connected' : 'badge-pending';
-        bDashMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (bPbMl) {
-        bPbMl.className = mlConectado ? 'badge-connected' : 'badge-pending';
-        bPbMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Sessão Ativa' : 'Não configurado'}`;
-      }
-      if (subDashMl) subDashMl.textContent = mlConectado ? 'Sessão Conectada' : 'Não configurado';
-      if (etiqMl) etiqMl.textContent = (ml && ml.etiqueta) ? ml.etiqueta : 'Não configurado';
-      if (sttSessao) sttSessao.textContent = statusAtual.sessao_ml ? 'Perfil local salvo ✓' : 'Não configurado (sem sessão)';
-
-      // Amazon
-      const amz = statusAtual.plataformas.amazon;
-      const bDashAmz = $("#dashAmzBadge");
-      const bPbAmz = $("#pbAmzBadge");
-      const subDashAmz = $("#dashAmzSub");
-      const tagAmz = $("#pbAmzTag");
-      const apiAmz = $("#pbAmzApiStatus");
-
-      const amzConectado = amz && amz.conectado;
-      if (bDashAmz) {
-        bDashAmz.className = amzConectado ? 'badge-connected' : 'badge-pending';
-        bDashAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (bPbAmz) {
-        bPbAmz.className = amzConectado ? 'badge-connected' : 'badge-pending';
-        bPbAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (subDashAmz) subDashAmz.textContent = amzConectado ? 'Tag configurada' : 'Não configurado';
-      if (tagAmz) tagAmz.textContent = (amz && amz.tag) ? amz.tag : 'Não configurado';
-      if (apiAmz) apiAmz.textContent = (amz && amz.api_ativa) ? 'Configurado ✓' : 'Não configurado';
-
-      // Shopee
-      const shp = statusAtual.plataformas.shopee;
-      const bDashShp = $("#dashShpBadge");
-      const bPbShp = $("#pbShpBadge");
-      const subDashShp = $("#dashShpSub");
-      const appIdShp = $("#pbShpAppId");
-      const secShp = $("#pbShpSecretStatus");
-
-      const shpConectado = shp && shp.conectado;
-      if (bDashShp) {
-        bDashShp.className = shpConectado ? 'badge-connected' : 'badge-pending';
-        bDashShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (bPbShp) {
-        bPbShp.className = shpConectado ? 'badge-connected' : 'badge-pending';
-        bPbShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (subDashShp) subDashShp.textContent = shpConectado ? 'API configurada' : 'Não configurado';
-      if (appIdShp) appIdShp.textContent = (shp && shp.app_id) ? shp.app_id : 'Não configurado';
-      if (secShp) secShp.textContent = shpConectado ? '••••••••' : 'Não configurado';
-
-      // AliExpress
-      const ali = statusAtual.plataformas.aliexpress;
-      const bDashAli = $("#dashAliBadge");
-      const bPbAli = $("#pbAliBadge");
-      const subDashAli = $("#dashAliSub");
-      const sttAli = $("#pbAliStatus");
-      const aliConectado = ali && ali.conectado;
-      if (bDashAli) {
-        bDashAli.className = aliConectado ? 'badge-connected' : 'badge-pending';
-        bDashAli.innerHTML = `<span class="dot"></span>${aliConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (bPbAli) {
-        bPbAli.className = aliConectado ? 'badge-connected' : 'badge-pending';
-        bPbAli.innerHTML = `<span class="dot"></span>${aliConectado ? 'Conectado' : 'Não configurado'}`;
-      }
-      if (subDashAli) subDashAli.textContent = aliConectado ? 'Configurado' : 'Não configurado';
-      if (sttAli) sttAli.textContent = aliConectado ? 'Configurado ✓' : 'Não configurado';
+      const shp = s.plataformas.shopee || {};
+      selo($("#seloShp"), shp.conectado, shp.conectado ? "Conectado" : "Não configurado");
+      $("#subShp").textContent = shp.conectado ? "Open API pronta" : "Sem credenciais de API";
     }
 
-    const supInfo = $("#suporteAmbienteInfo");
-    if (supInfo) {
-      supInfo.innerHTML = `Chromium: <b>${statusAtual.navegador ? 'Instalado ✓' : 'Não instalado'}</b> | Sessão ML: <b>${statusAtual.sessao_ml ? 'Ativa ✓' : 'Não configurado'}</b> | Configurações (.env): <b>${statusAtual.pronto ? 'Pronto ✓' : 'Não configurado'}</b>`;
-    }
+    const dono = s.preenchidos && s.preenchidos.TELEGRAM_OWNER_ID;
+    $("#perfilDono").textContent = dono ? "Dono configurado" : "ID não detectado";
+
+    const fontes = (s.fontes_ativas || []).join(", ") || "nenhuma";
+    const ciclo = s.horario_ativo && s.horario_ativo !== "24h"
+      ? `Posta entre ${esc(s.horario_ativo)}, a cada ${s.intervalo_minutos} min, até ${s.max_posts_por_ciclo} por ciclo.`
+      : `Posta a cada ${s.intervalo_minutos} min, até ${s.max_posts_por_ciclo} por ciclo.`;
+    $("#resumoAmbiente").innerHTML =
+      `Fontes automáticas: <strong>${esc(fontes)}</strong> · Nichos: <strong>${(s.nichos || []).length || "todos"}</strong><br>${ciclo}`;
+
+    renderPlataformas(s);
+    renderDiagnostico(s);
   } catch (e) {
-    console.error(e);
+    $("#headerTexto").textContent = "Servidor sem resposta";
+    $("#headerPonto").className = "ponto erro";
   }
 }
+
+/* ═══ Blocos de plataforma (gerados a partir dos dados) ═════════════ */
+const BLOCOS = [
+  {
+    chave: "mercadolivre", nome: "Mercado Livre", icone: "handshake", classe: "ml",
+    sub: "Link builder com sessão local",
+    campos: [
+      ["Etiqueta de afiliado", "pbMlEtiqueta"],
+      ["Sessão do navegador", "pbMlSessao"],
+    ],
+    acoes: [
+      ["ml-login", "Fazer login no Mercado Livre", "btn-primario", "key"],
+      ["testar-ml", "Testar conexão", "btn-neutro", "search"],
+      ["sessao", "Detalhes da sessão", "btn-neutro", "zoom"],
+    ],
+    extra: ["Limpar sessão local", "btn-perigo", "trash", "limparSessao()"],
+  },
+  {
+    chave: "amazon", nome: "Amazon", icone: "package", classe: "amz",
+    sub: "Amazon Associados e Creators API",
+    campos: [
+      ["Tag de associado", "pbAmzTag"],
+      ["Creators API", "pbAmzApi"],
+    ],
+    acoes: [
+      ["testar-amazon", "Testar conexão", "btn-neutro", "search"],
+      ["config", "Editar credenciais", "btn-neutro", "sliders"],
+    ],
+  },
+  {
+    chave: "shopee", nome: "Shopee", icone: "shopping-bag", classe: "shp",
+    sub: "Open API oficial de afiliados",
+    campos: [
+      ["App ID", "pbShpAppId"],
+      ["App Secret", "pbShpSecret"],
+    ],
+    acoes: [
+      ["testar-shopee", "Testar conexão", "btn-neutro", "search"],
+      ["config", "Editar credenciais", "btn-neutro", "sliders"],
+    ],
+  },
+  {
+    chave: "aliexpress", nome: "AliExpress", icone: "globe", classe: "ali",
+    sub: "Sem integração oficial no momento",
+    campos: [["Status da integração", "pbAliStatus"]],
+    acoes: [], fora: true,
+  },
+];
+
+function renderPlataformas(s) {
+  const alvo = $("#blocosPlataforma");
+  if (!alvo) return;
+  if (!alvo.children.length) {
+    alvo.innerHTML = BLOCOS.map(b => `
+      <section class="bloco" id="bloco-${b.chave}" aria-labelledby="tit-${b.chave}">
+        <div class="bloco-topo">
+          <div class="bloco-id">
+            <span class="mp-icone ${b.classe}" aria-hidden="true">${icone(b.icone, "icone-lg")}</span>
+            <div>
+              <h3 id="tit-${b.chave}">${esc(b.nome)}</h3>
+              <small>${esc(b.sub)}</small>
+            </div>
+          </div>
+          <span class="selo selo-espera" id="seloPb-${b.chave}"><span class="ponto" aria-hidden="true"></span>Verificando</span>
+        </div>
+        <div class="bloco-info">
+          ${b.campos.map(([rot, id]) => `
+            <dl class="info-card"><dt>${esc(rot)}</dt><dd id="${id}">—</dd></dl>`).join("")}
+        </div>
+        ${b.acoes.length || b.extra ? `<div class="bloco-acoes">
+          ${b.acoes.map(([acao, rot, cls, ic]) => `<button type="button" class="btn ${cls}"
+              onclick="${acao === "sessao" ? "abrirModalSessao()" : acao === "config" ? "switchView('config')" : `executarAcao('${acao}')`}">
+              ${icone(ic)} ${esc(rot)}</button>`).join("")}
+          ${(b.extra || []).map(([rot, cls, ic, js]) =>
+            `<button type="button" class="btn ${cls}" onclick="${js}">${icone(ic)} ${esc(rot)}</button>`).join("")}
+        </div>` : ""}
+      </section>`).join("");
+  }
+  if (!s.plataformas) return;
+
+  const ml = s.plataformas.mercadolivre || {};
+  selo($("#seloPb-mercadolivre"), ml.conectado, ml.conectado ? "Conectado" : ml.status || "Não configurado");
+  $("#pbMlEtiqueta").textContent = ml.etiqueta || "Não configurada";
+  $("#pbMlEtiqueta").className = ml.etiqueta ? "" : "sem-valor";
+  $("#pbMlSessao").textContent = ml.sessao_ativa ? "Ativa e salva" : "Pendente — faça o login";
+
+  const amz = s.plataformas.amazon || {};
+  selo($("#seloPb-amazon"), amz.conectado, amz.conectado ? "Conectado" : amz.status || "Não configurado");
+  $("#pbAmzTag").textContent = amz.tag || "Não configurada";
+  $("#pbAmzApi").textContent = amz.api_ativa ? "ID e secret definidos" : "Opcional — usando busca por scraping";
+
+  const shp = s.plataformas.shopee || {};
+  selo($("#seloPb-shopee"), shp.conectado, shp.conectado ? "Conectado" : shp.status || "Não configurado");
+  $("#pbShpAppId").textContent = shp.app_id || "Não configurado";
+  $("#pbShpAppId").className = shp.app_id ? "mono" : "";
+  $("#pbShpSecret").textContent = shp.conectado ? "Definido" : "Não configurado";
+
+  const ali = s.plataformas.aliexpress || {};
+  const sAli = $("#seloPb-aliexpress");
+  if (sAli) { sAli.className = "selo selo-fora"; sAli.textContent = "Indisponível"; }
+  $("#pbAliStatus").textContent = "Este projeto ainda não integra o AliExpress.";
+}
+
+function renderDiagnostico(s = statusAtual) {
+  const alvo = $("#diagnostico");
+  if (!alvo || !s) return;
+  const itens = [
+    ["Token do bot", s.preenchidos && s.preenchidos.TELEGRAM_BOT_TOKEN],
+    ["ID do dono", s.preenchidos && s.preenchidos.TELEGRAM_OWNER_ID],
+    ["ID do canal", s.preenchidos && s.preenchidos.TELEGRAM_CHAT_ID],
+    ["Navegador do Playwright", s.navegador],
+    ["Sessão do Mercado Livre", s.sessao_ml],
+  ];
+  alvo.innerHTML = itens.map(([rot, ok]) => `
+    <div class="diag-item">
+      ${ok ? icone("check-circle", "icone icone-ok") : icone("alert", "icone icone-falta")}
+      <span>${esc(rot)}: <b>${ok ? "pronto" : "falta"}</b></span>
+    </div>`).join("");
+}
+
+/* ══ Métricas e gráficos ═════════════════════════════════════════════ */
+function ajustarCanvas(canvas) {
+  // Canvas com a view oculta tem rect 0 — desenhar assim apaga o gráfico para sempre.
+  const r = canvas.getBoundingClientRect();
+  if (r.width < 2 || r.height < 2) return null;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, r.width, r.height);
+  return { ctx, w: r.width, h: r.height };
+}
+
+function desenharGraficoSemana() {
+  const canvas = $("#graficoSemana");
+  if (!canvas) return;
+  const m = metricasAtual;
+  const rot = ajustarCanvas(canvas);
+  if (!rot) return;                       // view oculta: desenha quando voltar
+  const { ctx, w, h } = rot;
+  const valores = m.grafico_dias_valores || [];
+  const labels = m.grafico_dias_labels || [];
+  if (!valores.length) return;
+
+  const padT = 12, padB = 20, padL = 24, padR = 8;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  const max = Math.max(...valores, 4);
+  const passo = pw / (valores.length - 1 || 1);
+
+  // Grade + eixo Y
+  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 2; i++) {
+    const y = padT + (ph / 2) * i;
+    const v = Math.round(max - (max / 2) * i);
+    ctx.strokeStyle = "#183B58"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y + 0.5); ctx.lineTo(w - padR, y + 0.5); ctx.stroke();
+    ctx.fillStyle = "#7E9CB8"; ctx.textAlign = "right";
+    ctx.fillText(String(v), padL - 6, y);
+  }
+
+  const pts = valores.map((v, i) => ({
+    x: padL + passo * i,
+    y: padT + ph - (v / max) * ph,
+    v,
+  }));
+
+  // Área
+  const g = ctx.createLinearGradient(0, padT, 0, padT + ph);
+  g.addColorStop(0, "rgba(11,132,255,0.34)");
+  g.addColorStop(1, "rgba(11,132,255,0)");
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, padT + ph);
+  pts.forEach((p, i) => {
+    if (i === 0) { ctx.lineTo(p.x, p.y); return; }
+    const a = pts[i - 1], cx = (a.x + p.x) / 2;
+    ctx.bezierCurveTo(cx, a.y, cx, p.y, p.x, p.y);
+  });
+  ctx.lineTo(pts[pts.length - 1].x, padT + ph);
+  ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+
+  // Linha
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    if (i === 0) { ctx.moveTo(p.x, p.y); return; }
+    const a = pts[i - 1], cx = (a.x + p.x) / 2;
+    ctx.bezierCurveTo(cx, a.y, cx, p.y, p.x, p.y);
+  });
+  ctx.strokeStyle = "#0B84FF"; ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.stroke();
+
+  // Pontos — o último destacado
+  pts.forEach((p, i) => {
+    const ultimo = i === pts.length - 1;
+    ctx.beginPath(); ctx.arc(p.x, p.y, ultimo ? 4 : 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = ultimo ? "#fff" : "#0B84FF"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#0B84FF"; ctx.stroke();
+  });
+
+  // Eixo X — a cada 2 dias para os rótulos não se sobreporem
+  ctx.fillStyle = "#7E9CB8";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  pts.forEach((p, i) => {
+    if (i % 2 !== 0 && i !== pts.length - 1) return;
+    ctx.fillText(labels[i] || "", p.x, padT + ph + 6);
+  });
+}
+
+function desenharGraficos() { desenharGraficoSemana(); }
 
 async function atualizarMetricas() {
   try {
-    const r = await fetch('/api/metricas');
-    const d = await r.json();
+    const d = await (await fetch("/api/metricas", { cache: "no-store" })).json();
+    metricasAtual = d;
 
-    if ($("#valLinksGerados")) $("#valLinksGerados").textContent = d.links_gerados_total;
-    if ($("#badgeLinksCresc")) $("#badgeLinksCresc").textContent = d.links_gerados_crescimento;
-    if ($("#valConversao")) $("#valConversao").textContent = d.conversao_taxa;
-    if ($("#badgeConvCresc")) $("#badgeConvCresc").textContent = d.conversao_crescimento;
-    if ($("#navLinkCount")) $("#navLinkCount").textContent = d.links_gerados_total;
+    $("#valSemana").textContent = d.semana ?? 0;
+    $("#valTotal").textContent = d.total ?? 0;
+    $("#valHoje").textContent = d.hoje ?? 0;
+    $("#valUltima").textContent = d.ultima || "nenhuma ainda";
+    const delta = $("#deltaSemana");
+    delta.textContent = `${d.variacao || "estável"} vs. ontem`;
+    delta.className = "metrica-delta " + (d.variacao_ok ? "ok" : "parado");
+    $("#navLinkCount").textContent = d.total ?? 0;
 
-    renderLineChart('chartLinks', d.grafico_dias_labels, d.grafico_dias_valores);
-    renderBarChart('chartConversao', d.grafico_conversao_valores);
+    desenharGraficos();
 
-    const topWrap = $("#topPlataformasWrap");
-    if (topWrap) {
-      if (d.top_plataformas && d.top_plataformas.length && d.links_gerados_total > 0) {
-        topWrap.innerHTML = d.top_plataformas.map(p => `
-          <div class="top-platform-item">
-            <div class="top-platform-icon" style="background:${p.cor}; color:#000;">●</div>
-            <div class="top-platform-name">${p.nome}</div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" style="width: ${p.pct}%;"></div>
-            </div>
-            <div class="top-platform-clicks">${p.cliques}</div>
-            <div class="top-platform-pct">${p.pct}%</div>
-          </div>
-        `).join('');
-      } else {
-        topWrap.innerHTML = `<div class="empty-placeholder">Nenhum clique ou post registrado ainda.</div>`;
-      }
-    }
+    // Plataformas
+    const tl = $("#topLista");
+    tl.innerHTML = (d.top_plataformas || []).length
+      ? d.top_plataformas.map(p => `
+        <div class="top-item">
+          <span class="top-marca" style="--c:${esc(p.cor)}" aria-hidden="true">${icone(p.icone)}</span>
+          <span class="top-nome">${esc(p.nome)}</span>
+          <span class="top-num">${p.cliques}</span>
+          <span class="top-barra-linha">
+            <span class="barra"><i style="width:${Math.max(p.pct, 2)}%"></i></span>
+          </span>
+        </div>`).join("")
+      : vazio("Nada postado ainda", "Assim que o bot rodar um ciclo, os números aparecem aqui.", "chart");
 
-    const actWrap = $("#activityListWrap");
-    if (actWrap) {
-      if (d.atividades && d.atividades.length) {
-        actWrap.innerHTML = d.atividades.map(a => {
-          let iconClass = 'blue';
-          let iconSvg = '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>';
-          if (a.plataforma === 'amazon') iconClass = 'orange';
-          else if (a.plataforma === 'shopee') iconClass = 'purple';
-          else if (a.plataforma === 'mercadolivre') iconClass = 'green';
-
+    // Atividade
+    const al = $("#atividadeLista");
+    al.innerHTML = (d.atividades || []).length
+      ? d.atividades.map(a => {
+          const plat = a.plataforma || "mercadolivre";
+          const abrev = plat === "mercadolivre" ? "ml" : plat === "aliexpress" ? "ali" : plat;
           return `
-            <div class="activity-item">
-              <div class="act-icon ${iconClass}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${iconSvg}</svg>
-              </div>
-              <div class="act-content">
-                <div class="title">${a.titulo}</div>
-                <div class="desc">${a.detalhe}</div>
-              </div>
-              <div class="act-time">${a.hora}</div>
-            </div>
-          `;
-        }).join('');
-      } else {
-        actWrap.innerHTML = `<div class="empty-placeholder">Nenhuma atividade registrada ainda.</div>`;
-      }
-    }
+          <div class="ativ-item">
+            <span class="ativ-icone ${abrev}" aria-hidden="true">${icone(ICONE_PLATAFORMA[plat] || "tag")}</span>
+            <span class="ativ-texto">
+              <b>${esc(NOME_PLATAFORMA[plat] || plat)}</b>
+              <small>${esc(a.detalhe)}</small>
+            </span>
+            <span class="ativ-hora">${esc(a.hora)}</span>
+          </div>`;
+        }).join("")
+      : vazio("Nenhuma publicação ainda", "Ligue o bot ou rode um ciclo pela aba Plataformas.", "history");
 
-    const linkWrap = $("#recentLinksListWrap");
-    const allLinkWrap = $("#allLinksListWrap");
-    if (d.links_recentes && d.links_recentes.length) {
-      const html = d.links_recentes.map(l => `
-        <div class="recent-link-item">
-          <div class="recent-link-left">
-            <span class="sys-dot" style="width: 6px; height: 6px; background: #20D889;"></span>
-            <div>
-              <a href="https://${l.url}" target="_blank" class="recent-link-url">${l.url}</a>
-              <div class="recent-link-date">${l.data}</div>
-            </div>
-          </div>
-          <button class="btn-copy-icon" title="Copiar link" onclick="copiarTexto('https://${l.url}')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-          </button>
-        </div>
-      `).join('');
-
-      if (linkWrap) linkWrap.innerHTML = html;
-      if (allLinkWrap) allLinkWrap.innerHTML = html;
-    } else {
-      if (linkWrap) linkWrap.innerHTML = `<div class="empty-placeholder">Nenhum link recente postado.</div>`;
-      if (allLinkWrap) allLinkWrap.innerHTML = `<div class="empty-placeholder">Nenhum link gerado ainda.</div>`;
-    }
+    // Links — só os reais, gravados no banco
+    const html = (d.links_recentes || []).map(l => itemLink(l, false)).join("");
+    $("#linksRecentes").innerHTML = html || vazio("Nenhum link ainda", "Os links aparecem aqui depois do primeiro post.", "link");
+    $("#linksTodos").innerHTML = html || vazio("Nenhum link ainda", "Use o link builder para gerar o primeiro.", "link");
   } catch (e) {
-    console.error(e);
+    $("#linksRecentes").innerHTML = vazio("Não consegui carregar", "O servidor local não respondeu.", "alert");
   }
 }
 
+function itemLink(l, completo) {
+  const tit = esc(l.titulo || "Produto sem título");
+  const url = esc(l.url || "");
+  const quando = esc(l.data || "");
+  const copiar = url
+    ? `<button type="button" class="btn btn-icone" title="Copiar link" aria-label="Copiar link"
+         onclick="copiarTexto(this.dataset.url)"><svg class="icone icone-sm" aria-hidden="true"><use href="#i-copy"/></svg></button>`
+    : `<span class="selo selo-neutro" title="O bot ainda não gravou o link deste produto">sem link salvo</span>`;
+  const abrir = url
+    ? `<a class="link-url" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+    : `<span class="link-url" style="color:var(--texto-3)">${tit}</span>`;
+  return `
+    <div class="link-item">
+      <div class="link-corpo">
+        ${abrir}
+        <div class="link-meta">${completo ? tit + " · " : ""}${quando}</div>
+      </div>
+      ${copiar}
+    </div>`;
+}
+
+/* ══ Logs ═════════════════════════════════════════════════════════════ */
 async function puxarLogs() {
   try {
     const [lb, la] = await Promise.all([
-      fetch('/api/logs?bot').then(r => r.json()),
-      fetch('/api/logs?acao').then(r => r.json())
+      fetch("/api/logs?bot", { cache: "no-store" }).then(r => r.json()),
+      fetch("/api/logs?acao", { cache: "no-store" }).then(r => r.json()),
     ]);
-
-    if (lb && lb.linhas) {
-      const el = $("#logBotBody");
-      if (el && lb.linhas.length) {
-        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;
-        el.textContent = lb.linhas.join('\n');
-        if (atBottom) el.scrollTop = el.scrollHeight;
-      }
-    }
-
-    if (la && la.linhas) {
-      const elAcao = $("#logAcaoBody");
-      const elTerm = $("#logAcaoTerminal");
-      const txt = la.linhas.length ? la.linhas.join('\n') : 'Nenhuma ação executada.';
-      if (elAcao) {
-        const atBottom = elAcao.scrollTop + elAcao.clientHeight >= elAcao.scrollHeight - 40;
-        elAcao.textContent = txt;
-        if (atBottom) elAcao.scrollTop = elAcao.scrollHeight;
-      }
-      if (elTerm) {
-        elTerm.textContent = txt;
-        elTerm.scrollTop = elTerm.scrollHeight;
-      }
-    }
-  } catch (e) {
-    console.error(e);
-  }
+    pintarTerminal("bot", lb && lb.linhas);
+    pintarTerminal("acao", la && la.linhas);
+    const rodando = !!statusAtual.bot_rodando;
+    $("#logBotPonto").className = "ponto" + (rodando ? " ativo" : "");
+    $("#logAcaoPonto").className = "ponto" + (statusAtual.acao_rodando ? " ocupado" : "");
+  } catch (e) { /* servidor fora do ar: tenta de novo no próximo ciclo */ }
 }
 
-async function toggleBot() {
-  const rota = statusAtual.bot_rodando ? '/api/stop' : '/api/start';
-  try {
-    const r = await (await fetch(rota, { method: 'POST' })).json();
-    toast(r.rodando ? 'Bot iniciado com sucesso!' : 'Bot desligado.', r.rodando ? 'success' : 'info');
-    atualizarStatus();
-  } catch (e) {
-    toast('Erro ao comunicar com o servidor.', 'error');
-  }
+function pintarTerminal(alvo, linhas) {
+  const vazioTxt = alvo === "bot"
+    ? "O bot está pronto. Ligue pelo cartão ao lado para acompanhar o log em tempo real."
+    : "Nenhuma ação executada ainda. Os testes de conexão aparecem aqui.";
+  // Depois de limpar, o terminal fica vazio até chegar log novo.
+  if (TERMINAIS_LIMPOS[alvo] && !(linhas && linhas.length)) return;
+  if (linhas && linhas.length) TERMINAIS_LIMPOS[alvo] = false;
+  const mapa = alvo === "bot"
+    ? { "#terminalBot": vazioTxt }
+    : { "#terminalAcao": vazioTxt, "#terminalAcaoPlataformas": vazioTxt };
+  const texto = linhas && linhas.length ? linhas.join("\n") : vazioTxt;
+  Object.entries(mapa).forEach(([sel, padrao]) => {
+    const el = $(sel);
+    if (!el) return;
+    const t = linhas && linhas.length ? texto : padrao;
+    if (el.dataset.texto === t) return;
+    el.dataset.texto = t;
+    const noFim = el.scrollTop + el.clientHeight >= el.scrollHeight - 40;
+    el.textContent = t;
+    if (noFim) el.scrollTop = el.scrollHeight;
+  });
 }
 
-async function execAcao(nome) {
+async function limparTerminal(alvo) {
+  TERMINAIS_LIMPOS[alvo] = true;
+  const mapa = alvo === "bot"
+    ? { "#terminalBot": "Terminal limpo." }
+    : { "#terminalAcao": "Terminal limpo.", "#terminalAcaoPlataformas": "Terminal limpo." };
+  Object.entries(mapa).forEach(([sel, txt]) => {
+    const el = $(sel);
+    if (!el) return;
+    el.textContent = txt;
+    el.dataset.texto = txt;
+  });
   try {
-    toast(`Iniciando ação: ${nome}...`, 'info');
-    const r = await (await fetch('/api/acao', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome })
-    })).json();
-
-    if (r.erro) {
-      toast(r.erro, 'error');
-    } else {
-      toast('Ação em execução. Acompanhe a saída.', 'success');
-      switchView('plataformas');
-    }
-  } catch (e) {
-    toast('Erro ao executar ação.', 'error');
-  }
-}
-
-async function carregarConfig() {
-  try {
-    CFG = await (await fetch('/api/config')).json();
-    const wrap = $("#camposFormWrap");
-    if (!wrap) return;
-
-    let html = '', grupoAtual = '';
-    for (const [k, rot, grp, seg, ajuda] of CAMPOS) {
-      if (grp !== grupoAtual) {
-        html += `<div class="form-group-title" style="grid-column: 1 / -1;">${grp}</div>`;
-        grupoAtual = grp;
-      }
-      const set = CFG[k + '__set'];
-      const tick = set ? `<span style="color:var(--success); font-size:11px;">✓ Configurado</span>` : '';
-      const ph = seg && set ? '•••••• (preenchido — deixe em branco para manter)' : '';
-
-      html += `
-        <div class="form-field">
-          <label>${rot} ${tick}</label>
-          <input id="cfg_${k}" type="${seg ? 'password' : 'text'}" placeholder="${ph}" value="${seg ? '' : (CFG[k] || '')}">
-          <div class="field-help">${ajuda}</div>
-        </div>
-      `;
-    }
-    wrap.innerHTML = html;
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-async function salvarConfig() {
-  const body = {};
-  for (const [k] of CAMPOS) {
-    const el = $("#cfg_" + k);
-    if (el) body[k] = el.value.trim();
-  }
-  try {
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    await fetch("/api/limpar-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alvo }),
     });
-    toast('Configurações salvas com sucesso!', 'success');
-    await carregarConfig();
-    atualizarStatus();
+  } catch (e) { /* só cosmetic */ }
+}
+
+/* ══ Ações do bot ═════════════════════════════════════════════════════ */
+async function alternarBot() {
+  const ligando = !statusAtual.bot_rodando;
+  const cartao = $("#botCartao");
+  cartao.disabled = true;
+  try {
+    const r = await (await fetch(ligando ? "/api/start" : "/api/stop", { method: "POST" })).json();
+    if (r.erro) toast(r.erro, "erro");
+    else toast(ligando ? "Bot iniciado. Acompanhe o log na aba Logs." : "Bot desligado.", ligando ? "ok" : "info");
+    await atualizarStatus();
   } catch (e) {
-    toast('Erro ao salvar configurações.', 'error');
+    toast("Não consegui falar com o painel.", "erro");
+  } finally {
+    cartao.disabled = false;
+  }
+}
+
+const ROTULOS_ACAO = {
+  "instalar-navegador": "instalando o navegador",
+  "ml-login": "abrindo o login do Mercado Livre",
+  "testar-ml": "testando o Mercado Livre",
+  "testar-shopee": "testando a Shopee",
+  "testar-amazon": "testando a Amazon",
+};
+
+async function executarAcao(nome) {
+  try {
+    const r = await (await fetch("/api/acao", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome }),
+    })).json();
+    if (r.erro) { toast(r.erro, "erro"); return; }
+    TERMINAIS_LIMPOS.acao = false;
+    // Não sequestra a navegação: a saída da ação aparece nas duas abas que
+    // têm terminal (Plataformas e Logs), então o toast só diz onde olhar.
+    const onde = $("#view-plataformas").classList.contains("ativa") ? "logo abaixo"
+      : $("#view-logs").classList.contains("ativa") ? "no terminal desta aba"
+      : "na aba Logs";
+    toast(`${ROTULOS_ACAO[nome] || "Ação"} — a saída aparece ${onde}.`, "info");
+    await atualizarStatus();
+  } catch (e) {
+    toast("Não consegui executar a ação.", "erro");
+  }
+}
+
+async function executarCiclo() {
+  if (statusAtual.acao_rodando) { toast(`Já rodando: ${statusAtual.acao_rodando}`, "espera"); return; }
+  if (!(statusAtual.preenchidos || {}).TELEGRAM_BOT_TOKEN) {
+    toast("Salve o token do bot antes de rodar um ciclo.", "espera");
+    switchView("config");
+    return;
+  }
+  await executarAcao("ciclo");
+}
+
+/* ══ Configurações ═══════════════════════════════════════════════════ */
+async function carregarConfig(forcar = false) {
+  // Só recarrega do servidor se nunca foi lida ou se o usuário não tem edições em curso.
+  if (configCarregada && !forcar && configSuja) return;
+  const form = $("#formConfig");
+  if (!form) return;
+  if (!form.querySelector("input")) form.innerHTML = '<div class="vazio" style="grid-column:1/-1">Carregando campos…</div>';
+  try {
+    const cfg = await (await fetch("/api/config", { cache: "no-store" })).json();
+    let html = "", grupo = "";
+    for (const [k, rot, grp, segredo, ajuda] of CAMPOS) {
+      if (grp !== grupo) {
+        html += `<div class="grupo-titulo">${icone("sliders")} ${esc(grp)}</div>`;
+        grupo = grp;
+      }
+      const set = !!cfg[k + "__set"];
+      const marca = set ? `<span class="marca-ok">${icone("check")} definido</span>` : "";
+      const valor = segredo ? "" : esc(cfg[k] || "");
+      const ph = segredo && set ? "Já preenchido — deixe em branco para manter" : "";
+      html += `
+        <div class="campo">
+          <label for="cfg_${esc(k)}">${esc(rot)} ${marca}</label>
+          <input id="cfg_${esc(k)}" name="${esc(k)}" type="${segredo ? "password" : "text"}"
+                 value="${valor}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false"
+                 aria-describedby="aj_${esc(k)}">
+          <p class="ajuda" id="aj_${esc(k)}">${esc(ajuda)}</p>
+        </div>`;
+    }
+    form.innerHTML = html;
+    configCarregada = true;
+    configSuja = false;
+  } catch (e) {
+    form.innerHTML = '<div class="alerta alerta-erro" style="grid-column:1/-1">' +
+      icone("alert", "icone") + "<div>Não consegui carregar as credenciais do servidor.</div></div>";
+  }
+}
+
+async function salvarConfig(event) {
+  if (event) event.preventDefault();
+  const body = {};
+  $$("#formConfig input").forEach(el => { body[el.name] = el.value.trim(); });
+  const btn = $("#btnSalvarConfig");
+  btn.disabled = true;
+  try {
+    const r = await (await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })).json();
+    if (r.erro) { toast(r.erro, "erro"); return; }
+    configSuja = false;
+    await carregarConfig(true);
+    toast("Credenciais salvas no arquivo .env.", "ok");
+    await atualizarStatus();
+  } catch (e) {
+    toast("Não consegui salvar. O arquivo .env continua como estava.", "erro");
+  } finally {
+    btn.disabled = false;
   }
 }
 
 async function detectarIds() {
-  const box = $("#idsDetectionBox");
-  box.style.display = 'block';
-  box.innerHTML = `<p style="color:var(--tx-muted); font-size:13px;">Consultando o Telegram...</p>`;
-
+  const caixa = $("#caixaDeteccao");
+  caixa.innerHTML = `<div class="alerta alerta-info">${icone("search", "icone")}<div>Consultando o Telegram…</div></div>`;
   try {
-    const r = await (await fetch('/api/detectar-ids', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
+    const r = await (await fetch("/api/detectar-ids", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
     })).json();
 
     if (r.erro) {
-      box.innerHTML = `<p style="color:var(--warning); font-size:13px;">${r.erro}</p>`;
+      caixa.innerHTML = `<div class="alerta alerta-espera" role="alert">${icone("alert", "icone")}<div>${esc(r.erro)}</div></div>`;
       return;
     }
-    if (r.vazio) {
-      box.innerHTML = `
-        <div style="background:var(--bg-subcard); padding:12px; border-radius:8px; border:1px solid var(--border-color); font-size:13px; color:var(--tx-muted);">
-          Nada encontrado ainda. No Telegram: envie <b>/start</b> e <b>/id</b> para o bot, e <b>encaminhe uma postagem do canal</b> para ele. Em seguida, clique novamente.
-        </div>
-      `;
+    if (r.aviso) {
+      caixa.innerHTML = `<div class="alerta alerta-espera">${icone("alert-triangle", "icone")}<div>${esc(r.aviso)}</div></div>`;
+      return;
+    }
+    if (r.vazio || !(r.pessoas || []).length && !(r.canais || []).length) {
+      caixa.innerHTML = `<div class="alerta alerta-info">${icone("search", "icone")}<div>
+        Nada encontrado ainda. No Telegram envie <code>/id</code> para o bot no privado e
+        <code>encaminhe um post do canal</code> para ele. Depois clique aqui de novo.
+      </div></div>`;
       return;
     }
 
-    let h = '<div style="display:flex; flex-direction:column; gap:8px;">';
-    if (r.pessoas && r.pessoas.length) {
-      h += `<p style="font-size:12px; font-weight:700; color:#fff;">Clique no seu usuário (dono):</p>`;
-      for (const p of r.pessoas) {
-        h += `<button class="btn-dark" onclick="setCampoId('TELEGRAM_OWNER_ID','${p.id}')">👤 ${p.nome} — <code>${p.id}</code></button>`;
-      }
-    }
-    if (r.canais && r.canais.length) {
-      h += `<p style="font-size:12px; font-weight:700; color:#fff; margin-top:8px;">Clique no seu canal:</p>`;
-      for (const c of r.canais) {
-        h += `<button class="btn-dark" onclick="setCampoId('TELEGRAM_CHAT_ID','${c.id}')">📢 ${c.nome} — <code>${c.id}</code></button>`;
-      }
-    }
-    h += '</div>';
-    box.innerHTML = h;
+    let h = '<div class="escolhas">';
+    (r.pessoas || []).forEach(p => {
+      h += `<div class="escolha-rot">Quem é você</div>
+        <button type="button" class="escolha" onclick="setCampoId('TELEGRAM_OWNER_ID', ${esc(JSON.stringify(String(p.id)))})">
+          ${icone("user", "icone")} <b>${esc(p.nome)}</b> <code>${esc(p.id)}</code>
+        </button>`;
+    });
+    (r.canais || []).forEach(c => {
+      h += `<div class="escolha-rot">Canais e grupos</div>
+        <button type="button" class="escolha" onclick="setCampoId('TELEGRAM_CHAT_ID', ${esc(JSON.stringify(String(c.id)))})">
+          ${icone("megaphone", "icone")} <b>${esc(c.nome)}</b> <code>${esc(c.id)}</code>
+        </button>`;
+    });
+    caixa.innerHTML = h + "</div>";
   } catch (e) {
-    box.innerHTML = `<p style="color:var(--danger); font-size:13px;">Erro ao consultar IDs.</p>`;
+    caixa.innerHTML = `<div class="alerta alerta-erro" role="alert">${icone("alert", "icone")}<div>Erro ao consultar o Telegram.</div></div>`;
   }
 }
 
-function setCampoId(campo, val) {
+function setCampoId(campo, valor) {
   const el = $("#cfg_" + campo);
-  if (el) el.value = val;
-  toast(`Campo ${campo} preenchido! Não esqueça de salvar.`, 'success');
+  if (!el) return;
+  el.value = valor;
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  const aviso = $("#configAviso");
+  aviso.textContent = "Campo preenchido — não esqueça de salvar.";
+  toast("Campo preenchido. Salve para gravar no .env.", "ok");
+  el.focus();
 }
 
-let NICHOS_SEL = new Set();
+/* ══ Nichos ═══════════════════════════════════════════════════════════ */
 async function carregarNichos() {
+  const grade = $("#nichosGrade");
+  if (!grade) return;
+  if (grade.children.length) return;          // não redesenha: preserva a seleção
   try {
-    const r = await (await fetch('/api/nichos')).json();
-    NICHOS_SEL = new Set(r.selecionados || []);
-    const grid = $("#nichosGrid");
-    if (!grid) return;
-
-    grid.innerHTML = r.catalogo.map(n => `
-      <div class="nicho-card ${NICHOS_SEL.has(n.chave) ? 'selected' : ''}" onclick="toggleNicho('${n.chave}', this)">
-        <span style="font-size:18px;">${n.emoji}</span>
-        <span style="font-size:13px; font-weight:600;">${n.nome}</span>
-        <span class="n-check">✓</span>
-      </div>
-    `).join('');
-
-    atualizarLabelNichos();
+    const r = await (await fetch("/api/nichos", { cache: "no-store" })).json();
+    (r.selecionados || []).forEach(c => NICHOS_SEL.add(c));
+    grade.innerHTML = (r.catalogo || []).map(n => `
+      <button type="button" class="nicho" role="checkbox" data-chave="${esc(n.chave)}"
+              aria-checked="${NICHOS_SEL.has(n.chave)}"
+              onclick="alternarNicho(this)">
+        ${icone(NOME_ICONE_NICHO[n.icone] || n.icone || "store", "icone")}
+        <span class="rot">${esc(n.nome)}</span>
+        <span class="nicho-caixa" aria-hidden="true">${icone("check")}</span>
+      </button>`).join("");
+    atualizarContadorNichos();
   } catch (e) {
-    console.error(e);
+    grade.innerHTML = vazio("Não consegui carregar as categorias", "Tente recarregar a página.", "alert");
   }
 }
 
-function toggleNicho(chave, el) {
-  if (NICHOS_SEL.has(chave)) NICHOS_SEL.delete(chave);
-  else NICHOS_SEL.add(chave);
-  el.classList.toggle('selected');
-  atualizarLabelNichos();
+function alternarNicho(el) {
+  const chave = el.dataset.chave;
+  const marcado = el.getAttribute("aria-checked") === "true";
+  el.setAttribute("aria-checked", marcado ? "false" : "true");
+  if (marcado) NICHOS_SEL.delete(chave); else NICHOS_SEL.add(chave);
+  atualizarContadorNichos();
 }
 
-function atualizarLabelNichos() {
-  const lbl = $("#nichosCountLabel");
-  if (!lbl) return;
+function atualizarContadorNichos() {
   const n = NICHOS_SEL.size;
-  lbl.textContent = n === 0 ? 'Buscando em todas as categorias' : `${n} categoria(s) selecionada(s)`;
+  $("#nichosContador").textContent = n === 0
+    ? "Buscando em todas as categorias"
+    : `${n} categoria${n > 1 ? "s" : ""} marcada${n > 1 ? "s" : ""}`;
 }
 
 async function salvarNichos() {
   try {
-    await fetch('/api/nichos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selecionados: [...NICHOS_SEL] })
+    await fetch("/api/nichos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selecionados: [...NICHOS_SEL] }),
     });
-    toast('Categorias salvas com sucesso!', 'success');
+    toast(NICHOS_SEL.size
+      ? `${NICHOS_SEL.size} categoria(s) salvas. Reinicie o bot para aplicar.`
+      : "Seleção limpa: o bot voltará a buscar em todas as categorias.", "ok");
+    await atualizarStatus();
   } catch (e) {
-    toast('Erro ao salvar categorias.', 'error');
+    toast("Não consegui salvar as categorias.", "erro");
   }
 }
 
 function limparNichos() {
   NICHOS_SEL.clear();
-  $$('.nicho-card').forEach(el => el.classList.remove('selected'));
-  atualizarLabelNichos();
+  $$(".nicho").forEach(el => el.setAttribute("aria-checked", "false"));
+  atualizarContadorNichos();
 }
 
+/* ══ Produtos ════════════════════════════════════════════════════════ */
 async function carregarProdutos() {
-  const tbody = $("#produtosTableBody");
-  if (!tbody) return;
+  const corpo = $("#produtosCorpo");
+  if (!corpo) return;
   try {
-    const r = await (await fetch('/api/produtos')).json();
+    const r = await (await fetch("/api/produtos", { cache: "no-store" })).json();
     const lista = r.produtos || [];
     if (!lista.length) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--tx-dim); padding:24px;">Nenhuma oferta postada ainda no banco de dados.</td></tr>`;
+      corpo.innerHTML = `<tr><td colspan="5">${vazio("Nenhuma oferta publicada",
+        "Rode um ciclo na aba Plataformas para o bot começar a postar.", "inbox")}</td></tr>`;
       return;
     }
-
-    tbody.innerHTML = lista.map(p => `
-      <tr>
-        <td><span class="badge-connected"><span class="dot"></span>${p.plataforma || 'Mercado Livre'}</span></td>
-        <td style="font-weight:600; color:#fff;">${p.titulo || 'Produto sem título'}</td>
-        <td style="color:#20D889; font-weight:700;">${p.preco ? 'R$ ' + Number(p.preco).toFixed(2).replace('.', ',') : '—'}</td>
-        <td style="color:var(--tx-dim); font-size:12px;">${p.postada_em || 'Recente'}</td>
-        <td>
-          <button class="btn-dark" style="padding:4px 10px; font-size:11px;" onclick="copiarTexto('${p.uid}')">Copiar ID</button>
-        </td>
-      </tr>
-    `).join('');
+    corpo.innerHTML = lista.map(p => {
+      const plat = p.plataforma || "mercadolivre";
+      const preco = p.preco ? `R$ ${Number(p.preco).toFixed(2).replace(".", ",")}` : "—";
+      const acao = p.url_afiliado
+        ? `<a class="btn btn-neutro btn-sm" href="${esc(p.url_afiliado)}" target="_blank" rel="noopener noreferrer">
+             ${icone("external")} Abrir</a>`
+        : `<span class="selo selo-neutro">sem link</span>`;
+      return `
+        <tr>
+          <td><span class="selo selo-neutro">${icone(ICONE_PLATAFORMA[plat] || "tag")} ${esc(NOME_PLATAFORMA[plat] || plat)}</span></td>
+          <td class="tit">${esc(p.titulo || "Produto sem título")}</td>
+          <td class="preco">${esc(preco)}</td>
+          <td class="quando">${esc(p.postada_em ? p.postada_em.replace("T", " ") : "—")}</td>
+          <td>${acao}</td>
+        </tr>`;
+    }).join("");
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Erro ao carregar produtos.</td></tr>`;
+    corpo.innerHTML = `<tr><td colspan="5"><div class="alerta alerta-erro">${icone("alert", "icone")}<div>Erro ao carregar os produtos.</div></div></td></tr>`;
+  }
+}
+
+/* ══ Modais ══════════════════════════════════════════════════════════ */
+const FOCO_RAIZ = "botCartao";
+const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function abrirModal(id) {
+  const m = $("#" + id);
+  if (!m) return;
+  ultimoFoco = document.activeElement;
+  m.hidden = false;
+  m.classList.add("aberto");
+  document.addEventListener("keydown", aoTeclarModal, true);
+  // O foco só pega no quadro seguinte: enquanto o overlay está em
+  // display:none, qualquer .focus() dentro dele é ignorado em silêncio.
+  requestAnimationFrame(() => {
+    // Prioridade: marcador explícito > primeiro campo útil > botão do rodapé.
+    const foco = m.querySelector("[data-foco-inicial]")
+      || m.querySelector("input:not([type=hidden]), select, textarea")
+      || $$("button:not([data-fechar])", m).pop()
+      || m.querySelector("[data-fechar]")
+      || m;
+    foco.focus();
+  });
+}
+
+function fecharModal(id) {
+  const m = $("#" + id);
+  if (!m) return;
+  m.classList.remove("aberto");
+  document.removeEventListener("keydown", aoTeclarModal, true);
+  setTimeout(() => { m.hidden = true; }, 200);
+  if (ultimoFoco && ultimoFoco.focus) ultimoFoco.focus();
+  else { const alt = $("#" + FOCO_RAIZ); if (alt) alt.focus(); }
+}
+
+function aoTeclarModal(ev) {
+  const aberta = $$(".overlay.aberto").pop();
+  if (!aberta) return;
+  if (ev.key === "Escape") { ev.preventDefault(); fecharModal(aberta.id); return; }
+  if (ev.key !== "Tab") return;
+  const focaveis = $$(FOCAVEIS, aberta).filter(el => el.offsetParent !== null);
+  if (!focaveis.length) return;
+  const primeiro = focaveis[0], ultimo = focaveis[focaveis.length - 1];
+  const dentro = aberta.contains(document.activeElement);
+  // Não basta tratar as pontas: se o foco escapou, traz de volta.
+  if (ev.shiftKey && (!dentro || document.activeElement === primeiro)) {
+    ev.preventDefault(); ultimo.focus();
+  } else if (!ev.shiftKey && (!dentro || document.activeElement === ultimo)) {
+    ev.preventDefault(); primeiro.focus();
   }
 }
 
 function abrirModalLink() {
-  $("#modalLinkBuilder").classList.add('show');
-  $("#modalInputUrl").focus();
-}
-function fecharModalLink() {
-  $("#modalLinkBuilder").classList.remove('show');
-}
-
-async function converterLinkModal() {
-  const url = $("#modalInputUrl").value.trim();
-  const plat = $("#modalSelectPlat").value;
-  if (!url) { toast('Cole uma URL de produto primeiro.', 'warning'); return; }
-
-  try {
-    const r = await (await fetch('/api/gerar-link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, plataforma: plat })
-    })).json();
-
-    if (r.ok && r.url_afiliado) {
-      $("#modalLinkResult").style.display = 'block';
-      $("#modalOutputUrl").value = r.url_afiliado;
-      toast('Link de afiliado gerado com sucesso!', 'success');
-      atualizarMetricas();
-    } else {
-      toast(r.erro || 'Erro ao gerar link.', 'error');
-    }
-  } catch (e) {
-    toast('Erro de rede ao gerar link.', 'error');
-  }
-}
-
-function copiarOutputModal() {
-  const el = $("#modalOutputUrl");
-  copiarTexto(el.value);
+  abrirModal("modalLink");
 }
 
 function abrirModalSessao() {
-  $("#modalSessao").classList.add('show');
-  verificarSessaoModal();
-}
-function fecharModalSessao() {
-  $("#modalSessao").classList.remove('show');
+  abrirModal("modalSessao");
+  carregarSessaoModal();
 }
 
-async function verificarSessaoModal() {
-  const box = $("#modalSessaoConteudo");
-  box.innerHTML = 'Verificando diretório e cookies de sessão local...';
+async function carregarSessaoModal() {
+  const corpo = $("#modalSessaoCorpo");
+  corpo.innerHTML = vazio("Verificando a sessão…", "", "refresh");
   try {
-    const r = await (await fetch('/api/verificar-sessao', { method: 'POST' })).json();
-    box.innerHTML = `
-      <div style="background:var(--bg-subcard); padding:14px; border-radius:8px; border:1px solid var(--border-color);">
-        <p><strong>Status da Sessão Local:</strong> ${r.sessao_ml ? '<span style="color:var(--success)">✓ Ativa e Persistente</span>' : '<span style="color:var(--warning)">Pendente</span>'}</p>
-        <p><strong>Arquivos salvos no perfil:</strong> ${r.arquivos} arquivos</p>
-        <p style="font-size:11px; color:var(--tx-dim); margin-top:8px; word-break:break-all;"><strong>Caminho Local:</strong> ${r.caminho}</p>
+    const r = await (await fetch("/api/verificar-sessao", { method: "POST" })).json();
+    corpo.innerHTML = `
+      <div class="painel-info">
+        <dl>
+          <dt>Status</dt>
+          <dd style="color:${r.sessao_ml ? "var(--ok)" : "var(--alerta)"}">
+            ${r.sessao_ml ? "Ativa e persistente" : "Pendente — faça o login"}
+          </dd>
+          <dt>Arquivos no perfil</dt>
+          <dd>${r.arquivos}</dd>
+          <dd class="caminho">${esc(r.caminho)}</dd>
+        </dl>
       </div>
-    `;
+      <p class="ajuda" style="margin-top:10px">
+        A sessão fica só neste computador e é usada pelo link builder do Mercado Livre.
+        Se as ofertas pararem de virar link, limpe a sessão e faça o login de novo.
+      </p>`;
   } catch (e) {
-    box.innerHTML = '<span style="color:var(--danger)">Erro ao verificar status da sessão.</span>';
+    corpo.innerHTML = `<div class="alerta alerta-erro" role="alert">${icone("alert", "icone")}<div>Não consegui verificar a sessão.</div></div>`;
   }
 }
+
+function abrirLoginMl() { fecharModal("modalSessao"); executarAcao("ml-login"); }
 
 async function limparSessao() {
-  if (!confirm('Deseja realmente limpar a sessão local do Mercado Livre? Será necessário fazer login novamente.')) return;
+  if (!confirm("Apagar a sessão local do Mercado Livre? Você vai precisar fazer login de novo.")) return;
   try {
-    const r = await (await fetch('/api/limpar-sessao', { method: 'POST' })).json();
-    toast(r.msg || 'Sessão limpa.', 'success');
-    atualizarStatus();
+    const r = await (await fetch("/api/limpar-sessao", { method: "POST" })).json();
+    if (r.erro) { toast(r.erro, "erro"); return; }
+    toast(r.msg || "Sessão apagada.", "ok");
+    await atualizarStatus();
   } catch (e) {
-    toast('Erro ao limpar sessão.', 'error');
+    toast("Não consegui apagar a sessão.", "erro");
   }
+}
+
+/* ══ Link builder ════════════════════════════════════════════════════ */
+async function gerarLink(event) {
+  event.preventDefault();
+  const url = $("#entradaUrl").value.trim();
+  const err = $("#erroUrl");
+  err.textContent = "";
+  if (!url) { err.textContent = "Cole o link do produto."; $("#entradaUrl").focus(); return; }
+  if (!/^https?:\/\/\S+$/i.test(url)) { err.textContent = "O link precisa começar com http:// ou https://."; $("#entradaUrl").focus(); return; }
+
+  const btn = $("#btnGerarLink");
+  btn.disabled = true;
+  try {
+    const r = await (await fetch("/api/gerar-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, plataforma: $("#entradaPlataforma").value }),
+    })).json();
+    if (!r.ok || !r.url_afiliado) { toast(r.erro || "Não consegui gerar o link.", "erro"); return; }
+
+    $("#caixaResultado").hidden = false;
+    $("#saidaUrl").value = r.url_afiliado;
+    $("#saidaInfo").textContent =
+      `Plataforma: ${NOME_PLATAFORMA[r.plataforma] || r.plataforma} · gerado em ${r.criado_em}`;
+    $("#saidaUrl").focus();
+    $("#saidaUrl").select();
+    toast("Link de afiliado gerado.", "ok");
+  } catch (e) {
+    toast("Erro de rede ao gerar o link.", "erro");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function copiarSaida() {
+  const el = $("#saidaUrl");
+  if (el) copiarTexto(el.value);
 }
 
 function copiarTexto(txt) {
-  navigator.clipboard.writeText(txt).then(() => {
-    toast('Copiado para a área de transferência!', 'success');
-  }).catch(() => {
-    toast('Não foi possível copiar.', 'error');
+  if (!txt) return;
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(txt)
+      .then(() => toast("Copiado.", "ok"))
+      .catch(() => copiarLegado(txt));
+  } else {
+    copiarLegado(txt);
+  }
+}
+
+function copiarLegudo(txt) {
+  const ta = document.createElement("textarea");
+  ta.value = txt;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  toast(ok ? "Copiado." : "Não consegui copiar — selecione e copie manualmente.", ok ? "ok" : "espera");
+}
+
+/* ══ Toasts ══════════════════════════════════════════════════════════ */
+const TOAST_ICONE = { ok: "check-circle", erro: "alert", espera: "alert-triangle", info: "alert" };
+
+function toast(msg, tipo = "info") {
+  const caixa = $("#caixaToasts");
+  if (!caixa) return;
+  const t = document.createElement("div");
+  t.className = `toast toast-${tipo}`;
+  t.innerHTML = icone(TOAST_ICONE[tipo] || "alert") + `<span>${esc(msg)}</span>`;
+  caixa.appendChild(t);
+  const sair = () => { t.classList.remove("entrou"); setTimeout(() => t.remove(), 320); };
+  setTimeout(() => t.classList.add("entrou"), 20);
+  setTimeout(sair, 4200);
+  t.addEventListener("click", sair);
+}
+
+/* ══ Ligações de eventos ═════════════════════════════════════════════ */
+function ligarEventos() {
+  // Navegação (delegação — os itens nascem junto com o HTML)
+  $$(".nav-item").forEach(el => el.addEventListener("click", ev => {
+    ev.preventDefault();
+    switchView(el.dataset.view);
+  }));
+  $(".brand").addEventListener("click", ev => { ev.preventDefault(); irPara("dashboard"); });
+  $("#botCartao").addEventListener("click", alternarBot);
+
+  // Fechar modais
+  $$("[data-fechar]").forEach(b => b.addEventListener("click", () => fecharModal(b.dataset.fechar)));
+  $$(".overlay").forEach(o => o.addEventListener("mousedown", ev => {
+    if (ev.target === o) fecharModal(o.id);
+  }));
+
+  // Formulários
+  $("#formConfig").addEventListener("submit", salvarConfig);
+  $("#formLink").addEventListener("submit", gerarLink);
+
+  // Marca o formulário como editado para não perder o que foi digitado
+  $("#formConfig").addEventListener("input", () => { configSuja = true; });
+
+  // Digitar Enter no link builder já gera
+  $("#entradaUrl").addEventListener("keydown", ev => {
+    if (ev.key === "Enter") { ev.preventDefault(); gerarLink(ev); }
+  });
+
+  // Atalhos: 1..7 trocam de aba, "?" abre a busca de IDs
+  document.addEventListener("keydown", ev => {
+    if (ev.target.matches("input, select, textarea") || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if ($$(".overlay.aberto").length) return;
+    const ordem = $$(".nav-item").map(n => n.dataset.view);
+    const n = Number(ev.key);
+    if (n >= 1 && n <= ordem.length) { ev.preventDefault(); switchView(ordem[n - 1]); }
+    if (ev.key === "?") { ev.preventDefault(); switchView("config"); detectarIds(); }
+  });
+
+  // Redesenha o gráfico quando a caixa muda de tamanho (resize, zoom, sidebar)
+  let tmr = null;
+  const redraw = () => { clearTimeout(tmr); tmr = setTimeout(desenharGraficos, 140); };
+  window.addEventListener("resize", redraw);
+  if (window.ResizeObserver) {
+    new ResizeObserver(redraw).observe($(".grafico-caixa") || document.body);
+  }
+
+  // Recarrega a aba inicial vindo da URL
+  window.addEventListener("hashchange", () => {
+    const alvo = location.hash.slice(1);
+    if (alvo && $("#view-" + alvo)) switchView(alvo);
   });
 }
 
-function limparTerminal(id) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = 'Terminal limpo.';
+/* ══ Início ══════════════════════════════════════════════════════════ */
+async function iniciar() {
+  injetarIconesFaltantes();
+  ligarEventos();
+  tickRelogio();
+  setInterval(tickRelogio, 1000);
+
+  const inicial = location.hash.slice(1);
+  if (inicial && $("#view-" + inicial)) switchView(inicial);
+
+  await Promise.allSettled([atualizarStatus(), atualizarMetricas(), puxarLogs()]);
+  carregarConfig();
+  carregarNichos();
+
+  setInterval(atualizarStatus, 2500);
+  setInterval(atualizarMetricas, 8000);
+  setInterval(puxarLogs, 1500);
 }
 
-function toast(msg, type = 'info') {
-  const box = $("#toastBox");
-  if (!box) return;
-  const t = document.createElement('div');
-  t.className = `toast-card ${type}`;
-  t.textContent = msg;
-  box.appendChild(t);
-
-  setTimeout(() => t.classList.add('show'), 10);
-  setTimeout(() => {
-    t.classList.remove('show');
-    setTimeout(() => t.remove(), 300);
-  }, 3500);
-}
-
-window.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) {
-    e.target.classList.remove('show');
-  }
-});
-
-// Boot
-carregarConfig();
-carregarNichos();
-atualizarStatus();
-atualizarMetricas();
-puxarLogs();
-
-setInterval(atualizarStatus, 2500);
-setInterval(atualizarMetricas, 8000);
-setInterval(puxarLogs, 1500);
+iniciar();
 </script>
 </body>
 </html>
