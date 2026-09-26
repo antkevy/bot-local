@@ -35,8 +35,43 @@ def e_link(url: str) -> bool:
     return any(d in url for d in ("mercadolivre.com", "mercadolibre.com", "meli.la/"))
 
 
+def tem_sessao_linkbuilder() -> bool:
+    """Verifica se há sessão autenticada real no perfil persistente do Link Builder."""
+    cookie_file = PERFIL_DIR / "Default" / "Network" / "Cookies"
+    if not cookie_file.exists():
+        cookie_file = PERFIL_DIR / "Default" / "Cookies"
+    if not cookie_file.exists():
+        return False
+    try:
+        import sqlite3
+        import tempfile
+        import shutil
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".sqlite") as tmp:
+            tmp_path = tmp.name
+        shutil.copyfile(cookie_file, tmp_path)
+        conn = sqlite3.connect(tmp_path)
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM cookies WHERE name IN ('org_user_id', 'ssid', 'c_user', 'user_id', '_mldataToken', 'cp')")
+        rows = cur.fetchall()
+        conn.close()
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        return len(rows) > 0
+    except Exception:
+        return cookie_file.stat().st_size > 50000
+
+
 def tem_sessao() -> bool:
-    return PERFIL_DIR.exists() and any(PERFIL_DIR.iterdir())
+    """Verifica se há sessão ativa para o Mercado Livre (Link Builder ou Cookie)."""
+    try:
+        from .ml_auth import ml_auth_service
+        if ml_auth_service.tem_cookie():
+            return True
+    except Exception:
+        pass
+    return tem_sessao_linkbuilder()
 
 
 # ── Busca de ofertas (scraping, sem login) ───────────────────────────
@@ -137,34 +172,50 @@ def _parse_pagina(html: str) -> list[Oferta]:
     return ofertas
 
 
-# ── Link de afiliado via Linkbuilder (Playwright + sessão logada) ────
+def _limpar_locks_perfil():
+    """Remove lockfiles residuais para evitar erro de ProcessSingleton no Windows."""
+    try:
+        (PERFIL_DIR / "lockfile").unlink(missing_ok=True)
+        for lf in PERFIL_DIR.rglob("*LOCK*"):
+            try:
+                lf.unlink(missing_ok=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 
 def _abrir_contexto(pw, headless: bool):
-    """Google Chrome instalado (build de produção) + perfil persistente do projeto.
-
-    O ML recusa login no "Chrome for Testing" do Playwright, então usamos o
-    Chrome real via channel="chrome" e removemos as marcas de automação.
-    """
+    """Abre contexto Chromium isolado para o Mercado Livre com proteção anti-automação."""
+    _limpar_locks_perfil()
     kwargs = dict(
-        channel="chrome",
         headless=headless,
         locale="pt-BR",
-        args=["--disable-blink-features=AutomationControlled"],
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-infobars",
+        ],
         ignore_default_args=["--enable-automation"],
     )
     if headless:
-        kwargs["user_agent"] = USER_AGENT  # o headless real se anuncia como HeadlessChrome
+        kwargs["user_agent"] = USER_AGENT
     else:
         kwargs["no_viewport"] = True
+
     try:
+        # Usa o Chromium isolado do projeto para nunca conflitar com instâncias abertas do usuário
         return pw.chromium.launch_persistent_context(str(PERFIL_DIR), **kwargs)
     except Exception as e:
-        if "chrome" not in str(e).lower():
+        log.warning("Falha ao abrir Chromium isolado (%s); tentando navegador do sistema...", e)
+        try:
+            chrome = _achar_chrome()
+            kwargs["executable_path"] = chrome
+            return pw.chromium.launch_persistent_context(str(PERFIL_DIR), **kwargs)
+        except Exception as e2:
+            log.error("Erro fatal ao abrir navegador: %s", e2)
             raise
-        log.warning("Google Chrome não encontrado (%s); usando Chromium do projeto — "
-                    "o login no ML pode ser recusado", type(e).__name__)
-        kwargs.pop("channel")
-        return pw.chromium.launch_persistent_context(str(PERFIL_DIR), **kwargs)
 
 
 def _achar_chrome() -> str:
@@ -223,19 +274,38 @@ def _achar_chrome() -> str:
 
 
 def ml_login() -> None:
-    """Abre um Chrome comum (SEM automação — indetectável porque não há o que
-    detectar) no perfil do bot, para você logar no ML uma única vez."""
-    chrome = _achar_chrome()
+    """Abre um navegador visível para o usuário fazer login no Mercado Livre."""
+    from playwright.sync_api import sync_playwright
     PERFIL_DIR.mkdir(parents=True, exist_ok=True)
-    print("\n➡️  Vai abrir um Chrome normal com o perfil do bot (separado do seu).")
-    print("    1. Faça login no Mercado Livre (senha, 2FA etc.)")
-    print("    2. Confira que o Linkbuilder carrega logado")
-    print("    3. FECHE o navegador para terminar\n")
-    proc = subprocess.Popen([chrome, f"--user-data-dir={PERFIL_DIR}", "--no-first-run",
-                             "--no-default-browser-check", URL_LINKBUILDER])
-    proc.wait()
-    print(f"✅ Perfil salvo em {PERFIL_DIR} — o bot usa essa sessão sozinho daqui pra frente.")
-    print('   Teste com: uv run python -m ofertas converter "<link de produto do ML>"')
+    print("\n➡️ Abrindo janela do navegador para login no Mercado Livre...")
+    print("    1. Faça login na sua conta do Mercado Livre na janela que abriu.")
+    print("    2. Acesse o Link Builder de afiliados.")
+    print("    3. Quando concluir, você pode fechar a janela do navegador.\n")
+
+    with sync_playwright() as pw:
+        ctx = _abrir_contexto(pw, headless=False)
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        try:
+            page.goto(URL_LINKBUILDER)
+        except Exception as e:
+            log.warning("Aviso ao abrir Link Builder: %s", e)
+
+        # Mantém aberto enquanto a janela estiver ativa
+        try:
+            while len(ctx.pages) > 0 and not page.is_closed():
+                page.wait_for_timeout(1000)
+        except Exception:
+            pass
+        finally:
+            try:
+                ctx.close()
+            except Exception:
+                pass
+
+    if tem_sessao_linkbuilder():
+        print(f"✅ Login concluído! Perfil salvo em {PERFIL_DIR}.")
+    else:
+        print(f"ℹ️ Janela do navegador encerrada. Se não fez login via janela, você pode colar seu Cookie no painel.")
 
 
 def _criar_links_api(page, urls: list[str], etiqueta: str) -> list[str]:

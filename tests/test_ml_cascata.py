@@ -17,8 +17,11 @@ TESTE 12: Fluxo completo de Scraping de grupo + ML com fallback para Cookie -> a
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")

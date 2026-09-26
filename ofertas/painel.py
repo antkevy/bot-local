@@ -44,6 +44,8 @@ CAMPOS = [
      "O canal onde o bot posta. Use 'Detectar IDs'."),
     ("ML_ETIQUETA", "Etiqueta do afiliado", "Mercado Livre", False,
      "A 'Etiqueta em uso' que aparece no Linkbuilder do painel de afiliados."),
+    ("ML_COOKIE", "Cookie de sessão (Fallback / Alternativo)", "Mercado Livre", True,
+     "Opcional. Cookie ssid/login do ML para autenticação em cascata caso o Link Builder falhe."),
     ("AMAZON_TAG", "Tag de associado", "Amazon", False,
      "Sua tag do Amazon Associados (ex: seunome-20)."),
     ("AMAZON_CREDENTIAL_ID", "Creators API — ID", "Amazon", False,
@@ -254,12 +256,14 @@ class Processo:
         if self.rodando():
             return False
         self.rotulo = rotulo
-        self.linhas.append(f"▶ {rotulo}...")
+        flags = 0
+        if "ml-login" not in args and "telegram-user-login" not in args:
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         proc = subprocess.Popen(
             [sys.executable, "-m", "ofertas", *args],
             cwd=str(BASE_DIR), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=flags,
         )
         self.proc = proc
         # A thread guarda o processo localmente: se outra ação já tiver substituído
@@ -343,16 +347,26 @@ from .db import total_postadas, listar_postadas, contar_por_plataforma
 
 
 def _sessao_ml_existe() -> bool:
-    perfil = DATA_DIR / "ml_profile"
-    return perfil.exists() and any(perfil.iterdir())
+    from .sources import mercadolivre
+    return mercadolivre.tem_sessao()
 
 
 def status() -> dict:
     env = ler_env()
     tem_navegador = bool(list((DATA_DIR / "pw-browsers").glob("chromium-*")))
-    tem_sessao_ml = _sessao_ml_existe()
+    from .sources import mercadolivre
+    from .sources.ml_auth import ml_auth_service
+    tem_sessao_ml = mercadolivre.tem_sessao()
     tem_ml_etiqueta = bool(env.get("ML_ETIQUETA"))
     ml_conectado = tem_sessao_ml and tem_ml_etiqueta
+
+    if tem_sessao_ml:
+        if mercadolivre.tem_sessao_linkbuilder():
+            status_ml = "Link Builder pronto" if tem_ml_etiqueta else "Etiqueta não configurada"
+        else:
+            status_ml = "Cookie manual ativo" if tem_ml_etiqueta else "Etiqueta não configurada"
+    else:
+        status_ml = "Sessão pendente (Faça login ou insira o Cookie)"
 
     amz_conectado = bool(env.get("AMAZON_TAG"))
     shp_conectado = bool(env.get("SHOPEE_APP_ID") and env.get("SHOPEE_APP_SECRET"))
@@ -382,7 +396,7 @@ def status() -> dict:
         "plataformas": {
             "mercadolivre": {
                 "conectado": ml_conectado,
-                "status": "Link Builder pronto" if ml_conectado else ("Sessão pendente" if not tem_sessao_ml else "Etiqueta não configurada"),
+                "status": status_ml,
                 "etiqueta": env.get("ML_ETIQUETA", ""),
                 "sessao_ativa": tem_sessao_ml,
             },
@@ -930,6 +944,13 @@ class Handler(BaseHTTPRequestHandler):
                 acao.linhas.clear()
                 acao.iniciar(args, rotulo)
                 self._json({"ok": True})
+            elif rota == "/api/cancelar-acao":
+                if acao.rodando():
+                    rot = acao.rotulo
+                    acao.parar()
+                    self._json({"ok": True, "msg": f"Ação '{rot}' cancelada com sucesso."})
+                else:
+                    self._json({"ok": True, "msg": "Nenhuma ação em execução."})
             elif rota == "/api/gerar-link":
                 url = dados.get("url", "")
                 plat = dados.get("plataforma", "")

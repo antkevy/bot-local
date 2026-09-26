@@ -19,8 +19,11 @@ Cobre todos os 14 cenários da especificação:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from unittest.mock import MagicMock, PropertyMock, patch
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")

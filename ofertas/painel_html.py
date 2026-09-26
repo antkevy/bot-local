@@ -1986,7 +1986,11 @@ async function atualizarStatus() {
     // Cartão da sidebar
     $("#ladoPonto").className = "ponto" + (acao ? " ocupado" : on ? " ativo" : "");
     $("#ladoTitulo").textContent = acao ? "Ação em curso" : on ? "Bot ativo" : "Bot parado";
-    $("#ladoSub").textContent = acao || (on ? "Postando normalmente" : "Clique para ligar");
+    if (acao) {
+      $("#ladoSub").innerHTML = `${esc(acao)} <br><span class="link-acao" style="color:var(--perigo, #ef4444); cursor:pointer; font-weight:600; text-decoration:underline; font-size:11px;" onclick="event.stopPropagation(); cancelarAcao();">✕ Cancelar ação</span>`;
+    } else {
+      $("#ladoSub").textContent = on ? "Postando normalmente" : "Clique para ligar";
+    }
     $("#ladoIcone").setAttribute("href", on ? "#i-stop" : "#i-play");
 
     // Selo do cabeçalho
@@ -2548,6 +2552,16 @@ async function executarAcao(nome) {
     await atualizarStatus();
   } catch (e) {
     toast("Não consegui executar a ação.", "erro");
+  }
+}
+
+async function cancelarAcao() {
+  try {
+    const r = await (await fetch("/api/cancelar-acao", { method: "POST" })).json();
+    toast(r.msg || "Ação cancelada.", "info");
+    await atualizarStatus();
+  } catch (e) {
+    toast("Não foi possível cancelar a ação.", "erro");
   }
 }
 

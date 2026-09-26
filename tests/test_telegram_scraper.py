@@ -28,8 +28,11 @@ Cobre os cenários exigidos pela especificação:
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
