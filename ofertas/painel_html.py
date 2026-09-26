@@ -2527,6 +2527,7 @@ const ROTULOS_ACAO = {
   "testar-shopee": "testando a Shopee",
   "testar-amazon": "testando a Amazon",
   "testar-aliexpress": "testando o AliExpress",
+  "testar-grok": "testando o xAI / Grok",
 };
 
 async function executarAcao(nome) {

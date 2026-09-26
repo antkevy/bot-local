@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import logging
 import sys
 
@@ -24,6 +25,12 @@ def cmd_check(_):
         print(f"✅ Amazon tag: {config.amazon_tag}")
     if config.shopee_app_id and config.shopee_app_secret:
         print("✅ Credenciais Shopee")
+    if config.telegram_api_id and config.telegram_api_hash:
+        from .sources import telegram_userbot
+        if telegram_userbot.tem_sessao_salva():
+            print("✅ Telegram Userbot (Telethon conectado para canais de terceiros)")
+        else:
+            print("⚠️  Telegram Userbot: Credenciais configuradas, falta login (rode: uv run python -m ofertas telegram-user-login)")
     from .sources import mercadolivre
     if mercadolivre.tem_sessao():
         print("✅ Sessão do Mercado Livre")
@@ -108,6 +115,11 @@ def cmd_ml_login(_):
     mercadolivre.ml_login()
 
 
+def cmd_telegram_user_login(_):
+    from .sources import telegram_userbot
+    asyncio.run(telegram_userbot.login_terminal())
+
+
 def cmd_testar(args):
     if args.fonte == "ml":
         from .sources import mercadolivre
@@ -131,8 +143,30 @@ def cmd_testar(args):
             raise SystemExit(f"Erro na conexão com AliExpress: {teste.get('erro')}")
         print(f"✅ {teste.get('msg')}")
         ofertas = aliexpress.buscar_ofertas(10)
+    elif args.fonte in ("grok", "xai"):
+        from .grok import grok_service
+        from .config import config
+        if not config.xai_api_key:
+            raise SystemExit("Preencha XAI_API_KEY no .env")
+        print("Testando conexão com xAI/Grok...")
+        teste = grok_service.testar_conexao()
+        if not teste.get("ok"):
+            raise SystemExit(f"Erro na conexão com xAI/Grok: {teste.get('erro')}")
+        print(f"✅ {teste.get('msg')}")
+        print("Exemplo de resposta estruturada:")
+        print(json.dumps(teste.get("exemplo"), indent=2, ensure_ascii=False))
+        return
+    elif args.fonte in ("telegram", "userbot"):
+        from .sources import telegram_userbot
+        print("Testando conexão com Telegram Userbot (Telethon)...")
+        res = asyncio.run(telegram_userbot.testar_conexao())
+        if not res.get("ok"):
+            raise SystemExit(f"❌ Erro no Userbot: {res.get('motivo')}")
+        print(f"✅ Conectado com sucesso como: {res.get('nome')} (@{res.get('username')})")
+        print(f"   ID: {res.get('user_id')} | Telefone: {res.get('telefone')}")
+        return
     else:
-        raise SystemExit("Fontes testáveis: ml, shopee, amazon, aliexpress")
+        raise SystemExit("Fontes testáveis: ml, shopee, amazon, aliexpress, grok, userbot")
     ofertas.sort(key=lambda o: o.desconto or 0, reverse=True)
     for o in ofertas[:10]:
         print(f"[-{o.desconto or 0:>2}%] R$ {o.preco} (de {o.preco_original}) — "
@@ -155,7 +189,7 @@ def main():
 
     sub.add_parser("painel", help="abre o painel de controle gráfico no navegador").set_defaults(fn=cmd_painel)
     sub.add_parser("check", help="mostra o que falta configurar").set_defaults(fn=cmd_check)
-    sub.add_parser("run", help="roda o bot (conversor no privado + ciclos automáticos)").set_defaults(fn=cmd_run)
+    sub.add_parser("run", help="roda o bot (conversor no privado + ciclos automáticos + monitor de canais)").set_defaults(fn=cmd_run)
     sub.add_parser("ciclo", help="roda um único ciclo de busca e postagem").set_defaults(fn=cmd_ciclo)
 
     pc = sub.add_parser("converter", help="converte um link e mostra o resultado (não posta)")
@@ -168,9 +202,10 @@ def main():
 
     sub.add_parser("instalar-navegador", help="baixa o Chromium usado pelo Linkbuilder (fica em data/)").set_defaults(fn=cmd_instalar_navegador)
     sub.add_parser("ml-login", help="login único no Mercado Livre (salva a sessão)").set_defaults(fn=cmd_ml_login)
+    sub.add_parser("telegram-user-login", help="login na sua conta Telegram para monitorar canais de terceiros (Telethon)").set_defaults(fn=cmd_telegram_user_login)
 
     pt = sub.add_parser("testar", help="testa uma fonte sem postar nada")
-    pt.add_argument("fonte", choices=["ml", "shopee", "amazon", "aliexpress"])
+    pt.add_argument("fonte", choices=["ml", "shopee", "amazon", "aliexpress", "grok", "xai", "telegram", "userbot"])
     pt.set_defaults(fn=cmd_testar)
 
     args = p.parse_args()

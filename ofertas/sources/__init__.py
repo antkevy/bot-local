@@ -1,4 +1,4 @@
-from . import aliexpress, amazon, mercadolivre, shopee
+from . import aliexpress, amazon, mercadolivre, shopee, telegram_scraper
 
 
 def detectar_fonte(url: str):

@@ -24,6 +24,12 @@ def montar_caption(o: Oferta) -> str:
         selo = f"  🔻 <b>-{o.desconto}%</b>" if o.desconto else ""
         linhas.append(f"✅ <b>{preco_br(o.preco)}</b>{selo}")
 
+    if o.cupom:
+        cupom_txt = f"🎟 Cupom: <code>{escape(o.cupom)}</code>"
+        if o.beneficio_cupom:
+            cupom_txt += f" ({escape(o.beneficio_cupom)})"
+        linhas.append(cupom_txt)
+
     if o.extra:
         linhas.append(escape(o.extra))
 

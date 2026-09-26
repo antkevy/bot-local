@@ -60,6 +60,8 @@ CAMPOS = [
      "App Secret gerado no AliExpress Open Platform."),
     ("ALIEXPRESS_TRACKING_ID", "Tracking ID", "AliExpress", False,
      "Seu Tracking ID de afiliado do AliExpress (ex: seunome_br)."),
+    ("XAI_API_KEY", "Chave de API (xAI Grok)", "Inteligência Artificial (Grok)", True,
+     "Opcional. Chave xai-... para otimização de títulos e detecção de cupons com Grok."),
 ]
 CHAVES = [c[0] for c in CAMPOS]
 
@@ -402,6 +404,11 @@ def status() -> dict:
                 "app_key": env.get("ALIEXPRESS_APP_KEY", ""),
                 "tracking_id": env.get("ALIEXPRESS_TRACKING_ID", ""),
             },
+        },
+        "grok": {
+            "ativo": bool(env.get("XAI_API_KEY")),
+            "modelo": config.grok_model,
+            "configurado": bool(env.get("XAI_API_KEY")),
         },
     }
 
@@ -850,6 +857,11 @@ class Handler(BaseHTTPRequestHandler):
             elif rota == "/api/nichos":
                 from .nichos import catalogo, ler_selecao
                 self._json({"catalogo": catalogo(), "selecionados": ler_selecao()})
+            elif rota == "/api/fontes-telegram":
+                self._json({
+                    "fontes": db.listar_fontes_telegram(),
+                    "total_processadas": db.total_msgs_telegram_processadas(),
+                })
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:
@@ -907,6 +919,7 @@ class Handler(BaseHTTPRequestHandler):
                     "testar-shopee": (["testar", "shopee"], "Testando Shopee"),
                     "testar-amazon": (["testar", "amazon"], "Testando Amazon"),
                     "testar-aliexpress": (["testar", "aliexpress"], "Testando AliExpress"),
+                    "testar-grok": (["testar", "grok"], "Testando xAI / Grok"),
                     "ciclo": (["ciclo"], "Executando ciclo de postagem"),
                 }
                 if nome not in mapa:
@@ -946,8 +959,36 @@ class Handler(BaseHTTPRequestHandler):
                 from .nichos import salvar_selecao
                 salvar_selecao(dados.get("selecionados") or [])
                 self._json({"ok": True})
-            elif rota == "/api/detectar-ids":
-                self._json(detectar_ids())
+            elif rota == "/api/fontes-telegram":
+                chat_id = str(dados.get("chat_id", "")).strip()
+                nome = str(dados.get("nome", "")).strip() or f"Canal {chat_id}"
+                tipo = str(dados.get("tipo", "canal")).strip()
+                ativa = bool(dados.get("ativa", True))
+                if not chat_id:
+                    return self._json({"erro": "ID do canal/grupo é obrigatório."}, 400)
+                db.salvar_fonte_telegram(chat_id, nome, tipo, ativa)
+                self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
+            elif rota == "/api/fontes-telegram/remover":
+                chat_id = str(dados.get("chat_id", "")).strip()
+                if not chat_id:
+                    return self._json({"erro": "ID da fonte é obrigatório."}, 400)
+                db.remover_fonte_telegram(chat_id)
+                self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
+            elif rota == "/api/fontes-telegram/testar":
+                chat_id = str(dados.get("chat_id", "")).strip()
+                if not chat_id:
+                    return self._json({"erro": "ID da fonte é obrigatório."}, 400)
+                from .sources import telegram_scraper
+                loop = telegram_scraper.e_postagem_propria(chat_id, destination_chat_id=config.chat_id)
+                if loop:
+                    return self._json({
+                        "ok": False,
+                        "erro": "Este ID coincide com o canal de destino configurado no bot! Monitorar o destino causaria loop infinito."
+                    }, 400)
+                self._json({
+                    "ok": True,
+                    "msg": f"Fonte '{chat_id}' validada e pronta para monitoramento."
+                })
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:

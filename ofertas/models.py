@@ -13,6 +13,10 @@ class Oferta:
     desconto_pct: int | None = None
     imagem: str | None = None
     extra: str | None = None   # avaliação, frete grátis, "no Pix" etc.
+    titulo_original: str = ""
+    tipo: str = "produto"      # "produto" | "cupom" | "promocao" | "frete_gratis" | "informativo" | "irrelevante"
+    cupom: str | None = None
+    beneficio_cupom: str | None = None
 
     @property
     def uid(self) -> str:

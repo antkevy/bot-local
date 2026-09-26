@@ -35,6 +35,9 @@ class Config:
         self.bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         self.chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "").strip()
         self.owner_id: int = int(os.getenv("TELEGRAM_OWNER_ID", "0").strip() or 0)
+        self.telegram_api_id: int = int(os.getenv("TELEGRAM_API_ID", "0").strip() or 0)
+        self.telegram_api_hash: str = os.getenv("TELEGRAM_API_HASH", "").strip()
+        self.telegram_session: str = str(DATA_DIR / "telethon_session")
         self.amazon_tag: str = os.getenv("AMAZON_TAG", "").strip()
         self.amazon_credential_id: str = os.getenv("AMAZON_CREDENTIAL_ID", "").strip()
         self.amazon_credential_secret: str = os.getenv("AMAZON_CREDENTIAL_SECRET", "").strip()
@@ -46,6 +49,17 @@ class Config:
         self.aliexpress_tracking_id: str = os.getenv("ALIEXPRESS_TRACKING_ID", "").strip()
         self.aliexpress_api_endpoint: str = os.getenv("ALIEXPRESS_API_ENDPOINT", "").strip()
         self.aliexpress_sign_method: str = os.getenv("ALIEXPRESS_SIGN_METHOD", "sha256").strip().lower()
+        self.xai_api_key: str = os.getenv("XAI_API_KEY", "").strip()
+        env_grok_enabled = os.getenv("GROK_ENABLED")
+        self.grok_enabled: bool = (
+            env_grok_enabled.strip().lower() in ("1", "true", "yes")
+            if env_grok_enabled is not None
+            else bool(self.xai_api_key)
+        )
+        self.grok_model: str = os.getenv("GROK_MODEL", "grok-2-latest").strip()
+        self.grok_confidence_threshold: float = float(os.getenv("GROK_CONFIDENCE_THRESHOLD", "0.75").strip() or 0.75)
+        self.grok_timeout: float = float(os.getenv("GROK_TIMEOUT", "10").strip() or 10.0)
+        self.grok_max_input_length: int = int(os.getenv("GROK_MAX_INPUT_LENGTH", "1000").strip() or 1000)
 
         # config.yaml
         self.intervalo_minutos: int = int(geral.get("intervalo_minutos", 45))
@@ -66,6 +80,7 @@ class Config:
         self.fonte_shopee: dict = fontes.get("shopee") or {"ativa": False}
         self.fonte_amazon: dict = fontes.get("amazon") or {"ativa": False}
         self.fonte_aliexpress: dict = fontes.get("aliexpress") or {"ativa": False}
+        self.fonte_telegram: dict = fontes.get("telegram") or {"ativa": True, "canais": [], "dry_run": False}
 
         # Seleção de nichos feita no painel (data/nichos.json). Se houver, ela
         # SUBSTITUI as categorias/departamentos/buscas do config.yaml.

@@ -66,3 +66,8 @@ fontes:
     #   - fone bluetooth
     #   - drone
 
+  telegram:
+    ativa: true                # monitoramento de grupos/canais fontes
+    canais: []                 # IDs ou @ dos canais monitorados (vazio = todos os cadastrados no banco)
+    dry_run: false             # se true, apenas analisa e loga, sem postar no canal de destino
+
