@@ -9,13 +9,19 @@ Roda um servidor só em 127.0.0.1 e abre no navegador. Dali dá para:
 Sobe com:  uv run python -m ofertas painel   (ou dê 2 cliques em PAINEL.bat)
 """
 import datetime as dt
+import hashlib
+import hmac
+import ipaddress
 import json
+import secrets
 import shutil
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from collections import deque
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -48,6 +54,11 @@ CAMPOS = [
      "Painel de afiliados Shopee > menu 'Abrir API'."),
     ("SHOPEE_APP_SECRET", "App Secret", "Shopee", True,
      "Painel de afiliados Shopee > menu 'Abrir API'."),
+    ("PAINEL_USUARIO", "Usuário do painel", "Acesso ao painel", False,
+     "Obrigatório só se você for acessar de outro computador. "
+     "Vazio = painel liberado apenas em 127.0.0.1."),
+    ("PAINEL_SENHA", "Senha do painel", "Acesso ao painel", True,
+     "Sem isso o painel continua restrito à máquina local, mesmo exposto na rede."),
 ]
 CHAVES = [c[0] for c in CAMPOS]
 
@@ -57,7 +68,10 @@ CHAVES = [c[0] for c in CAMPOS]
 def ler_env() -> dict[str, str]:
     valores = {k: "" for k in CHAVES}
     if ENV_PATH.exists():
-        for linha in ENV_PATH.read_text(encoding="utf-8").splitlines():
+        # utf-8-sig: um .env salvo pelo Bloco de Notas ou pelo PowerShell
+        # costuma vir com BOM, e sem isso a PRIMEIRA variável da lista
+        # seria lida como "﻿CHAVE" e ignorada em silêncio.
+        for linha in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
             linha = linha.strip()
             if linha and not linha.startswith("#") and "=" in linha:
                 k, _, v = linha.partition("=")
@@ -70,7 +84,7 @@ def _linhas_env_extras(atual: dict[str, str]) -> list[str]:
     """Chaves que o painel não conhece (comentadas) — preservadas ao salvar."""
     extras: list[str] = []
     if ENV_PATH.exists():
-        for linha in ENV_PATH.read_text(encoding="utf-8").splitlines():
+        for linha in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
             limpa = linha.strip()
             if not limpa or limpa.startswith("#") or "=" not in limpa:
                 continue
@@ -98,6 +112,105 @@ def salvar_env(novos: dict[str, str]) -> None:
     if extras:
         linhas += ["", "# ── Mantidas do arquivo original ──", *extras]
     ENV_PATH.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+
+
+# ── Autenticação ───────────────────────────────────────────────────────
+# O painel mexe em segredos (.env), liga/desliga o bot e roda ações que
+# abrem navegador. Enquanto ele fica em 127.0.0.1 isso não é exposto a
+# ninguém — mas o dia que o HOST virar 0.0.0.0 (para acesso pela rede) o
+# painel fica aberto. Por isso há login, e a ausência de credenciais
+# NÃO significa "aberto": significa "só loopback", nunca "liberado".
+
+COOKIE_SESSAO = "painel_sessao"
+DURACAO_SESSAO = 8 * 3600          # 8 horas
+MAX_TENTATIVAS = 5                 # por janela
+JANELA_TENTATIVAS = 300            # 5 minutos
+BLOQUEIO_TENTATIVAS = 900          # 15 minutos após estourar
+
+_sessoes: dict[str, tuple[str, float]] = {}   # token -> (usuário, expira)
+_tentativas: dict[str, list[float]] = {}      # ip -> [timestamps]
+_lock = threading.Lock()
+
+
+def _credenciais() -> tuple[str, str]:
+    """(usuário, segredo) configurados. Vazio = painel sem login."""
+    env = ler_env()
+    return (env.get("PAINEL_USUARIO", "").strip(),
+            env.get("PAINEL_SENHA", "").strip())
+
+
+def _autenticado() -> bool:
+    return bool(_credenciais()[1])
+
+
+def _digest(senha: str) -> str:
+    return hashlib.sha256(senha.encode("utf-8")).hexdigest()
+
+
+def _ip_loopback(ip: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip).is_loopback
+    except ValueError:
+        return ip in ("localhost", "")
+
+
+def _bloqueado(ip: str) -> float | None:
+    """Segundos restantes de bloqueio, ou None se não estiver bloqueado."""
+    agora = time.time()
+    with _lock:
+        tentativas = [t for t in _tentativas.get(ip, []) if agora - t < JANELA_TENTATIVAS]
+        _tentativas[ip] = tentativas
+        if len(tentativas) >= MAX_TENTATIVAS:
+            return BLOQUEIO_TENTATIVAS - (agora - tentativas[0])
+    return None
+
+
+def _registrar_falha(ip: str) -> None:
+    with _lock:
+        _tentativas.setdefault(ip, []).append(time.time())
+
+
+def _limpar_tentativas(ip: str) -> None:
+    with _lock:
+        _tentativas.pop(ip, None)
+
+
+def _criar_sessao(usuario: str) -> str:
+    token = secrets.token_urlsafe(32)
+    with _lock:
+        _sessoes[token] = (usuario, time.time() + DURACAO_SESSAO)
+    return token
+
+
+def _checar_sessao(token: str) -> str:
+    """Usuário da sessão, ou string vazia se ausente/expirada."""
+    with _lock:
+        dados = _sessoes.get(token)
+        if not dados:
+            return ""
+        usuario, expira = dados
+        if expira < time.time():
+            _sessoes.pop(token, None)
+            return ""
+        return usuario
+
+
+def _encerrar_sessao(token: str) -> None:
+    with _lock:
+        _sessoes.pop(token, None)
+
+
+def _token_do_pedido(handler) -> str:
+    bruto = handler.headers.get("Cookie", "")
+    if not bruto:
+        return ""
+    try:
+        c = SimpleCookie()
+        c.load(bruto)
+    except Exception:
+        return ""
+    m = c.get(COOKIE_SESSAO)
+    return m.value if m else ""
 
 
 # ── Processo do bot ───────────────────────────────────────────────────
@@ -345,12 +458,13 @@ NOMES_PLATAFORMA = {
     "aliexpress": "AliExpress",
 }
 CORES_PLATAFORMA = {
-    # Mesmos tons usados no CSS do painel (--primaria-forte, --e2, --e3, roxo).
-    # São usados como cor de ÍCONE sobre fundo tingido — nunca como fundo com
-    # texto branco, que reprova contraste.
-    "mercadolivre": "#38A2FF",
-    "amazon": "#F5A623",
-    "shopee": "#F2583B",
+    # Espelham --e1..--e4 do CSS. São cor de ÍCONE sobre fundo tingido —
+    # nunca fundo com texto branco, que reprovaria contraste. Os tons do
+    # painel em produção (#2563eb / #ff9900 / #ee4d2d / #8b5cf6) foram
+    # clareados porque o glifo fica sobre fundo escuro.
+    "mercadolivre": "#60A5FA",
+    "amazon": "#F0A93B",
+    "shopee": "#F26A4D",
     "aliexpress": "#A78BFA",
 }
 ICONE_PLATAFORMA = {
@@ -453,14 +567,49 @@ def obter_metricas() -> dict:
 # ── Servidor HTTP ─────────────────────────────────────────────────────
 
 class Handler(BaseHTTPRequestHandler):
+    # Rotas liberadas mesmo sem sessão. "/" precisa estar aqui: é o HTML que
+    # DESENHA a tela de login. Se fosse barrado, quem definisse uma senha
+    # receberia 401 em tudo e não teria como entrar — painel inutilizável.
+    # O HTML em si não tem segredo nenhum; os dados vêm de /api/, que é
+    # barrado de verdade.
+    ROTAS_PUBLICAS = {"/", "/api/auth-status", "/api/login"}
+
     def log_message(self, *_):
         pass  # silencia o log padrão
 
-    def _json(self, obj, code=200):
+    def _ip(self) -> str:
+        return self.client_address[0] if self.client_address else ""
+
+    def _permitido(self) -> bool:
+        """Libera o pedido, ou já respondeu 401/403 e retorna False."""
+        rota = urlparse(self.path).path
+        if rota in self.ROTAS_PUBLICAS:
+            return True
+        if _checar_sessao(_token_do_pedido(self)):
+            return True
+        if not _autenticado():
+            # Sem credenciais, o painel só funciona a partir da própria
+            # máquina. Se algum dia o HOST virar 0.0.0.0, isso vira 403
+            # em vez de exposure acidental.
+            if _ip_loopback(self._ip()):
+                return True
+            self._json({
+                "erro": "Painel sem credenciais. Defina PAINEL_USUARIO e "
+                        "PAINEL_SENHA no .env antes de acessar pela rede."
+            }, 403)
+            return False
+        self._json({"erro": "Não autenticado."}, 401)
+        return False
+
+    def _json(self, obj, code=200, cookie: str | None = None):
         corpo = json.dumps(obj).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(corpo)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(corpo)
 
@@ -473,9 +622,81 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return {}
 
+    def _cookie_criar(self, token: str) -> str:
+        return (f"{COOKIE_SESSAO}={token}; Path=/; HttpOnly; SameSite=Strict; "
+                f"Max-Age={DURACAO_SESSAO}")
+
+    def _cookie_limpar(self) -> str:
+        return f"{COOKIE_SESSAO}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+
+    def _fazer_login(self, dados: dict):
+        ip = self._ip()
+        restante = _bloqueado(ip)
+        if restante is not None:
+            return self._json({
+                "erro": f"Muitas tentativas. Tente de novo em {int(restante) // 60 + 1} min."
+            }, 429)
+
+        usuario_esperado, senha_esperada = _credenciais()
+        if not senha_esperada:
+            # Sem credenciais o painel já é liberado para loopback; um POST
+            # de login aqui é só um no-op que devolve a sessão implícita.
+            return self._json({
+                "ok": True,
+                "usuario": "",
+                "aviso": "PAINEL_USUARIO/PAINEL_SENHA não definidos: o painel está "
+                         "protegido apenas por rodar em 127.0.0.1."
+            })
+
+        usuario = str(dados.get("usuario", ""))
+        senha = str(dados.get("senha", ""))
+        ok_usuario = hmac.compare_digest(usuario, usuario_esperado)
+        ok_senha = hmac.compare_digest(_digest(senha), _digest(senha_esperada))
+        if not (ok_usuario and ok_senha):
+            _registrar_falha(ip)
+            return self._json({"erro": "Usuário ou senha inválidos."}, 401)
+
+        _limpar_tentativas(ip)
+        token = _criar_sessao(usuario_esperado)
+        return self._json({"ok": True, "usuario": usuario_esperado},
+                          cookie=self._cookie_criar(token))
+
     def do_GET(self):
         try:
             rota = urlparse(self.path).path
+            if rota == "/api/auth-status":
+                usuario = _checar_sessao(_token_do_pedido(self))
+                return self._json({
+                    "autenticado": bool(usuario) or (not _autenticado() and _ip_loopback(self._ip())),
+                    "configurado": _autenticado(),
+                    "user": usuario,
+                })
+            if rota.startswith("/assets/"):
+                nome_arquivo = rota.split("/")[-1]
+                caminho = BASE_DIR / "ofertas" / "assets" / nome_arquivo
+                ext = caminho.suffix.lower()
+                mimetypes_map = {
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".svg": "image/svg+xml",
+                    ".webp": "image/webp",
+                    ".ico": "image/x-icon"
+                }
+                if caminho.is_file() and ext in mimetypes_map:
+                    conteudo = caminho.read_bytes()
+                    self.send_response(200)
+                    self.send_header("Content-Type", mimetypes_map[ext])
+                    self.send_header("Content-Length", str(len(conteudo)))
+                    self.send_header("Cache-Control", "public, max-age=86400")
+                    self.end_headers()
+                    self.wfile.write(conteudo)
+                    return
+                else:
+                    self._json({"erro": "asset não encontrado"}, 404)
+                    return
+            if not self._permitido():
+                return
             if rota == "/":
                 corpo = PAGINA.encode("utf-8")
                 self.send_response(200)
@@ -515,6 +736,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             rota = urlparse(self.path).path
             dados = self._corpo_json()
+
+            if rota == "/api/login":
+                return self._fazer_login(dados)
+            if rota == "/api/logout":
+                _encerrar_sessao(_token_do_pedido(self))
+                return self._json({"ok": True}, cookie=self._cookie_limpar())
+            if not self._permitido():
+                return
+
             if rota == "/api/config":
                 atuais = ler_env()
                 filtrados = {}

@@ -17,64 +17,73 @@ PAGINA = r"""<!doctype html>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   /* ══ Tokens ══════════════════════════════════════════════════════════
-     Uma escala de espaçamento (4/8), raios e cores semânticas. As
-     sombras carregam o tom azul do fundo — preto puro deixa "sujo". */
+     Paleta alinhada ao painel em produção (193.123.112.175:8481): fundo
+     azul-marinho quase preto, cards um tom acima, azul de marca #1a68ff
+     e as mesmas fontes (Plus Jakarta Sans + JetBrains Mono).
+
+     Três tons saem do valor de origem de propósito, por contraste:
+     - --primaria-solida-hover escurece (o #2975ff do deploy daria 4,1:1
+       com texto branco, abaixo de 4,5:1);
+     - --primaria-texto clareia (#1a68ff sobre card dá 3,8:1);
+     - as cores de plataforma são versões claras das de origem, porque
+       os glifos da marca ficam sobre um fundo escuro. */
   :root {
     color-scheme: dark;
 
-    --fundo:          #071726;
-    --fundo-sidebar:  #05121F;
-    --fundo-card:     #0B2137;
-    --fundo-card-hi:  #0E2A44;
-    --fundo-sub:      #081B2D;
-    --fundo-inset:    #04101C;
+    --fundo:          #070D1D;
+    --fundo-sidebar:  #081024;
+    --fundo-card:     #0D1730;   /* base dos contrastes abaixo */
+    --fundo-card-hi:  #0F1D3D;
+    --fundo-sub:      #0A1227;
+    --fundo-inset:    #0A1227;
+    --card-hover:     #122246;
 
-    --borda:          #183B58;
-    --borda-forte:    #22547F;
-    --borda-sutil:    #102D47;
+    --borda:          rgba(37, 99, 235, 0.24);
+    --borda-forte:    rgba(37, 99, 235, 0.42);
+    --borda-sutil:    rgba(255, 255, 255, 0.07);
 
-    --texto:          #F2F7FC;
-    --texto-2:        #A8C0D6;   /* secundário  — 7,4:1 no card  */
-    --texto-3:        #7E9CB8;   /* terciário   — 4,9:1 no card  */
+    --texto:          #FFFFFF;
+    --texto-2:        #CBD5E1;   /* secundário — 12,0:1 no card */
+    --texto-3:        #8294B0;   /* terciário  —  5,8:1 no card */
 
-    --primaria:       #0B84FF;
-    --primaria-forte: #38A2FF;
-    /* O azul de marca é claro demais para receber texto branco (3,6:1).
-       Estes dois tons são só para preenchimentos sólidos — texto branco
-       sobre eles passa 4,5:1. Acentos, anéis de foco e gráficos usam
-       --primaria / --primaria-forte, que não carregam texto. */
-    --primaria-solida:        #0A6EDB;   /* branco 4,9:1 */
-    --primaria-solida-hover:  #0B74E0;   /* branco 4,6:1 */
-    --primaria-fundo: rgba(11, 132, 255, 0.13);
-    --primaria-borda: rgba(11, 132, 255, 0.42);
-    --primaria-texto: #9CC9FF;   /* links sobre card — 6,1:1        */
+    --primaria:       #1A68FF;   /* anéis, bordas, gráficos  */
+    --primaria-forte: #2975FF;   /* brilhos e acentos, sem texto */
+    --primaria-solida:        #1A68FF;        /* branco 4,7:1 */
+    --primaria-solida-hover:  #1557D6;        /* branco 6,2:1 */
+    --primaria-fundo: rgba(26, 104, 255, 0.14);
+    --primaria-borda: rgba(26, 104, 255, 0.45);
+    --primaria-texto: #6BA5FF;  /* links sobre card — 7,1:1 */
 
-    --ok:             #2FD99A;
-    --ok-fundo:       rgba(47, 217, 154, 0.13);
-    --ok-borda:       rgba(47, 217, 154, 0.30);
-    --alerta:         #FFC24D;
-    --alerta-fundo:   rgba(255, 194, 77, 0.13);
-    --alerta-borda:   rgba(255, 194, 77, 0.30);
-    --erro:           #FF6B7D;
-    --erro-fundo:     rgba(255, 107, 125, 0.13);
-    --erro-borda:     rgba(255, 107, 125, 0.34);
+    --ok:             #10B981;   /* 7,0:1 no card */
+    --ok-fundo:       rgba(16, 185, 129, 0.13);
+    --ok-borda:       rgba(16, 185, 129, 0.32);
+    --alerta:         #F59E0B;   /* 8,3:1 no card */
+    --alerta-fundo:   rgba(245, 158, 11, 0.13);
+    --alerta-borda:   rgba(245, 158, 11, 0.32);
+    --erro:           #EF4444;   /* 4,7:1 no card */
+    --erro-fundo:     rgba(239, 68, 68, 0.13);
+    --erro-borda:     rgba(239, 68, 68, 0.36);
 
-    --e1: #0D4A80; --e2: #F5A623; --e3: #F2583B; --e4: #8B5CF6;
+    /* Original do deploy: ml #2563eb / amz #ff9900 / shp #ee4d2d /
+       ali #ff4747 / prm #8b5cf6. Clareadas para os glifos sobre fundo
+       escuro — conferidas por medição, não no olho. */
+    --e1: #60A5FA; --e2: #F0A93B; --e3: #F26A4D; --e4: #A78BFA;
+    --mut: #4B5D78;  /* só bordas e elementos decorativos: 2,7:1 */
 
     --fonte: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --mono:  'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
-    --r-sm: 7px; --r-md: 11px; --r-lg: 15px; --r-full: 99px;
+    --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-full: 9999px;
 
-    --sombra-1: 0 1px 2px rgba(2, 10, 20, 0.4);
-    --sombra-2: 0 6px 22px rgba(2, 12, 24, 0.42);
-    --sombra-3: 0 18px 50px rgba(1, 8, 18, 0.58);
-    --anel: 0 0 0 3px rgba(11, 132, 255, 0.42);
+    --sombra-1: 0 1px 2px rgba(2, 6, 18, 0.5);
+    --sombra-2: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+    --sombra-3: 0 24px 60px -12px rgba(0, 0, 0, 0.8);
+    --anel: 0 0 0 3px rgba(26, 104, 255, 0.45);
 
     --z-base: 1; --z-sticky: 20; --z-overlay: 100; --z-toast: 200;
 
     --t-rapida: 130ms; --t-media: 200ms; --t-lenta: 320ms;
-    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   /* ══ Base ═══════════════════════════════════════════════════════════ */
@@ -86,8 +95,8 @@ PAGINA = r"""<!doctype html>
     min-height: 100vh;
     background-color: var(--fundo);
     background-image:
-      radial-gradient(900px 480px at 12% -8%, rgba(11, 132, 255, 0.14), transparent 62%),
-      radial-gradient(760px 420px at 92% 104%, rgba(47, 217, 154, 0.07), transparent 60%);
+      radial-gradient(900px 480px at 12% -8%, rgba(26, 104, 255, 0.16), transparent 62%),
+      radial-gradient(760px 420px at 92% 104%, rgba(16, 185, 129, 0.07), transparent 60%);
     background-attachment: fixed;
     color: var(--texto);
     font: 400 14px/1.55 var(--fonte);
@@ -149,7 +158,7 @@ PAGINA = r"""<!doctype html>
     width: 36px; height: 36px; border-radius: var(--r-md); flex: none;
     background: linear-gradient(145deg, #1E90FF, #0A5BC7);
     display: grid; place-items: center; color: #fff;
-    box-shadow: 0 4px 16px rgba(11, 132, 255, 0.42), inset 0 1px 0 rgba(255,255,255,0.25);
+    box-shadow: 0 4px 16px rgba(26, 104, 255, 0.45), inset 0 1px 0 rgba(255,255,255,0.25);
   }
   .brand-texto h1 {
     font-size: 15.5px; font-weight: 800; letter-spacing: -0.35px;
@@ -283,7 +292,7 @@ PAGINA = r"""<!doctype html>
   }
   .btn-primario:hover:not(:disabled) {
     background: var(--primaria-solida-hover);
-    box-shadow: 0 4px 18px rgba(11, 132, 255, 0.46);
+    box-shadow: 0 4px 18px rgba(26, 104, 255, 0.48);
   }
   .btn-neutro {
     background: var(--fundo-card); color: var(--texto-2);
@@ -365,6 +374,41 @@ PAGINA = r"""<!doctype html>
   .mp-card h4 { font-size: 14.5px; font-weight: 700; }
   .mp-sub { font-size: 12px; color: var(--texto-3); min-height: 17px; }
   .mp-card .btn { width: 100%; margin-top: auto; }
+
+  /* Logos das plataformas */
+  .mp-logo-caixa {
+    width: 48px; height: 48px; border-radius: var(--r-md);
+    display: grid; place-items: center; overflow: hidden;
+    background: var(--fundo-card-hi); border: 1px solid var(--borda);
+    box-shadow: var(--sombra-1); flex: none;
+  }
+  .mp-logo-img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .top-logo-caixa {
+    width: 22px; height: 22px; border-radius: 6px; overflow: hidden;
+    background: var(--fundo-card-hi); display: grid; place-items: center; flex: none;
+    border: 1px solid var(--borda-sutil);
+  }
+  .top-logo-img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .ativ-logo-caixa {
+    width: 32px; height: 32px; border-radius: var(--r-sm); overflow: hidden;
+    background: var(--fundo-card-hi); display: grid; place-items: center; flex: none;
+    border: 1px solid var(--borda-sutil); box-shadow: var(--sombra-1);
+  }
+  .ativ-logo-img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .tab-logo-caixa {
+    width: 20px; height: 20px; border-radius: 4px; overflow: hidden;
+    background: var(--fundo-card-hi); display: inline-grid; place-items: center;
+    vertical-align: middle; border: 1px solid var(--borda-sutil); margin-right: 4px;
+  }
+  .tab-logo-img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
 
   /* Selo de estado — cor + ponto, nunca só cor. */
   .selo {
@@ -844,6 +888,84 @@ PAGINA = r"""<!doctype html>
     a[href]::after { content: " (" attr(href) ")"; font-size: 10px; color: #4a5764; }
     .link-url { white-space: normal; word-break: break-all; min-height: 0; padding: 0; margin: 0; }
   }
+
+  /* ══ Tela de login ══════════════════════════════════════════════════ */
+  /* Cobre tudo e some do tab order enquanto o app estiver bloqueado —
+     o conteúdo continua no DOM porque é ele que carrega o script. */
+  .tela-login {
+    position: fixed; inset: 0; z-index: calc(var(--z-overlay) + 10);
+    display: grid; place-items: center;
+    padding: 24px;
+    background:
+      radial-gradient(760px 420px at 50% -10%, rgba(26, 104, 255, 0.18), transparent 65%),
+      var(--fundo);
+    overflow-y: auto;
+  }
+  .tela-login[hidden] { display: none; }
+
+  .login-cartao {
+    width: min(400px, 100%);
+    background: var(--fundo-card);
+    border: 1px solid var(--borda);
+    border-radius: var(--r-lg);
+    box-shadow: var(--sombra-3);
+    padding: 32px 28px 28px;
+    display: flex; flex-direction: column;
+  }
+  .login-icone {
+    width: 48px; height: 48px; display: grid; place-items: center;
+    border-radius: var(--r-md);
+    background: var(--primaria-fundo);
+    border: 1px solid var(--primaria-borda);
+    color: var(--primaria-forte);
+    margin-bottom: 16px;
+  }
+  .login-titulo { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+  .login-sub    { color: var(--texto-3); font-size: 13.5px; margin: 4px 0 22px; }
+
+  .login-rotulo {
+    font-size: 12.5px; font-weight: 600; color: var(--texto-2);
+    margin-bottom: 6px;
+  }
+  .login-campo {
+    width: 100%; height: 42px;
+    padding: 0 13px; margin-bottom: 16px;
+    background: var(--fundo-inset);
+    border: 1px solid var(--borda);
+    border-radius: var(--r-md);
+    color: var(--texto);
+    font: 400 14px/1 var(--fonte);
+    transition: border-color var(--t-rapida) var(--ease), box-shadow var(--t-rapida) var(--ease);
+  }
+  .login-campo::placeholder { color: var(--texto-3); }
+  .login-campo:focus-visible {
+    outline: none;
+    border-color: var(--primaria);
+    box-shadow: var(--anel);
+  }
+  .login-erro:empty, .login-aviso:empty { display: none; }
+  .login-erro {
+    margin: -4px 0 14px; font-size: 13px;
+    color: var(--erro); background: var(--erro-fundo);
+    border: 1px solid var(--erro-borda); border-radius: var(--r-sm);
+    padding: 9px 11px;
+  }
+  .login-aviso {
+    margin: -4px 0 14px; font-size: 12.5px;
+    color: var(--alerta); background: var(--alerta-fundo);
+    border: 1px solid var(--alerta-borda); border-radius: var(--r-sm);
+    padding: 9px 11px;
+  }
+  .login-btn { width: 100%; height: 44px; justify-content: center; margin-top: 2px; }
+
+  /* Com o login aberto, nada do app deve ser alcançável pelo teclado. */
+  body.travado .app-layout,
+  body.travado .toasts,
+  body.travado .pular-para-conteudo { visibility: hidden; }
+
+  @media print {
+    .tela-login { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -910,9 +1032,41 @@ PAGINA = r"""<!doctype html>
   <symbol id="i-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l1.4-4.4A2 2 0 0 1 8.3 7.2h7.4a2 2 0 0 1 1.9 1.4L19 13"/><path d="M3.5 13h17a1.5 1.5 0 0 1 1.5 1.5V17a1 1 0 0 1-1 1H15v-2H9v2H4a1 1 0 0 1-1-1v-2.5A1.5 1.5 0 0 1 3.5 13z"/><path d="M6.5 16h.01M17.5 16h.01"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v18H5.5A1.5 1.5 0 0 1 4 19.5z"/><path d="M8 3v18M11 8h4M11 12h4"/></symbol>
   <symbol id="i-dumbbell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M3.5 9v6M17.5 6.5v11M20.5 9v6M6.5 12h11"/></symbol>
+  <symbol id="i-log-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h3.5A2.5 2.5 0 0 1 21 5.5v13a2.5 2.5 0 0 1-2.5 2.5H15"/><path d="M10 16.5l4.5-4.5L10 7.5"/><path d="M14.5 12H3.5"/></symbol>
 </svg>
 
 <a href="#conteudo" class="pular-para-conteudo">Pular para o conteúdo</a>
+
+<!-- ══ Tela de login ══════════════════════════════════════════════════
+     Cobre o app inteiro enquanto não houver sessão. O conteúdo do painel
+     segue no DOM (é ele que carrega este script), mas fica escondido e
+     fora do tab order — sem sessão nenhuma chamada /api/ passa. -->
+<div class="tela-login" id="telaLogin" hidden>
+  <form class="login-cartao" id="loginForm" novalidate>
+    <span class="login-icone" aria-hidden="true">
+      <svg class="icone"><use href="#i-tag"/></svg>
+    </span>
+    <h2 class="login-titulo">Ofertas Pro</h2>
+    <p class="login-sub">Entre para acessar o painel.</p>
+
+    <label class="login-rotulo" for="loginUsuario">Usuário</label>
+    <input class="login-campo" id="loginUsuario" name="usuario" type="text"
+           autocomplete="username" autocapitalize="none" spellcheck="false"
+           required>
+
+    <label class="login-rotulo" for="loginSenha">Senha</label>
+    <input class="login-campo" id="loginSenha" name="senha" type="password"
+           autocomplete="current-password" required>
+
+    <p class="login-erro" id="loginErro" role="alert" aria-live="polite"></p>
+    <p class="login-aviso" id="loginAviso"></p>
+
+    <button type="submit" class="btn btn-primario login-btn" id="loginEntrar">
+      <svg class="icone" aria-hidden="true"><use href="#i-log-in"/></svg>
+      Entrar
+    </button>
+  </form>
+</div>
 
 <div class="app-layout">
 
@@ -971,8 +1125,13 @@ PAGINA = r"""<!doctype html>
       </button>
       <p class="sidebar-nota">
         <strong>Ofertas Pro 2.0</strong><br>
-        Servidor local — nada sai do seu PC.
+        <span id="ladoSessao">Servidor local — nada sai do seu PC.</span>
       </p>
+      <button type="button" class="btn btn-fantasma btn-bloco" id="btnSair"
+              hidden onclick="sair()">
+        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-log-in"/></svg>
+        Sair do painel
+      </button>
     </div>
   </aside>
 
@@ -1020,7 +1179,9 @@ PAGINA = r"""<!doctype html>
 
       <section class="grade-4" aria-label="Marketplaces">
         <article class="mp-card">
-          <span class="mp-icone ml" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-handshake"/></svg></span>
+          <div class="mp-logo-caixa">
+            <img src="/assets/mercadolivre.png" alt="Mercado Livre" class="mp-logo-img">
+          </div>
           <h4>Mercado Livre</h4>
           <span class="selo selo-espera" id="seloMl"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
           <span class="mp-sub" id="subMl">Sem credenciais</span>
@@ -1028,7 +1189,9 @@ PAGINA = r"""<!doctype html>
         </article>
 
         <article class="mp-card">
-          <span class="mp-icone amz" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-package"/></svg></span>
+          <div class="mp-logo-caixa">
+            <img src="/assets/amazon.png" alt="Amazon" class="mp-logo-img">
+          </div>
           <h4>Amazon</h4>
           <span class="selo selo-espera" id="seloAmz"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
           <span class="mp-sub" id="subAmz">Sem tag de associado</span>
@@ -1036,7 +1199,9 @@ PAGINA = r"""<!doctype html>
         </article>
 
         <article class="mp-card">
-          <span class="mp-icone shp" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-shopping-bag"/></svg></span>
+          <div class="mp-logo-caixa">
+            <img src="/assets/shopee.png" alt="Shopee" class="mp-logo-img">
+          </div>
           <h4>Shopee</h4>
           <span class="selo selo-espera" id="seloShp"><span class="ponto" aria-hidden="true"></span>Não configurado</span>
           <span class="mp-sub" id="subShp">Sem credenciais de API</span>
@@ -1044,7 +1209,9 @@ PAGINA = r"""<!doctype html>
         </article>
 
         <article class="mp-card">
-          <span class="mp-icone ali" aria-hidden="true"><svg class="icone icone-lg"><use href="#i-globe"/></svg></span>
+          <div class="mp-logo-caixa">
+            <img src="/assets/aliexpress.png" alt="AliExpress" class="mp-logo-img">
+          </div>
           <h4>AliExpress</h4>
           <span class="selo selo-fora">Indisponível</span>
           <span class="mp-sub">Sem integração oficial</span>
@@ -1552,6 +1719,20 @@ const NOME_PLATAFORMA = {
 const ICONE_PLATAFORMA = {
   mercadolivre: "handshake", amazon: "package", shopee: "shopping-bag", aliexpress: "globe"
 };
+const LOGO_PLATAFORMA = {
+  mercadolivre: "/assets/mercadolivre.png",
+  "Mercado Livre": "/assets/mercadolivre.png",
+  ml: "/assets/mercadolivre.png",
+  amazon: "/assets/amazon.png",
+  Amazon: "/assets/amazon.png",
+  amz: "/assets/amazon.png",
+  shopee: "/assets/shopee.png",
+  Shopee: "/assets/shopee.png",
+  shp: "/assets/shopee.png",
+  aliexpress: "/assets/aliexpress.png",
+  AliExpress: "/assets/aliexpress.png",
+  ali: "/assets/aliexpress.png"
+};
 const NOME_ICONE_NICHO = {
   cpu: "cpu", smartphone: "smartphone", gamepad: "gamepad", sofa: "sofa", plug: "plug",
   shirt: "shirt", sparkles: "sparkles", dumbbell: "dumbbell", "heart-pulse": "heart-pulse",
@@ -1728,7 +1909,7 @@ async function atualizarStatus() {
 /* ═══ Blocos de plataforma (gerados a partir dos dados) ═════════════ */
 const BLOCOS = [
   {
-    chave: "mercadolivre", nome: "Mercado Livre", icone: "handshake", classe: "ml",
+    chave: "mercadolivre", nome: "Mercado Livre", icone: "handshake", classe: "ml", logo: "/assets/mercadolivre.png",
     sub: "Link builder com sessão local",
     campos: [
       ["Etiqueta de afiliado", "pbMlEtiqueta"],
@@ -1742,7 +1923,7 @@ const BLOCOS = [
     extra: ["Limpar sessão local", "btn-perigo", "trash", "limparSessao()"],
   },
   {
-    chave: "amazon", nome: "Amazon", icone: "package", classe: "amz",
+    chave: "amazon", nome: "Amazon", icone: "package", classe: "amz", logo: "/assets/amazon.png",
     sub: "Amazon Associados e Creators API",
     campos: [
       ["Tag de associado", "pbAmzTag"],
@@ -1754,7 +1935,7 @@ const BLOCOS = [
     ],
   },
   {
-    chave: "shopee", nome: "Shopee", icone: "shopping-bag", classe: "shp",
+    chave: "shopee", nome: "Shopee", icone: "shopping-bag", classe: "shp", logo: "/assets/shopee.png",
     sub: "Open API oficial de afiliados",
     campos: [
       ["App ID", "pbShpAppId"],
@@ -1766,7 +1947,7 @@ const BLOCOS = [
     ],
   },
   {
-    chave: "aliexpress", nome: "AliExpress", icone: "globe", classe: "ali",
+    chave: "aliexpress", nome: "AliExpress", icone: "globe", classe: "ali", logo: "/assets/aliexpress.png",
     sub: "Sem integração oficial no momento",
     campos: [["Status da integração", "pbAliStatus"]],
     acoes: [], fora: true,
@@ -1781,7 +1962,9 @@ function renderPlataformas(s) {
       <section class="bloco" id="bloco-${b.chave}" aria-labelledby="tit-${b.chave}">
         <div class="bloco-topo">
           <div class="bloco-id">
-            <span class="mp-icone ${b.classe}" aria-hidden="true">${icone(b.icone, "icone-lg")}</span>
+            <div class="mp-logo-caixa">
+              <img src="${b.logo}" alt="${esc(b.nome)}" class="mp-logo-img">
+            </div>
             <div>
               <h3 id="tit-${b.chave}">${esc(b.nome)}</h3>
               <small>${esc(b.sub)}</small>
@@ -1894,8 +2077,8 @@ function desenharGraficoSemana() {
 
   // Área
   const g = ctx.createLinearGradient(0, padT, 0, padT + ph);
-  g.addColorStop(0, "rgba(11,132,255,0.34)");
-  g.addColorStop(1, "rgba(11,132,255,0)");
+  g.addColorStop(0, "rgba(26,104,255,0.34)");
+  g.addColorStop(1, "rgba(26,104,255,0)");
   ctx.beginPath();
   ctx.moveTo(pts[0].x, padT + ph);
   pts.forEach((p, i) => {
@@ -1953,15 +2136,21 @@ async function atualizarMetricas() {
     // Plataformas
     const tl = $("#topLista");
     tl.innerHTML = (d.top_plataformas || []).length
-      ? d.top_plataformas.map(p => `
+      ? d.top_plataformas.map(p => {
+          const logoSrc = LOGO_PLATAFORMA[p.nome] || LOGO_PLATAFORMA[(p.nome || "").toLowerCase().replace(/\s+/g, "")] || "";
+          const iconeEl = logoSrc
+            ? `<div class="top-logo-caixa"><img src="${logoSrc}" alt="${esc(p.nome)}" class="top-logo-img"></div>`
+            : `<span class="top-marca" style="--c:${esc(p.cor)}" aria-hidden="true">${icone(p.icone)}</span>`;
+          return `
         <div class="top-item">
-          <span class="top-marca" style="--c:${esc(p.cor)}" aria-hidden="true">${icone(p.icone)}</span>
+          ${iconeEl}
           <span class="top-nome">${esc(p.nome)}</span>
           <span class="top-num">${p.cliques}</span>
           <span class="top-barra-linha">
             <span class="barra"><i style="width:${Math.max(p.pct, 2)}%"></i></span>
           </span>
-        </div>`).join("")
+        </div>`;
+        }).join("")
       : vazio("Nada postado ainda", "Assim que o bot rodar um ciclo, os números aparecem aqui.", "chart");
 
     // Atividade
@@ -1969,10 +2158,13 @@ async function atualizarMetricas() {
     al.innerHTML = (d.atividades || []).length
       ? d.atividades.map(a => {
           const plat = a.plataforma || "mercadolivre";
-          const abrev = plat === "mercadolivre" ? "ml" : plat === "aliexpress" ? "ali" : plat;
+          const logoSrc = LOGO_PLATAFORMA[plat] || LOGO_PLATAFORMA[NOME_PLATAFORMA[plat]] || "";
+          const iconeEl = logoSrc
+            ? `<div class="ativ-logo-caixa"><img src="${logoSrc}" alt="${esc(plat)}" class="ativ-logo-img"></div>`
+            : `<span class="ativ-icone ${plat === 'mercadolivre' ? 'ml' : plat === 'aliexpress' ? 'ali' : plat}" aria-hidden="true">${icone(ICONE_PLATAFORMA[plat] || "tag")}</span>`;
           return `
           <div class="ativ-item">
-            <span class="ativ-icone ${abrev}" aria-hidden="true">${icone(ICONE_PLATAFORMA[plat] || "tag")}</span>
+            ${iconeEl}
             <span class="ativ-texto">
               <b>${esc(NOME_PLATAFORMA[plat] || plat)}</b>
               <small>${esc(a.detalhe)}</small>
@@ -2321,9 +2513,13 @@ async function carregarProdutos() {
         ? `<a class="btn btn-neutro btn-sm" href="${esc(p.url_afiliado)}" target="_blank" rel="noopener noreferrer">
              ${icone("external")} Abrir</a>`
         : `<span class="selo selo-neutro">sem link</span>`;
+      const logoSrc = LOGO_PLATAFORMA[plat] || LOGO_PLATAFORMA[NOME_PLATAFORMA[plat]] || "";
+      const platBadge = logoSrc
+        ? `<span class="selo selo-neutro" style="display:inline-flex; align-items:center; gap:6px;"><div class="tab-logo-caixa"><img src="${logoSrc}" alt="" class="tab-logo-img"></div> ${esc(NOME_PLATAFORMA[plat] || plat)}</span>`
+        : `<span class="selo selo-neutro">${icone(ICONE_PLATAFORMA[plat] || "tag")} ${esc(NOME_PLATAFORMA[plat] || plat)}</span>`;
       return `
         <tr>
-          <td><span class="selo selo-neutro">${icone(ICONE_PLATAFORMA[plat] || "tag")} ${esc(NOME_PLATAFORMA[plat] || plat)}</span></td>
+          <td>${platBadge}</td>
           <td class="tit">${esc(p.titulo || "Produto sem título")}</td>
           <td class="preco">${esc(preco)}</td>
           <td class="quando">${esc(p.postada_em ? p.postada_em.replace("T", " ") : "—")}</td>
@@ -2566,8 +2762,117 @@ function ligarEventos() {
   });
 }
 
+/* ══ Autenticação ═════════════════════════════════════════════════════
+   O painel mexe em segredos e liga/desliga o bot, então tudo abaixo de
+   /api/ responde 401 sem sessão. Em vez de tratar isso em cada uma das
+   16 chamadas, o fetch global observa a resposta: qualquer 401 abre a
+   tela de login e para o painel. */
+const _fetchReal = window.fetch.bind(window);
+let _loginAberto = false;
+
+function abrirLogin(motivo = "") {
+  if (_loginAberto) return;
+  _loginAberto = true;
+  const tela = $("#telaLogin");
+  if (motivo) $("#loginAviso").textContent = motivo;
+  tela.hidden = false;
+  tela.classList.add("aberto");
+  document.body.classList.add("travado");
+  requestAnimationFrame(() => $("#loginUsuario")?.focus());
+}
+
+/* "Sair" só faz sentido se o painel estiver protegido por senha — sem
+   credenciais não existe sessão para encerrar. Chamado tanto no boot
+   quanto depois de entrar, senão o botão ficaria oculto justamente
+   quando o usuário entrou por senha. */
+function ajustarBotaoSair(configurado, usuario) {
+  const b = $("#btnSair");
+  if (b) b.hidden = !configurado;
+  if (configurado) $("#ladoSessao").textContent = "Sessão de " + (usuario || "usuário");
+}
+
+function fecharLogin() {
+  _loginAberto = false;
+  const tela = $("#telaLogin");
+  tela.hidden = true;
+  tela.classList.remove("aberto");
+  document.body.classList.remove("travado");
+  $("#loginErro").textContent = "";
+  $("#loginSenha").value = "";
+}
+
+window.fetch = async (...args) => {
+  const resp = await _fetchReal(...args);
+  const url = String(args[0] || "");
+  if (resp.status === 401 && !url.includes("/api/login") && !url.includes("/api/auth-status")) {
+    abrirLogin("Sua sessão expirou. Entre de novo para continuar.");
+  }
+  return resp;
+};
+
+async function entrar() {
+  const usuario = $("#loginUsuario").value.trim();
+  const senha = $("#loginSenha").value;
+  const erro = $("#loginErro");
+  erro.textContent = "";
+  if (!usuario || !senha) {
+    erro.textContent = "Preencha usuário e senha.";
+    return;
+  }
+  const btn = $("#loginEntrar");
+  btn.disabled = true;
+  try {
+    const r = await _fetchReal("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuario, senha }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || "Não foi possível entrar.");
+    ajustarBotaoSair(true, d.usuario);
+    fecharLogin();
+    await iniciar();               // app nunca tinha subido: agora sobe
+  } catch (e) {
+    erro.textContent = e.message;
+    $("#loginSenha").select();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function sair() {
+  await _fetchReal("/api/logout", { method: "POST" });
+  location.reload();
+}
+
+async function abrirLoginSePrecisar() {
+  try {
+    const r = await _fetchReal("/api/auth-status", { cache: "no-store" });
+    const d = await r.json();
+    if (d.autenticado) {
+      ajustarBotaoSair(d.configurado, d.user);
+      return true;
+    }
+    if (d.configurado) {
+      abrirLogin();
+      return false;
+    }
+    // Sem credenciais: liberado por estar em 127.0.0.1. Avisa, mas não trava.
+    ajustarBotaoSair(false, "");
+    toast("PAINEL_USUARIO/PAINEL_SENHA não definidos: este painel só está " +
+          "protegido por rodar em 127.0.0.1.", "alerta", 7000);
+    return true;
+  } catch (e) {
+    abrirLogin("Não consegui falar com o painel.");
+    return false;
+  }
+}
+
 /* ══ Início ══════════════════════════════════════════════════════════ */
+let _appNoAr = false;
 async function iniciar() {
+  if (_appNoAr) return;              /* login reentra: não sobe duas vezes */
+  _appNoAr = true;
   injetarIconesFaltantes();
   ligarEventos();
   tickRelogio();
@@ -2585,7 +2890,17 @@ async function iniciar() {
   setInterval(puxarLogs, 1500);
 }
 
-iniciar();
+(async () => {
+  // O formulário de login é ligado AQUI, e não em ligarEventos(): este só
+  // roda depois que o login passa, e o login é justamente o que ainda
+  // não aconteceu. Registrado tarde, o form faria submissão nativa e a
+  // página recarregaria em loop.
+  $("#loginForm")?.addEventListener("submit", ev => {
+    ev.preventDefault();
+    entrar();
+  });
+  if (await abrirLoginSePrecisar()) await iniciar();
+})();
 </script>
 </body>
 </html>
