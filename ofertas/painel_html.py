@@ -1,4 +1,4 @@
-"""A página HTML do painel de controle de alta fidelidade visual (servida por painel.py)."""
+"""Interface web do painel Ofertas Pro (servida localmente por painel.py)."""
 
 PAGINA = r"""<!doctype html>
 <html lang="pt-BR">
@@ -11,27 +11,29 @@ PAGINA = r"""<!doctype html>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-main: #070d1e;
-    --bg-sidebar: #0a1329;
-    --bg-card: rgba(14, 25, 52, 0.72);
-    --bg-card-hover: rgba(20, 35, 70, 0.85);
-    --bg-subcard: #0c1630;
-    --bg-subcard2: #0f1d3d;
-    --border-color: #1a2c56;
-    --border-light: #243b70;
-    --border-glow: rgba(0, 102, 255, 0.35);
-    --tx-main: #f0f4fc;
-    --tx-muted: #7e91b0;
-    --tx-dim: #546888;
-    --primary: #0066ff;
-    --primary-hover: #1e78ff;
-    --primary-glow: 0 0 20px rgba(0, 102, 255, 0.4);
-    --success: #00e676;
-    --success-bg: rgba(0, 230, 118, 0.12);
+    --bg-main: #061525;
+    --bg-main2: #081A2B;
+    --bg-sidebar: #061220;
+    --bg-card: #0B2035;
+    --bg-card2: #0D263F;
+    --bg-card-hover: #112d4a;
+    --bg-subcard: #081a2e;
+    --border-color: #173957;
+    --border-light: #204d75;
+    --border-glow: rgba(8, 123, 255, 0.35);
+    --tx-main: #FFFFFF;
+    --tx-muted: #8EA6BF;
+    --tx-dim: #5c7896;
+    --primary: #087BFF;
+    --primary-hover: #0D8BFF;
+    --primary-glow: 0 0 20px rgba(8, 123, 255, 0.4);
+    --success: #20D889;
+    --success-bg: rgba(32, 216, 137, 0.12);
     --warning: #ffb300;
+    --warning-bg: rgba(255, 179, 0, 0.12);
     --danger: #ff4757;
     --danger-bg: rgba(255, 71, 87, 0.12);
-    --font-main: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', Consolas, monospace;
     --radius-sm: 8px;
     --radius-md: 12px;
@@ -42,8 +44,8 @@ PAGINA = r"""<!doctype html>
   body {
     background-color: var(--bg-main);
     background-image: 
-      radial-gradient(circle at 20% 0%, rgba(0, 102, 255, 0.12) 0%, transparent 50%),
-      radial-gradient(circle at 80% 100%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+      radial-gradient(circle at 15% 0%, rgba(8, 123, 255, 0.1) 0%, transparent 45%),
+      radial-gradient(circle at 85% 100%, rgba(32, 216, 137, 0.05) 0%, transparent 45%);
     color: var(--tx-main);
     font-family: var(--font-main);
     font-size: 14px;
@@ -53,13 +55,12 @@ PAGINA = r"""<!doctype html>
     overflow-x: hidden;
   }
 
-  /* Scrollbars */
+  /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #1c2e56; border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: #2a437c; }
+  ::-webkit-scrollbar-thumb { background: #173957; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #204d75; }
 
-  /* Layout Structure */
   .app-layout {
     display: flex;
     width: 100%;
@@ -79,6 +80,7 @@ PAGINA = r"""<!doctype html>
     top: 0;
     height: 100vh;
     z-index: 50;
+    transition: transform 0.2s ease;
   }
 
   .brand {
@@ -89,24 +91,16 @@ PAGINA = r"""<!doctype html>
     text-decoration: none;
   }
   .brand-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #38bdf8 0%, #0066ff 60%, #0243aa 100%);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #087BFF 0%, #0050b3 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 16px rgba(0, 102, 255, 0.5);
-    position: relative;
+    box-shadow: 0 0 16px rgba(8, 123, 255, 0.5);
     flex-shrink: 0;
-  }
-  .brand-icon::after {
-    content: '';
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    background: #0066ff;
+    color: #fff;
   }
   .brand-text h1 {
     font-size: 16px;
@@ -166,9 +160,9 @@ PAGINA = r"""<!doctype html>
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 99px;
-    background: #111d38;
-    color: #8da4c4;
-    border: 1px solid #1f335e;
+    background: #081a2e;
+    color: #8EA6BF;
+    border: 1px solid #173957;
   }
   .nav-item.active .nav-badge {
     background: rgba(255, 255, 255, 0.2);
@@ -176,9 +170,9 @@ PAGINA = r"""<!doctype html>
     border-color: transparent;
   }
 
-  /* Sidebar Bottom Bot Status Card */
+  /* Sidebar Bot Status Card */
   .sidebar-bot-card {
-    background: var(--bg-subcard);
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 12px 14px;
@@ -191,7 +185,7 @@ PAGINA = r"""<!doctype html>
   }
   .sidebar-bot-card:hover {
     border-color: var(--border-light);
-    background: var(--bg-subcard2);
+    background: var(--bg-card2);
   }
   .bot-status-dot {
     width: 8px;
@@ -238,7 +232,7 @@ PAGINA = r"""<!doctype html>
     font-weight: 600;
   }
 
-  /* ── Main Content Area ── */
+  /* ── Main Area ── */
   .main-wrapper {
     flex: 1;
     display: flex;
@@ -267,7 +261,7 @@ PAGINA = r"""<!doctype html>
     gap: 8px;
   }
   .greeting-section h3 {
-    font-size: 16px;
+    font-size: 15.5px;
     font-weight: 600;
     color: #cbd5e1;
     margin-top: 2px;
@@ -327,7 +321,7 @@ PAGINA = r"""<!doctype html>
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: #1e3a8a;
+    background: #0d3663;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -368,12 +362,12 @@ PAGINA = r"""<!doctype html>
   .btn-primary:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 0 24px rgba(0, 102, 255, 0.55);
+    box-shadow: 0 0 24px rgba(8, 123, 255, 0.55);
   }
   .btn-primary:active { transform: translateY(0); }
 
   .btn-dark {
-    background: #0d1a36;
+    background: var(--bg-card);
     color: #cbd5e1;
     font-family: inherit;
     font-size: 13px;
@@ -389,7 +383,7 @@ PAGINA = r"""<!doctype html>
     text-decoration: none;
   }
   .btn-dark:hover {
-    background: #15274d;
+    background: var(--bg-card2);
     color: #fff;
     border-color: var(--border-light);
   }
@@ -411,7 +405,7 @@ PAGINA = r"""<!doctype html>
     border-color: var(--danger);
   }
 
-  /* Content Grid */
+  /* Content Body */
   .content-body {
     padding: 8px 32px 32px;
     display: flex;
@@ -422,7 +416,6 @@ PAGINA = r"""<!doctype html>
 
   .dash-card {
     background: var(--bg-card);
-    backdrop-filter: blur(16px);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 20px;
@@ -432,53 +425,68 @@ PAGINA = r"""<!doctype html>
   }
   .dash-card:hover { border-color: var(--border-light); }
 
-  /* Platforms Row */
-  .platforms-row {
+  /* ── 5 Symmetrical Marketplaces Cards on Dashboard ── */
+  .marketplaces-grid {
     display: grid;
-    grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: repeat(5, 1fr);
     gap: 14px;
   }
-  @media (max-width: 1200px) { .platforms-row { grid-template-columns: 1fr 1fr 1fr; } }
-  @media (max-width: 768px) { .platforms-row { grid-template-columns: 1fr; } }
+  @media (max-width: 1200px) { .marketplaces-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 768px) { .marketplaces-grid { grid-template-columns: 1fr; } }
 
-  .ml-featured-card {
-    background: linear-gradient(135deg, rgba(16, 30, 64, 0.9) 0%, rgba(10, 18, 40, 0.9) 100%);
-    border: 1px solid #1f376a;
+  .mp-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    padding: 18px 20px;
+    padding: 18px 16px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 14px;
-  }
-  .ml-card-header {
-    display: flex;
     align-items: center;
-    gap: 12px;
+    text-align: center;
+    gap: 8px;
+    transition: transform 0.15s, border-color 0.15s;
   }
-  .ml-logo-box {
+  .mp-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-light);
+  }
+
+  .mp-icon-box {
     width: 44px;
     height: 44px;
-    border-radius: 10px;
-    background: #ffe600;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
-    box-shadow: 0 4px 12px rgba(255, 230, 0, 0.25);
-    flex-shrink: 0;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 2px;
   }
-  .platform-title-wrap { flex: 1; }
-  .platform-title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .platform-title-row h4 {
-    font-size: 15px;
+  .icon-ml { background: #ffe600; color: #000; box-shadow: 0 4px 12px rgba(255, 230, 0, 0.2); }
+  .icon-amazon { background: #ff9900; box-shadow: 0 4px 12px rgba(255, 153, 0, 0.2); }
+  .icon-shopee { background: #ee4d2d; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.2); }
+  .icon-aliexpress { background: #ff4747; box-shadow: 0 4px 12px rgba(255, 71, 71, 0.2); }
+  .icon-promogram { background: #8b5cf6; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2); }
+
+  .mp-card h4 {
+    font-size: 14.5px;
     font-weight: 700;
     color: #fff;
   }
+  .mp-card .mp-sub {
+    font-size: 11.5px;
+    color: var(--tx-dim);
+    min-height: 18px;
+  }
+  .mp-card .btn-dark {
+    width: 100%;
+    justify-content: center;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    margin-top: 6px;
+  }
+
   .badge-connected {
     display: inline-flex;
     align-items: center;
@@ -487,7 +495,7 @@ PAGINA = r"""<!doctype html>
     font-weight: 600;
     color: var(--success);
     background: var(--success-bg);
-    border: 1px solid rgba(0, 230, 118, 0.25);
+    border: 1px solid rgba(32, 216, 137, 0.25);
     padding: 2px 8px;
     border-radius: 99px;
   }
@@ -504,7 +512,7 @@ PAGINA = r"""<!doctype html>
     font-size: 11px;
     font-weight: 600;
     color: var(--warning);
-    background: rgba(255, 179, 0, 0.12);
+    background: var(--warning-bg);
     border: 1px solid rgba(255, 179, 0, 0.25);
     padding: 2px 8px;
     border-radius: 99px;
@@ -514,72 +522,6 @@ PAGINA = r"""<!doctype html>
     height: 5px;
     border-radius: 50%;
     background: var(--warning);
-  }
-  .platform-desc {
-    font-size: 12px;
-    color: var(--tx-muted);
-    margin-top: 2px;
-  }
-  .ml-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .ml-actions .btn-primary {
-    justify-content: center;
-    padding: 9px 14px;
-    font-size: 13px;
-  }
-  .ml-actions .btn-dark {
-    justify-content: center;
-    padding: 8px 14px;
-    font-size: 12.5px;
-    background: #0d1a36;
-  }
-
-  .platform-mini-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 16px 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 8px;
-  }
-  .platform-icon-box {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 800;
-    color: #fff;
-    margin-bottom: 2px;
-  }
-  .icon-amazon { background: #ff9900; box-shadow: 0 4px 12px rgba(255, 153, 0, 0.25); }
-  .icon-shopee { background: #ee4d2d; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.25); }
-  .icon-aliexpress { background: #ff4747; box-shadow: 0 4px 12px rgba(255, 71, 71, 0.25); }
-  .icon-promogram { background: #8b5cf6; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); }
-
-  .platform-mini-card h4 {
-    font-size: 14px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .platform-mini-card .platform-sub {
-    font-size: 11px;
-    color: var(--tx-dim);
-  }
-  .platform-mini-card .btn-dark {
-    width: 100%;
-    justify-content: center;
-    padding: 6px 10px;
-    font-size: 12px;
-    margin-top: 4px;
   }
 
   /* 2-Column Split */
@@ -684,13 +626,13 @@ PAGINA = r"""<!doctype html>
   }
   .progress-bar-bg {
     height: 6px;
-    background: #111e3b;
+    background: #081a2e;
     border-radius: 99px;
     overflow: hidden;
   }
   .progress-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #0066ff, #38bdf8);
+    background: linear-gradient(90deg, #087BFF, #38bdf8);
     border-radius: 99px;
   }
   .top-platform-clicks {
@@ -705,38 +647,7 @@ PAGINA = r"""<!doctype html>
     font-variant-numeric: tabular-nums;
   }
 
-  /* Bottom Cards Row */
-  .bottom-cards-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 14px;
-  }
-  @media (max-width: 960px) { .bottom-cards-row { grid-template-columns: 1fr; } }
-
-  .card-top-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-  }
-  .card-top-title-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .card-top-title-left h4 {
-    font-size: 14px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .card-top-title a {
-    font-size: 12px;
-    color: var(--primary);
-    text-decoration: none;
-    font-weight: 600;
-  }
-  .card-top-title a:hover { text-decoration: underline; }
-
+  /* Activity List */
   .activity-list {
     display: flex;
     flex-direction: column;
@@ -757,8 +668,8 @@ PAGINA = r"""<!doctype html>
     justify-content: center;
     flex-shrink: 0;
   }
-  .act-icon.green { background: rgba(0, 230, 118, 0.15); color: var(--success); }
-  .act-icon.blue { background: rgba(0, 102, 255, 0.15); color: #60a5fa; }
+  .act-icon.green { background: rgba(32, 216, 137, 0.15); color: var(--success); }
+  .act-icon.blue { background: rgba(8, 123, 255, 0.15); color: #60a5fa; }
   .act-icon.orange { background: rgba(255, 153, 0, 0.15); color: #ff9900; }
   .act-icon.purple { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
   
@@ -786,40 +697,7 @@ PAGINA = r"""<!doctype html>
     font-variant-numeric: tabular-nums;
   }
 
-  .vps-checklist {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 12px 0 16px;
-    font-size: 12.5px;
-    color: #cbd5e1;
-  }
-  .vps-checklist li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .vps-checklist li svg {
-    color: var(--success);
-    flex-shrink: 0;
-  }
-
-  .tip-box {
-    background: rgba(255, 179, 0, 0.08);
-    border: 1px solid rgba(255, 179, 0, 0.2);
-    border-radius: var(--radius-sm);
-    padding: 10px 12px;
-    display: flex;
-    gap: 10px;
-    font-size: 11.5px;
-    color: #f1c40f;
-    line-height: 1.4;
-    margin-top: 14px;
-  }
-  .tip-box svg { flex-shrink: 0; margin-top: 2px; }
-
-  /* Right Panels Column */
+  /* Right Side Panels */
   .dash-right-column {
     display: flex;
     flex-direction: column;
@@ -834,27 +712,6 @@ PAGINA = r"""<!doctype html>
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   }
 
-  .ml-status-box {
-    background: var(--bg-subcard);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 12px;
-    margin: 12px 0 14px;
-  }
-  .ml-status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--success);
-    margin-bottom: 4px;
-  }
-  .ml-status-desc {
-    font-size: 12px;
-    color: var(--tx-muted);
-  }
-
   .recent-links-list {
     display: flex;
     flex-direction: column;
@@ -866,7 +723,7 @@ PAGINA = r"""<!doctype html>
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 7px 10px;
+    padding: 8px 12px;
     background: var(--bg-subcard);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -903,6 +760,71 @@ PAGINA = r"""<!doctype html>
     display: flex;
   }
   .btn-copy-icon:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+
+  /* ── Dedicated Plataformas Blocks ── */
+  .platform-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: border-color 0.2s;
+  }
+  .platform-block.highlighted {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(8, 123, 255, 0.25);
+  }
+  .pb-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .pb-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pb-header-left h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .pb-content-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .pb-info-card {
+    background: var(--bg-subcard);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+  }
+  .pb-info-card label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--tx-muted);
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .pb-info-card .val {
+    font-size: 13.5px;
+    color: #fff;
+    font-weight: 600;
+    word-break: break-all;
+  }
+  .pb-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
 
   /* Global Footer */
   .global-footer {
@@ -983,7 +905,7 @@ PAGINA = r"""<!doctype html>
   .form-field input:focus, .form-field select:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.2);
+    box-shadow: 0 0 0 3px rgba(8, 123, 255, 0.2);
   }
   .form-field .field-help {
     font-size: 11.5px;
@@ -1011,7 +933,7 @@ PAGINA = r"""<!doctype html>
   }
   .nicho-card:hover { border-color: var(--primary); }
   .nicho-card.selected {
-    background: rgba(0, 102, 255, 0.15);
+    background: rgba(8, 123, 255, 0.15);
     border-color: var(--primary);
     color: #fff;
   }
@@ -1034,7 +956,7 @@ PAGINA = r"""<!doctype html>
   @media (max-width: 900px) { .logs-terminal-container { grid-template-columns: 1fr; height: auto; } }
 
   .terminal-box {
-    background: #060b17;
+    background: #040d17;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     display: flex;
@@ -1042,7 +964,7 @@ PAGINA = r"""<!doctype html>
     overflow: hidden;
   }
   .terminal-header {
-    background: #0b1429;
+    background: var(--bg-subcard);
     padding: 10px 16px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
@@ -1074,7 +996,7 @@ PAGINA = r"""<!doctype html>
     font-size: 13px;
   }
   table.data-table th {
-    background: #0b152d;
+    background: #081a2e;
     padding: 12px 16px;
     color: var(--tx-muted);
     font-weight: 700;
@@ -1082,7 +1004,7 @@ PAGINA = r"""<!doctype html>
   }
   table.data-table td {
     padding: 12px 16px;
-    border-bottom: 1px solid #142244;
+    border-bottom: 1px solid #102d4a;
     color: #cbd5e1;
   }
   table.data-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
@@ -1107,7 +1029,7 @@ PAGINA = r"""<!doctype html>
     pointer-events: auto;
   }
   .modal-container {
-    background: #0c1630;
+    background: var(--bg-card);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-lg);
     width: 100%;
@@ -1141,7 +1063,7 @@ PAGINA = r"""<!doctype html>
   .modal-body { padding: 22px; }
   .modal-footer {
     padding: 14px 22px;
-    background: #080f22;
+    background: var(--bg-subcard);
     border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: flex-end;
@@ -1159,7 +1081,7 @@ PAGINA = r"""<!doctype html>
     pointer-events: none;
   }
   .toast-card {
-    background: #0f2347;
+    background: #0d2a4a;
     border: 1px solid var(--border-light);
     color: #fff;
     padding: 12px 20px;
@@ -1187,10 +1109,12 @@ PAGINA = r"""<!doctype html>
 
 <div class="app-layout">
   
-  <!-- ── Left Sidebar ── -->
+  <!-- ── Sidebar ── -->
   <aside class="sidebar">
     <a href="#" class="brand" onclick="switchView('dashboard')">
-      <div class="brand-icon"></div>
+      <div class="brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+      </div>
       <div class="brand-text">
         <h1>Ofertas Pro</h1>
         <span>Painel de Afiliados</span>
@@ -1203,12 +1127,8 @@ PAGINA = r"""<!doctype html>
         Dashboard
       </a>
       <a class="nav-item" data-view="produtos" onclick="switchView('produtos')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
         Produtos
-      </a>
-      <a class="nav-item" data-view="listas" onclick="switchView('listas')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-        Listas
       </a>
       <a class="nav-item" data-view="links" onclick="switchView('links')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
@@ -1237,19 +1157,19 @@ PAGINA = r"""<!doctype html>
     <div class="sidebar-bot-card" onclick="toggleBot()">
       <div class="bot-status-dot" id="sideBotDot"></div>
       <div class="bot-status-info">
-        <div class="title" id="sideBotTitle">Bot Desligado</div>
-        <div class="subtitle" id="sideBotSub">Clique para iniciar</div>
+        <div class="title" id="sideBotTitle">Bot Parado</div>
+        <div class="subtitle" id="sideBotSub">Aguardando início</div>
       </div>
       <div class="bot-status-arrow">›</div>
     </div>
 
     <div class="sidebar-footer">
       <strong>Ofertas Pro v2.0.0</strong><br>
-      Painel de Afiliados - VPS
+      Painel Local
     </div>
   </aside>
 
-  <!-- ── Main Area ── -->
+  <!-- ── Main Content ── -->
   <main class="main-wrapper">
     
     <!-- Top Header -->
@@ -1257,7 +1177,7 @@ PAGINA = r"""<!doctype html>
       <div class="greeting-section">
         <h2>Olá! 👋</h2>
         <h3>Bem-vindo ao seu painel de afiliados</h3>
-        <p>Aqui você gerencia seus links, acompanha o desempenho e faz o controle das suas ofertas.</p>
+        <p>Aqui você gerencia seus links, acompanha o desempenho e controla suas ofertas.</p>
       </div>
 
       <div class="header-actions">
@@ -1277,7 +1197,7 @@ PAGINA = r"""<!doctype html>
           </div>
           <div class="user-info">
             <div class="name">Usuário</div>
-            <div class="badge">Premium</div>
+            <div class="badge">Local</div>
           </div>
         </div>
 
@@ -1288,83 +1208,71 @@ PAGINA = r"""<!doctype html>
       </div>
     </header>
 
-    <!-- ── TAB 1: DASHBOARD (Real Data Only) ── -->
+    <!-- ── TAB 1: DASHBOARD ── -->
     <div id="view-dashboard" class="content-body view-tab-content active-view">
       
-      <!-- Top Row: Platforms Cards -->
-      <section class="platforms-row">
-        <!-- Mercado Livre (Featured Card) -->
-        <div class="ml-featured-card">
-          <div class="ml-card-header">
-            <div class="ml-logo-box">🤝</div>
-            <div class="platform-title-wrap">
-              <div class="platform-title-row">
-                <h4>Mercado Livre</h4>
-                <span class="badge-pending" id="mlBadge"><span class="dot"></span>Verificando</span>
-              </div>
-              <div class="platform-desc" id="mlDesc">Sessão pendente</div>
-            </div>
+      <!-- 5 Symmetrical Marketplaces Row -->
+      <section class="marketplaces-grid">
+        <!-- Mercado Livre -->
+        <div class="mp-card">
+          <div class="mp-icon-box icon-ml">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"></path><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8L15 14"></path></svg>
           </div>
-
-          <div class="ml-actions">
-            <button class="btn-primary" onclick="execAcao('ml-login')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-              Login no Mercado Livre
-            </button>
-            <button class="btn-dark" onclick="abrirTelaML()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
-              Abrir tela do Mercado Livre
-            </button>
-          </div>
+          <h4>Mercado Livre</h4>
+          <span class="badge-pending" id="dashMlBadge"><span class="dot"></span>Verificando</span>
+          <span class="mp-sub" id="dashMlSub">Sessão Local</span>
+          <button class="btn-dark" onclick="gerenciarPlataforma('mercadolivre')">Gerenciar</button>
         </div>
 
         <!-- Amazon -->
-        <div class="platform-mini-card">
-          <div class="platform-icon-box icon-amazon">a</div>
+        <div class="mp-card">
+          <div class="mp-icon-box icon-amazon">a</div>
           <h4>Amazon</h4>
-          <span class="badge-connected" id="badgeAmz"><span class="dot"></span>Conectado</span>
-          <span class="platform-sub" id="subAmz">Tag de associado</span>
-          <button class="btn-dark" onclick="switchView('config')">Gerenciar</button>
+          <span class="badge-pending" id="dashAmzBadge"><span class="dot"></span>Verificando</span>
+          <span class="mp-sub" id="dashAmzSub">Creators API</span>
+          <button class="btn-dark" onclick="gerenciarPlataforma('amazon')">Gerenciar</button>
         </div>
 
         <!-- Shopee -->
-        <div class="platform-mini-card">
-          <div class="platform-icon-box icon-shopee">🛍</div>
+        <div class="mp-card">
+          <div class="mp-icon-box icon-shopee">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+          </div>
           <h4>Shopee</h4>
-          <span class="badge-connected" id="badgeShp"><span class="dot"></span>Conectado</span>
-          <span class="platform-sub" id="subShp">API de afiliados</span>
-          <button class="btn-dark" onclick="switchView('config')">Gerenciar</button>
+          <span class="badge-pending" id="dashShpBadge"><span class="dot"></span>Verificando</span>
+          <span class="mp-sub" id="dashShpSub">Open API</span>
+          <button class="btn-dark" onclick="gerenciarPlataforma('shopee')">Gerenciar</button>
         </div>
 
         <!-- AliExpress -->
-        <div class="platform-mini-card">
-          <div class="platform-icon-box icon-aliexpress">🛒</div>
+        <div class="mp-card">
+          <div class="mp-icon-box icon-aliexpress">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+          </div>
           <h4>AliExpress</h4>
           <span class="badge-connected"><span class="dot"></span>Conectado</span>
-          <span class="platform-sub">API ativa</span>
-          <button class="btn-dark" onclick="switchView('config')">Gerenciar</button>
+          <span class="mp-sub">Links de Afiliados</span>
+          <button class="btn-dark" onclick="gerenciarPlataforma('aliexpress')">Gerenciar</button>
         </div>
 
         <!-- Promogram -->
-        <div class="platform-mini-card">
-          <div class="platform-icon-box icon-promogram">P</div>
+        <div class="mp-card">
+          <div class="mp-icon-box icon-promogram">P</div>
           <h4>Promogram</h4>
           <span class="badge-connected"><span class="dot"></span>Conectado</span>
-          <span class="platform-sub">API ativa</span>
-          <button class="btn-dark" onclick="switchView('config')">Gerenciar</button>
+          <span class="mp-sub">Canal & Ofertas</span>
+          <button class="btn-dark" onclick="gerenciarPlataforma('promogram')">Gerenciar</button>
         </div>
       </section>
 
       <!-- Main 2-Column Split -->
       <div class="dash-main-grid">
         
-        <!-- Left Section -->
+        <!-- Left Section (Metrics + Activity) -->
         <div class="dash-left-column">
           
-          <!-- Performance Metrics & Charts Row -->
           <section class="metrics-row">
-            
-            <!-- Card 1: Links Gerados (Line Chart) -->
+            <!-- Card 1: Links Gerados -->
             <div class="dash-card">
               <div class="metric-card-header">
                 <div>
@@ -1384,7 +1292,7 @@ PAGINA = r"""<!doctype html>
               </div>
             </div>
 
-            <!-- Card 2: Conversão (Bar Chart) -->
+            <!-- Card 2: Conversão -->
             <div class="dash-card">
               <div class="metric-card-header">
                 <div>
@@ -1422,122 +1330,47 @@ PAGINA = r"""<!doctype html>
             </div>
           </section>
 
-          <!-- Lower Row: Atividade Recente, Chrome VPS, Gerenciar Sessão -->
-          <section class="bottom-cards-row">
-            
-            <!-- Atividade Recente -->
-            <div class="dash-card">
-              <div class="card-top-title">
-                <div class="card-top-title-left">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  <h4>Atividade Recente</h4>
-                </div>
-                <a href="#" onclick="switchView('logs')">Ver todos</a>
+          <!-- Atividade Recente Card -->
+          <div class="dash-card">
+            <div class="card-top-title" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Atividade Recente</h4>
               </div>
-
-              <div class="activity-list" id="activityListWrap">
-                <div class="empty-placeholder">Nenhuma atividade registrada ainda.</div>
-              </div>
+              <a href="#" onclick="switchView('logs')" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 600;">Ver todos os logs</a>
             </div>
 
-            <!-- Acesse o Chrome da VPS -->
-            <div class="dash-card">
-              <div class="card-top-title">
-                <div class="card-top-title-left">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                  <h4>Acesse o Chrome da VPS</h4>
-                </div>
-              </div>
-              <p style="font-size: 12px; color: var(--tx-muted);">Faça login no Mercado Livre diretamente na VPS através do seu navegador.</p>
-              <div style="margin: 8px 0;">
-                <span class="badge-connected"><span class="dot"></span>Seguro e rápido</span>
-              </div>
-
-              <ul class="vps-checklist">
-                <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Chrome real na VPS</li>
-                <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Acesso via noVNC</li>
-                <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Sessão persistente</li>
-                <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Mesmo perfil do Link Builder</li>
-              </ul>
-
-              <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="execAcao('ml-login')">
-                Abrir Tela do Mercado Livre ↗
-              </button>
-              <p style="font-size: 11px; color: var(--tx-dim); margin-top: 8px; text-align: center;">ⓘ Use esta opção apenas para fazer o login manual.</p>
+            <div class="activity-list" id="activityListWrap">
+              <div class="empty-placeholder">Nenhuma atividade registrada ainda.</div>
             </div>
-
-            <!-- Gerenciar Sessão -->
-            <div class="dash-card">
-              <div class="card-top-title">
-                <div class="card-top-title-left">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                  <h4>Gerenciar Sessão</h4>
-                </div>
-              </div>
-              <p style="font-size: 12px; color: var(--tx-muted);">Você pode gerenciar sua sessão do Mercado Livre e verificar o status da autenticação.</p>
-
-              <div style="display: flex; gap: 10px; margin: 16px 0 12px;">
-                <button class="btn-dark" style="flex: 1; justify-content: center;" onclick="verificarSessao()">Verificar Sessão</button>
-                <button class="btn-outline-danger" style="flex: 1; justify-content: center;" onclick="limparSessao()">Limpar Sessão</button>
-              </div>
-
-              <div class="tip-box">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C7.03 2 3 6.03 3 11c0 2.78 1.28 5.26 3.28 6.91.44.36.72.9.72 1.47V20c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-.62c0-.57.28-1.11.72-1.47C19.72 16.26 21 13.78 21 11c0-4.97-4.03-9-9-9zm-1 16h2v1h-2v-1zm0-3h2v1h-2v-1z"/></svg>
-                <div><strong>Dica:</strong> Mantenha sua sessão ativa para garantir o funcionamento do Link Builder e a geração de links de afiliado.</div>
-              </div>
-            </div>
-          </section>
+          </div>
 
         </div>
 
-        <!-- Right Side Panels Column -->
+        <!-- Right Side Panel -->
         <div class="dash-right-column">
           
-          <!-- Status do Mercado Livre -->
+          <!-- Link Builder Quick Trigger -->
           <div class="right-panel-card">
-            <div class="card-top-title" style="margin-bottom: 4px;">
-              <div class="card-top-title-left">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
-                <h4>Status do Mercado Livre</h4>
-              </div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Link Builder Rápido</h4>
             </div>
-
-            <div class="ml-status-box">
-              <div class="ml-status-pill" id="panelMlStatusDot"><span class="sys-dot"></span>Verificando...</div>
-              <div class="ml-status-desc" id="panelMlStatusText">Verificando autenticação...</div>
-            </div>
-
-            <button class="btn-dark" style="width: 100%; justify-content: center;" onclick="abrirModalSessao()">
-              Ver detalhes da sessão
-            </button>
-          </div>
-
-          <!-- Link Builder -->
-          <div class="right-panel-card">
-            <div class="card-top-title" style="margin-bottom: 4px;">
-              <div class="card-top-title-left">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                <h4>Link Builder</h4>
-              </div>
-            </div>
-            <p style="font-size: 12px; color: var(--tx-muted); margin: 6px 0 14px;">Pronto para gerar links de afiliado</p>
+            <p style="font-size: 12px; color: var(--tx-muted); margin: 6px 0 14px;">Converta qualquer link em link de afiliado instantaneamente.</p>
 
             <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="abrirModalLink()">
               Abrir Link Builder ↗
             </button>
-            <p style="text-align: center; margin-top: 10px;">
-              <a href="#" onclick="abrirModalComoFunciona()" style="font-size: 12px; color: var(--tx-muted); text-decoration: none;">ⓘ Como funciona?</a>
-            </p>
           </div>
 
           <!-- Links Recentes -->
           <div class="right-panel-card">
-            <div class="card-top-title">
-              <div class="card-top-title-left">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <h4>Links Recentes</h4>
+                <h4 style="font-size: 14px; font-weight: 700; color: #fff;">Links Recentes</h4>
               </div>
-              <a href="#" onclick="switchView('links')">Ver todos</a>
+              <a href="#" onclick="switchView('links')" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 600;">Ver todos</a>
             </div>
 
             <div class="recent-links-list" id="recentLinksListWrap">
@@ -1551,17 +1384,20 @@ PAGINA = r"""<!doctype html>
 
     </div>
 
-    <!-- ── TAB 2: PRODUTOS / OFERTAS ── -->
+    <!-- ── TAB 2: PRODUTOS ── -->
     <div id="view-produtos" class="content-body view-tab-content">
       <div class="dash-card">
-        <div class="card-top-title">
-          <div class="card-top-title-left">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-            <h3>Produtos Postados</h3>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+            <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Produtos & Ofertas Postadas</h3>
           </div>
-          <button class="btn-dark" onclick="carregarProdutos()">🔄 Atualizar</button>
+          <button class="btn-dark" onclick="carregarProdutos()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+            Atualizar
+          </button>
         </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">Histórico de todas as ofertas capturadas e publicadas automaticamente no Telegram.</p>
+        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">Histórico de todas as ofertas capturadas e publicadas automaticamente no seu canal do Telegram.</p>
 
         <div class="data-table-wrap">
           <table class="data-table" id="produtosTable">
@@ -1582,85 +1418,202 @@ PAGINA = r"""<!doctype html>
       </div>
     </div>
 
-    <!-- ── TAB 3: LISTAS / CATEGORIAS ── -->
-    <div id="view-listas" class="content-body view-tab-content">
-      <div class="dash-card">
-        <div class="card-top-title">
-          <div class="card-top-title-left">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line></svg>
-            <h3>Categorias do Canal (Nichos)</h3>
-          </div>
-        </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">
-          Selecione os nichos de produtos que você deseja enviar no canal do Telegram.
-          <strong>Nada marcado = busca promoções de todas as categorias.</strong>
-        </p>
-
-        <div class="nichos-grid" id="nichosGrid">Carregando categorias...</div>
-
-        <div style="display: flex; gap: 12px; margin-top: 20px; align-items: center;">
-          <button class="btn-primary" onclick="salvarNichos()">💾 Salvar Categorias</button>
-          <button class="btn-dark" onclick="limparNichos()">Limpar (Pegar tudo)</button>
-          <span style="font-size: 12.5px; color: var(--tx-muted);" id="nichosCountLabel"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── TAB 4: LINKS ── -->
+    <!-- ── TAB 3: LINKS ── -->
     <div id="view-links" class="content-body view-tab-content">
       <div class="dash-card">
-        <div class="card-top-title">
-          <div class="card-top-title-left">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-            <h3>Gerenciador de Links de Afiliado</h3>
+            <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Gerenciador de Links de Afiliado</h3>
           </div>
           <button class="btn-primary" onclick="abrirModalLink()">+ Novo Link Rápido</button>
         </div>
+        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">Acompanhe e copie os links de afiliados gerados para suas postagens e promoções.</p>
 
-        <div class="recent-links-list" id="allLinksListWrap" style="margin-top: 16px;">
+        <div class="recent-links-list" id="allLinksListWrap">
           <div class="empty-placeholder">Nenhum link gerado ainda.</div>
         </div>
       </div>
     </div>
 
-    <!-- ── TAB 5: PLATAFORMAS ── -->
+    <!-- ── TAB 4: PLATAFORMAS (Dedicated Blocks) ── -->
     <div id="view-plataformas" class="content-body view-tab-content">
-      <div class="dash-card" style="margin-bottom: 20px;">
-        <div class="card-top-title">
-          <div class="card-top-title-left">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect></svg>
-            <h3>Central de Testes de Plataformas</h3>
+      
+      <div class="dash-card" style="margin-bottom: 6px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 17px; font-weight: 800; color: #fff;">Plataformas de Afiliados</h3>
+            <p style="font-size: 13px; color: var(--tx-muted); margin-top: 2px;">Configure suas contas, autenticações e valide conexões de cada marketplace.</p>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn-dark" onclick="execAcao('instalar-navegador')" id="btnInstalarNav">⬇️ Instalar Playwright Chromium</button>
+            <button class="btn-primary" onclick="execAcao('ciclo')">⚡ Executar 1 Ciclo de Postagem</button>
           </div>
         </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">Execute testes pontuais e valide suas credenciais em cada marketplace suportado.</p>
+      </div>
 
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <button class="btn-dark" onclick="execAcao('instalar-navegador')" id="btnInstalarNav">⬇️ Instalar Navegador Playwright</button>
-          <button class="btn-dark" onclick="execAcao('ml-login')">🔑 Fazer Login ML</button>
-          <button class="btn-dark" onclick="execAcao('testar-ml')">🧪 Testar Mercado Livre</button>
-          <button class="btn-dark" onclick="execAcao('testar-amazon')">🧪 Testar Amazon</button>
-          <button class="btn-dark" onclick="execAcao('testar-shopee')">🧪 Testar Shopee</button>
-          <button class="btn-primary" onclick="execAcao('ciclo')">⚡ Executar 1 Ciclo Completo</button>
+      <!-- 1. Mercado Livre Block -->
+      <div class="platform-block" id="block-mercadolivre">
+        <div class="pb-header">
+          <div class="pb-header-left">
+            <div class="mp-icon-box icon-ml">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"></path><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8L15 14"></path></svg>
+            </div>
+            <div>
+              <h3>Mercado Livre</h3>
+              <span style="font-size: 12px; color: var(--tx-muted);">Link Builder e Autenticação de Sessão Local</span>
+            </div>
+          </div>
+          <span class="badge-pending" id="pbMlBadge"><span class="dot"></span>Verificando</span>
+        </div>
+
+        <div class="pb-content-grid">
+          <div class="pb-info-card">
+            <label>Etiqueta de Afiliado (ML_ETIQUETA)</label>
+            <div class="val" id="pbMlEtiqueta">—</div>
+          </div>
+          <div class="pb-info-card">
+            <label>Sessão do Navegador Local</label>
+            <div class="val" id="pbMlSessaoStatus">Verificando...</div>
+          </div>
+        </div>
+
+        <div class="pb-actions">
+          <button class="btn-primary" onclick="execAcao('ml-login')">🔑 Fazer Login no Mercado Livre</button>
+          <button class="btn-dark" onclick="execAcao('testar-ml')">🧪 Testar Conexão ML</button>
+          <button class="btn-dark" onclick="verificarSessaoModal()">🔍 Detalhes da Sessão</button>
+          <button class="btn-outline-danger" onclick="limparSessao()">Limpar Sessão Local</button>
         </div>
       </div>
 
-      <div class="dash-card">
-        <h4 style="margin-bottom: 10px;">Terminal de Ação</h4>
-        <div class="terminal-body" id="logAcaoTerminal" style="height: 240px; background: #060b17; border-radius: 8px; border: 1px solid var(--border-color);">Aguardando comando...</div>
+      <!-- 2. Amazon Block -->
+      <div class="platform-block" id="block-amazon">
+        <div class="pb-header">
+          <div class="pb-header-left">
+            <div class="mp-icon-box icon-amazon">a</div>
+            <div>
+              <h3>Amazon</h3>
+              <span style="font-size: 12px; color: var(--tx-muted);">Amazon Associados & Creators API</span>
+            </div>
+          </div>
+          <span class="badge-pending" id="pbAmzBadge"><span class="dot"></span>Verificando</span>
+        </div>
+
+        <div class="pb-content-grid">
+          <div class="pb-info-card">
+            <label>Tag de Associado (AMAZON_TAG)</label>
+            <div class="val" id="pbAmzTag">—</div>
+          </div>
+          <div class="pb-info-card">
+            <label>Creators API ID & Secret</label>
+            <div class="val" id="pbAmzApiStatus">Opcional (busca automática)</div>
+          </div>
+        </div>
+
+        <div class="pb-actions">
+          <button class="btn-dark" onclick="execAcao('testar-amazon')">🧪 Testar Conexão Amazon</button>
+          <button class="btn-dark" onclick="switchView('config')">⚙️ Editar Credenciais Amazon</button>
+        </div>
       </div>
+
+      <!-- 3. Shopee Block -->
+      <div class="platform-block" id="block-shopee">
+        <div class="pb-header">
+          <div class="pb-header-left">
+            <div class="mp-icon-box icon-shopee">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            </div>
+            <div>
+              <h3>Shopee</h3>
+              <span style="font-size: 12px; color: var(--tx-muted);">Programa de Afiliados Shopee Open API</span>
+            </div>
+          </div>
+          <span class="badge-pending" id="pbShpBadge"><span class="dot"></span>Verificando</span>
+        </div>
+
+        <div class="pb-content-grid">
+          <div class="pb-info-card">
+            <label>App ID (SHOPEE_APP_ID)</label>
+            <div class="val" id="pbShpAppId">—</div>
+          </div>
+          <div class="pb-info-card">
+            <label>App Secret</label>
+            <div class="val" id="pbShpSecretStatus">••••••</div>
+          </div>
+        </div>
+
+        <div class="pb-actions">
+          <button class="btn-dark" onclick="execAcao('testar-shopee')">🧪 Testar Conexão Shopee</button>
+          <button class="btn-dark" onclick="switchView('config')">⚙️ Editar Credenciais Shopee</button>
+        </div>
+      </div>
+
+      <!-- 4. AliExpress Block -->
+      <div class="platform-block" id="block-aliexpress">
+        <div class="pb-header">
+          <div class="pb-header-left">
+            <div class="mp-icon-box icon-aliexpress">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+            </div>
+            <div>
+              <h3>AliExpress</h3>
+              <span style="font-size: 12px; color: var(--tx-muted);">Links diretos e promoções globais</span>
+            </div>
+          </div>
+          <span class="badge-connected"><span class="dot"></span>Conectado</span>
+        </div>
+
+        <div class="pb-content-grid">
+          <div class="pb-info-card">
+            <label>Status da Integração</label>
+            <div class="val">Conversão direta de links ativa</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Promogram Block -->
+      <div class="platform-block" id="block-promogram">
+        <div class="pb-header">
+          <div class="pb-header-left">
+            <div class="mp-icon-box icon-promogram">P</div>
+            <div>
+              <h3>Promogram</h3>
+              <span style="font-size: 12px; color: var(--tx-muted);">Curadoria e feeds de ofertas</span>
+            </div>
+          </div>
+          <span class="badge-connected"><span class="dot"></span>Conectado</span>
+        </div>
+
+        <div class="pb-content-grid">
+          <div class="pb-info-card">
+            <label>Status da Integração</label>
+            <div class="val">Canal de promoções ativo</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal de Ação das Plataformas -->
+      <div class="dash-card" style="margin-top: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <h4 style="font-size: 13.5px; font-weight: 700; color: #fff;">Saída do Terminal de Testes</h4>
+          <button class="btn-dark" style="padding: 4px 8px; font-size: 11px;" onclick="limparTerminal('logAcaoTerminal')">Limpar Terminal</button>
+        </div>
+        <div class="terminal-body" id="logAcaoTerminal" style="height: 200px; background: #040d17; border-radius: 8px; border: 1px solid var(--border-color);">Aguardando execução de testes...</div>
+      </div>
+
     </div>
 
-    <!-- ── TAB 6: CONFIGURAÇÕES ── -->
+    <!-- ── TAB 5: CONFIGURAÇÕES ── -->
     <div id="view-config" class="content-body view-tab-content">
       <div class="dash-card">
-        <div class="card-top-title">
-          <div class="card-top-title-left">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            <h3>Configuração Geral (.env)</h3>
+            <h3 style="font-size: 16px; font-weight: 700; color: #fff;">Configurações do Sistema & Credenciais</h3>
           </div>
           <button class="btn-primary" onclick="salvarConfig()">💾 Salvar Configurações</button>
         </div>
-        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Preencha suas chaves e tokens de afiliados para integração automatizada.</p>
+        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Gerencie suas chaves, credenciais do Telegram e tags de afiliados salvas com segurança no arquivo <code>.env</code>.</p>
 
         <div id="camposFormWrap" class="config-grid">Carregando campos...</div>
 
@@ -1671,15 +1624,31 @@ PAGINA = r"""<!doctype html>
 
         <div id="idsDetectionBox" style="margin-top: 16px; display: none;"></div>
       </div>
+
+      <!-- Categorias & Nichos Card -->
+      <div class="dash-card">
+        <h3 style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px;">Categorias & Nichos do Canal</h3>
+        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 16px;">
+          Selecione os nichos de produtos para publicação no Telegram. <strong>Nenhum nicho selecionado = busca em todas as categorias.</strong>
+        </p>
+
+        <div class="nichos-grid" id="nichosGrid">Carregando categorias...</div>
+
+        <div style="display: flex; gap: 12px; margin-top: 18px; align-items: center;">
+          <button class="btn-primary" onclick="salvarNichos()">💾 Salvar Categorias</button>
+          <button class="btn-dark" onclick="limparNichos()">Limpar (Pegar Tudo)</button>
+          <span style="font-size: 12.5px; color: var(--tx-muted);" id="nichosCountLabel"></span>
+        </div>
+      </div>
     </div>
 
-    <!-- ── TAB 7: LOGS ── -->
+    <!-- ── TAB 6: LOGS ── -->
     <div id="view-logs" class="content-body view-tab-content">
       <div class="logs-terminal-container">
         <!-- Bot Live Log -->
         <div class="terminal-box">
           <div class="terminal-header">
-            <span>● Log ao Vivo do Bot</span>
+            <span>● Log Contínuo do Bot</span>
             <button class="btn-dark" style="padding: 4px 8px; font-size: 11px;" onclick="limparTerminal('logBotBody')">Limpar</button>
           </div>
           <div class="terminal-body" id="logBotBody">O bot está pronto. Inicie pelo painel para acompanhar os logs em tempo real.</div>
@@ -1696,40 +1665,41 @@ PAGINA = r"""<!doctype html>
       </div>
     </div>
 
-    <!-- ── TAB 8: SUPORTE ── -->
+    <!-- ── TAB 7: SUPORTE ── -->
     <div id="view-suporte" class="content-body view-tab-content">
       <div class="dash-card">
-        <div class="card-top-title">
-          <div class="card-top-title-left">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-            <h3>Central de Suporte e Ajuda</h3>
-          </div>
-        </div>
+        <h3 style="font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 6px;">Central de Ajuda e Suporte</h3>
+        <p style="font-size: 13px; color: var(--tx-muted); margin-bottom: 20px;">Documentação rápida e diagnóstico do seu ambiente local.</p>
 
-        <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px;">
-          <div style="background: var(--bg-subcard); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
-            <h4 style="color: #fff; margin-bottom: 6px;">Como obter o Token do Bot?</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);">Abra o Telegram, pesquise por <code>@BotFather</code>, envie o comando <code>/newbot</code> e siga as instruções para obter seu Token da API.</p>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div class="pb-info-card">
+            <h4 style="color: #fff; margin-bottom: 6px;">Como obter o Token do Bot no Telegram?</h4>
+            <p style="font-size: 13px; color: var(--tx-muted);">Abra o Telegram, pesquise por <code>@BotFather</code>, envie o comando <code>/newbot</code> e siga as instruções para obter seu Token. Cole o token na aba <strong>Configurações</strong>.</p>
           </div>
 
-          <div style="background: var(--bg-subcard); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
-            <h4 style="color: #fff; margin-bottom: 6px;">Como descobrir os IDs do Canal e Dono?</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);">Após salvar o token do bot, adicione o bot como Administrador do canal. Envie uma mensagem no canal e no privado do bot, depois use o botão "Detectar IDs" nas Configurações.</p>
+          <div class="pb-info-card">
+            <h4 style="color: #fff; margin-bottom: 6px;">Como descobrir os IDs de Dono e Canal?</h4>
+            <p style="font-size: 13px; color: var(--tx-muted);">Após salvar o token, adicione o bot como Administrador do canal. Envie uma mensagem no canal e uma mensagem no privado do bot, depois use o botão <strong>"Detectar IDs do Telegram"</strong>.</p>
           </div>
 
-          <div style="background: var(--bg-subcard); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
-            <h4 style="color: #fff; margin-bottom: 6px;">Como manter a sessão do Mercado Livre ativa?</h4>
-            <p style="font-size: 13px; color: var(--tx-muted);">Utilize o botão "Login no Mercado Livre" para abrir a janela do navegador Chromium local, faça seu login normalmente e pronto! A sessão fica salva de forma persistente.</p>
+          <div class="pb-info-card">
+            <h4 style="color: #fff; margin-bottom: 6px;">Como funciona o Login no Mercado Livre?</h4>
+            <p style="font-size: 13px; color: var(--tx-muted);">Clique em <strong>"Fazer Login no Mercado Livre"</strong> na aba Plataformas. Uma janela do Chromium abrirá no seu computador para você fazer o login. A sessão será salva localmente em <code>data/ml_profile</code>.</p>
+          </div>
+
+          <div class="pb-info-card">
+            <h4 style="color: #fff; margin-bottom: 6px;">Status do Ambiente Local</h4>
+            <p style="font-size: 13px; color: var(--tx-muted);" id="suporteAmbienteInfo">Carregando diagnóstico do sistema...</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ── Global Bottom Footer ── -->
+    <!-- ── Footer ── -->
     <footer class="global-footer">
       <div class="footer-left">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-        Conectado à VPS - Sistema estável e seguro
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#20D889" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        Ofertas Pro — Ambiente Local Ativo e Seguro
       </div>
 
       <div class="footer-right">
@@ -1772,7 +1742,7 @@ PAGINA = r"""<!doctype html>
       <div id="modalLinkResult" style="display: none; margin-top: 16px;">
         <label style="font-size: 12px; color: var(--tx-muted); font-weight: 600;">Link Pronto para Postar:</label>
         <div style="display: flex; gap: 8px; margin-top: 5px;">
-          <input type="text" id="modalOutputUrl" readonly style="font-family: var(--font-mono); font-size: 12.5px; background: #070d1e;">
+          <input type="text" id="modalOutputUrl" readonly style="font-family: var(--font-mono); font-size: 12.5px; background: #081a2e;">
           <button class="btn-primary" onclick="copiarOutputModal()">Copiar</button>
         </div>
       </div>
@@ -1787,43 +1757,22 @@ PAGINA = r"""<!doctype html>
 <div class="modal-overlay" id="modalSessao">
   <div class="modal-container">
     <div class="modal-header">
-      <h3>🛡️ Detalhes da Sessão do Mercado Livre</h3>
+      <h3>🛡️ Detalhes da Sessão Local do Mercado Livre</h3>
       <button class="btn-modal-close" onclick="fecharModalSessao()">&times;</button>
     </div>
     <div class="modal-body">
       <div id="modalSessaoConteudo" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-        Carregando informações da sessão...
+        Verificando sessão...
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn-dark" onclick="fecharModalSessao()">Fechar</button>
-      <button class="btn-primary" onclick="execAcao('ml-login')">Refazer Login</button>
+      <button class="btn-primary" onclick="execAcao('ml-login')">Abrir Login Local</button>
     </div>
   </div>
 </div>
 
-<!-- ── MODAL 3: COMO FUNCIONA ── -->
-<div class="modal-overlay" id="modalComoFunciona">
-  <div class="modal-container">
-    <div class="modal-header">
-      <h3>💡 Como Funciona o Link Builder & Bot</h3>
-      <button class="btn-modal-close" onclick="fecharModalComoFunciona()">&times;</button>
-    </div>
-    <div class="modal-body" style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-      <p style="margin-bottom: 12px;">O sistema funciona através de 3 etapas automatizadas:</p>
-      <ol style="padding-left: 20px; display: flex; flex-direction: column; gap: 8px;">
-        <li><strong>Busca de Promoções:</strong> O bot varre os nichos configurados buscando itens com desconto real.</li>
-        <li><strong>Geração do Link de Afiliado:</strong> O motor transforma as URLs com sua tag/etiqueta oficial.</li>
-        <li><strong>Postagem no Telegram:</strong> A oferta formatada com imagem, título, preço e link é postada no seu canal.</li>
-      </ol>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-primary" onclick="fecharModalComoFunciona()">Entendi</button>
-    </div>
-  </div>
-</div>
-
-<!-- Toast Container -->
+<!-- Toast Box -->
 <div class="toast-container" id="toastBox"></div>
 
 <script>
@@ -1856,8 +1805,17 @@ function switchView(viewName) {
   if (target) target.classList.add('active-view');
 
   if (viewName === 'produtos') carregarProdutos();
-  if (viewName === 'listas') carregarNichos();
-  if (viewName === 'config') carregarConfig();
+  if (viewName === 'config') { carregarConfig(); carregarNichos(); }
+}
+
+function gerenciarPlataforma(platKey) {
+  switchView('plataformas');
+  $$('.platform-block').forEach(b => b.classList.remove('highlighted'));
+  const el = $(`#block-${platKey}`);
+  if (el) {
+    el.classList.add('highlighted');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 function updateClock() {
@@ -1896,10 +1854,9 @@ function renderLineChart(canvasId, labels, values) {
   const rawMax = Math.max(...values, 0);
   const maxVal = rawMax > 0 ? rawMax * 1.25 : 10;
 
-  // Grid lines
-  ctx.strokeStyle = '#142244';
+  ctx.strokeStyle = '#173957';
   ctx.lineWidth = 1;
-  ctx.fillStyle = '#64748b';
+  ctx.fillStyle = '#8EA6BF';
   ctx.font = '10px Plus Jakarta Sans, sans-serif';
 
   const gridSteps = 4;
@@ -1919,10 +1876,9 @@ function renderLineChart(canvasId, labels, values) {
     return { x, y, val: v, label: labels[i] || '' };
   });
 
-  // Area gradient
   const grad = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
-  grad.addColorStop(0, 'rgba(0, 102, 255, 0.35)');
-  grad.addColorStop(1, 'rgba(0, 102, 255, 0.0)');
+  grad.addColorStop(0, 'rgba(8, 123, 255, 0.35)');
+  grad.addColorStop(1, 'rgba(8, 123, 255, 0.0)');
 
   ctx.beginPath();
   ctx.moveTo(pts[0].x, padTop + chartH);
@@ -1939,9 +1895,8 @@ function renderLineChart(canvasId, labels, values) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Stroke line
   ctx.beginPath();
-  ctx.strokeStyle = '#38bdf8';
+  ctx.strokeStyle = '#087BFF';
   ctx.lineWidth = 2.5;
   pts.forEach((p, idx) => {
     if (idx === 0) ctx.moveTo(p.x, p.y);
@@ -1953,17 +1908,16 @@ function renderLineChart(canvasId, labels, values) {
   });
   ctx.stroke();
 
-  // Dots & X Labels
   pts.forEach(p => {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#0066ff';
+    ctx.strokeStyle = '#087BFF';
     ctx.stroke();
 
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = '#8EA6BF';
     ctx.textAlign = 'center';
     ctx.fillText(p.label, p.x, h - 6);
   });
@@ -1989,9 +1943,9 @@ function renderBarChart(canvasId, values) {
   const rawMax = Math.max(...values, 0);
   const maxVal = rawMax > 0 ? rawMax * 1.3 : 5;
   const gridSteps = 4;
-  ctx.strokeStyle = '#142244';
+  ctx.strokeStyle = '#173957';
   ctx.lineWidth = 1;
-  ctx.fillStyle = '#64748b';
+  ctx.fillStyle = '#8EA6BF';
   ctx.font = '10px Plus Jakarta Sans, sans-serif';
 
   for (let i = 0; i <= gridSteps; i++) {
@@ -2013,8 +1967,8 @@ function renderBarChart(canvasId, values) {
     const y = padTop + chartH - barH;
 
     const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-    grad.addColorStop(0, '#00e676');
-    grad.addColorStop(1, '#00b894');
+    grad.addColorStop(0, '#20D889');
+    grad.addColorStop(1, '#059669');
 
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -2034,49 +1988,78 @@ async function atualizarStatus() {
     const sideSub = $("#sideBotSub");
 
     if (sideDot) sideDot.className = 'bot-status-dot' + (on ? ' active' : '');
-    if (sideTitle) sideTitle.textContent = on ? 'Bot Ativo' : 'Bot Desligado';
-    if (sideSub) sideSub.textContent = on ? 'Rodando normalmente' : 'Clique para iniciar';
+    if (sideTitle) sideTitle.textContent = on ? 'Bot Ativo' : 'Bot Parado';
+    if (sideSub) sideSub.textContent = on ? 'Rodando normalmente' : 'Aguardando início';
 
     const btnNav = $("#btnInstalarNav");
     if (btnNav) {
-      btnNav.textContent = statusAtual.navegador ? '✓ Navegador Instalado' : '⬇️ Instalar Navegador Playwright';
+      btnNav.textContent = statusAtual.navegador ? '✓ Playwright Chromium Instalado' : '⬇️ Instalar Playwright Chromium';
     }
 
-    if (statusAtual.plataformas && statusAtual.plataformas.mercadolivre) {
+    if (statusAtual.plataformas) {
+      // Mercado Livre
       const ml = statusAtual.plataformas.mercadolivre;
-      const desc = $("#mlDesc");
-      if (desc) desc.textContent = ml.status;
-      const badge = $("#mlBadge");
-      if (badge) {
-        badge.className = ml.conectado ? 'badge-connected' : 'badge-pending';
-        badge.innerHTML = `<span class="dot"></span>${ml.conectado ? 'Conectado' : 'Pendente'}`;
-      }
-      const dot = $("#panelMlStatusDot");
-      const text = $("#panelMlStatusText");
-      if (dot) dot.innerHTML = `<span class="sys-dot"></span>${ml.conectado ? 'Sessão ativa' : 'Sessão pendente'}`;
-      if (text) text.textContent = ml.conectado ? 'Você está autenticado no Mercado Livre.' : 'Faça login para ativar a automação.';
-    }
+      const bDashMl = $("#dashMlBadge");
+      const bPbMl = $("#pbMlBadge");
+      const subDashMl = $("#dashMlSub");
+      const etiqMl = $("#pbMlEtiqueta");
+      const sttSessao = $("#pbMlSessaoStatus");
 
-    if (statusAtual.plataformas && statusAtual.plataformas.amazon) {
+      const mlConectado = ml && ml.conectado;
+      if (bDashMl) {
+        bDashMl.className = mlConectado ? 'badge-connected' : 'badge-pending';
+        bDashMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Conectado' : 'Pendente'}`;
+      }
+      if (bPbMl) {
+        bPbMl.className = mlConectado ? 'badge-connected' : 'badge-pending';
+        bPbMl.innerHTML = `<span class="dot"></span>${mlConectado ? 'Sessão Ativa' : 'Pendente'}`;
+      }
+      if (subDashMl) subDashMl.textContent = mlConectado ? 'Sessão Conectada' : 'Login Necessário';
+      if (etiqMl) etiqMl.textContent = (ml && ml.etiqueta) ? ml.etiqueta : 'Não preenchida no .env';
+      if (sttSessao) sttSessao.textContent = mlConectado ? '✓ Perfil data/ml_profile ativo' : 'Nenhuma sessão salva (faça login)';
+
+      // Amazon
       const amz = statusAtual.plataformas.amazon;
-      const badgeAmz = $("#badgeAmz");
-      const subAmz = $("#subAmz");
-      if (badgeAmz) {
-        badgeAmz.className = amz.conectado ? 'badge-connected' : 'badge-pending';
-        badgeAmz.innerHTML = `<span class="dot"></span>${amz.conectado ? 'Conectado' : 'Pendente'}`;
+      const bDashAmz = $("#dashAmzBadge");
+      const bPbAmz = $("#pbAmzBadge");
+      const subDashAmz = $("#dashAmzSub");
+      const tagAmz = $("#pbAmzTag");
+
+      const amzConectado = amz && amz.conectado;
+      if (bDashAmz) {
+        bDashAmz.className = amzConectado ? 'badge-connected' : 'badge-pending';
+        bDashAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Pendente'}`;
       }
-      if (subAmz) subAmz.textContent = amz.status;
+      if (bPbAmz) {
+        bPbAmz.className = amzConectado ? 'badge-connected' : 'badge-pending';
+        bPbAmz.innerHTML = `<span class="dot"></span>${amzConectado ? 'Conectado' : 'Pendente'}`;
+      }
+      if (subDashAmz) subDashAmz.textContent = amz ? amz.status : 'Pendente';
+      if (tagAmz) tagAmz.textContent = (amz && amz.tag) ? amz.tag : 'Não preenchida no .env';
+
+      // Shopee
+      const shp = statusAtual.plataformas.shopee;
+      const bDashShp = $("#dashShpBadge");
+      const bPbShp = $("#pbShpBadge");
+      const subDashShp = $("#dashShpSub");
+      const appIdShp = $("#pbShpAppId");
+
+      const shpConectado = shp && shp.conectado;
+      if (bDashShp) {
+        bDashShp.className = shpConectado ? 'badge-connected' : 'badge-pending';
+        bDashShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Pendente'}`;
+      }
+      if (bPbShp) {
+        bPbShp.className = shpConectado ? 'badge-connected' : 'badge-pending';
+        bPbShp.innerHTML = `<span class="dot"></span>${shpConectado ? 'Conectado' : 'Pendente'}`;
+      }
+      if (subDashShp) subDashShp.textContent = shp ? shp.status : 'Pendente';
+      if (appIdShp) appIdShp.textContent = (shp && shp.app_id) ? shp.app_id : 'Não preenchido no .env';
     }
 
-    if (statusAtual.plataformas && statusAtual.plataformas.shopee) {
-      const shp = statusAtual.plataformas.shopee;
-      const badgeShp = $("#badgeShp");
-      const subShp = $("#subShp");
-      if (badgeShp) {
-        badgeShp.className = shp.conectado ? 'badge-connected' : 'badge-pending';
-        badgeShp.innerHTML = `<span class="dot"></span>${shp.conectado ? 'Conectado' : 'Pendente'}`;
-      }
-      if (subShp) subShp.textContent = shp.status;
+    const supInfo = $("#suporteAmbienteInfo");
+    if (supInfo) {
+      supInfo.innerHTML = `Chromium: <b>${statusAtual.navegador ? 'Instalado ✓' : 'Pendente ✗'}</b> | Sessão ML: <b>${statusAtual.sessao_ml ? 'Ativa ✓' : 'Pendente'}</b> | Configurações Prontas: <b>${statusAtual.pronto ? 'Sim ✓' : 'Faltam campos no .env'}</b>`;
     }
   } catch (e) {
     console.error(e);
@@ -2094,14 +2077,12 @@ async function atualizarMetricas() {
     if ($("#badgeConvCresc")) $("#badgeConvCresc").textContent = d.conversao_crescimento;
     if ($("#navLinkCount")) $("#navLinkCount").textContent = d.links_gerados_total;
 
-    // Charts
     renderLineChart('chartLinks', d.grafico_dias_labels, d.grafico_dias_valores);
     renderBarChart('chartConversao', d.grafico_conversao_valores);
 
-    // Top platforms
     const topWrap = $("#topPlataformasWrap");
     if (topWrap) {
-      if (d.top_plataformas && d.top_plataformas.length) {
+      if (d.top_plataformas && d.top_plataformas.length && d.links_gerados_total > 0) {
         topWrap.innerHTML = d.top_plataformas.map(p => `
           <div class="top-platform-item">
             <div class="top-platform-icon" style="background:${p.cor}; color:#000;">●</div>
@@ -2114,11 +2095,10 @@ async function atualizarMetricas() {
           </div>
         `).join('');
       } else {
-        topWrap.innerHTML = `<div class="empty-placeholder">Nenhum clique registrado ainda.</div>`;
+        topWrap.innerHTML = `<div class="empty-placeholder">Nenhum clique ou post registrado ainda.</div>`;
       }
     }
 
-    // Recent Activities
     const actWrap = $("#activityListWrap");
     if (actWrap) {
       if (d.atividades && d.atividades.length) {
@@ -2147,7 +2127,6 @@ async function atualizarMetricas() {
       }
     }
 
-    // Recent Links
     const linkWrap = $("#recentLinksListWrap");
     const allLinkWrap = $("#allLinksListWrap");
     if (d.links_recentes && d.links_recentes.length) {
@@ -2414,7 +2393,7 @@ async function carregarProdutos() {
       <tr>
         <td><span class="badge-connected"><span class="dot"></span>${p.plataforma || 'Mercado Livre'}</span></td>
         <td style="font-weight:600; color:#fff;">${p.titulo || 'Produto sem título'}</td>
-        <td style="color:#00e676; font-weight:700;">${p.preco ? 'R$ ' + Number(p.preco).toFixed(2).replace('.', ',') : '—'}</td>
+        <td style="color:#20D889; font-weight:700;">${p.preco ? 'R$ ' + Number(p.preco).toFixed(2).replace('.', ',') : '—'}</td>
         <td style="color:var(--tx-dim); font-size:12px;">${p.postada_em || 'Recente'}</td>
         <td>
           <button class="btn-dark" style="padding:4px 10px; font-size:11px;" onclick="copiarTexto('${p.uid}')">Copiar ID</button>
@@ -2474,14 +2453,14 @@ function fecharModalSessao() {
 
 async function verificarSessaoModal() {
   const box = $("#modalSessaoConteudo");
-  box.innerHTML = 'Verificando diretório e cookies de sessão...';
+  box.innerHTML = 'Verificando diretório e cookies de sessão local...';
   try {
     const r = await (await fetch('/api/verificar-sessao', { method: 'POST' })).json();
     box.innerHTML = `
       <div style="background:var(--bg-subcard); padding:14px; border-radius:8px; border:1px solid var(--border-color);">
-        <p><strong>Status da Sessão:</strong> ${r.sessao_ml ? '<span style="color:var(--success)">✓ Ativa e Persistente</span>' : '<span style="color:var(--warning)">Pendente</span>'}</p>
-        <p><strong>Arquivos de Sessão no Perfil:</strong> ${r.arquivos} arquivos</p>
-        <p style="font-size:11px; color:var(--tx-dim); margin-top:8px; word-break:break-all;"><strong>Caminho:</strong> ${r.caminho}</p>
+        <p><strong>Status da Sessão Local:</strong> ${r.sessao_ml ? '<span style="color:var(--success)">✓ Ativa e Persistente</span>' : '<span style="color:var(--warning)">Pendente</span>'}</p>
+        <p><strong>Arquivos salvos no perfil:</strong> ${r.arquivos} arquivos</p>
+        <p style="font-size:11px; color:var(--tx-dim); margin-top:8px; word-break:break-all;"><strong>Caminho Local:</strong> ${r.caminho}</p>
       </div>
     `;
   } catch (e) {
@@ -2489,12 +2468,8 @@ async function verificarSessaoModal() {
   }
 }
 
-async function verificarSessao() {
-  abrirModalSessao();
-}
-
 async function limparSessao() {
-  if (!confirm('Deseja realmente limpar a sessão persistente do Mercado Livre? Será necessário fazer login novamente.')) return;
+  if (!confirm('Deseja realmente limpar a sessão local do Mercado Livre? Será necessário fazer login novamente.')) return;
   try {
     const r = await (await fetch('/api/limpar-sessao', { method: 'POST' })).json();
     toast(r.msg || 'Sessão limpa.', 'success');
@@ -2502,17 +2477,6 @@ async function limparSessao() {
   } catch (e) {
     toast('Erro ao limpar sessão.', 'error');
   }
-}
-
-function abrirModalComoFunciona() {
-  $("#modalComoFunciona").classList.add('show');
-}
-function fecharModalComoFunciona() {
-  $("#modalComoFunciona").classList.remove('show');
-}
-
-function abrirTelaML() {
-  execAcao('ml-login');
 }
 
 function copiarTexto(txt) {
@@ -2549,7 +2513,7 @@ window.addEventListener('click', e => {
   }
 });
 
-// Initial boot
+// Boot
 carregarConfig();
 carregarNichos();
 atualizarStatus();
