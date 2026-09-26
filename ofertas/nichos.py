@@ -129,14 +129,21 @@ def expandir(chaves: list[str]) -> dict:
     amazon_dep: dict[str, str] = {}
     amazon_buscas: list[str] = []
     shopee: list[str] = []
+    aliexpress: list[str] = []
     for k in chaves:
         n = NICHOS.get(k)
         if not n:
             continue
         ml.update(n.get("ml", {}))
         amazon_dep.update(n.get("amazon_dep", {}))
-        for lista, destino in (("amazon_buscas", amazon_buscas), ("shopee", shopee)):
-            for kw in n.get(lista, []):
+        for lista, destino in (("amazon_buscas", amazon_buscas), ("shopee", shopee), ("aliexpress", aliexpress)):
+            for kw in n.get(lista, n.get("shopee", [])):
                 if kw not in destino:
                     destino.append(kw)
-    return {"ml": ml, "amazon_dep": amazon_dep, "amazon_buscas": amazon_buscas, "shopee": shopee}
+    return {
+        "ml": ml,
+        "amazon_dep": amazon_dep,
+        "amazon_buscas": amazon_buscas,
+        "shopee": shopee,
+        "aliexpress": aliexpress,
+    }

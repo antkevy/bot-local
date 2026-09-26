@@ -121,8 +121,18 @@ def cmd_testar(args):
         if not config.amazon_tag:
             raise SystemExit("Preencha AMAZON_TAG no .env")
         ofertas = amazon.buscar_ofertas()
+    elif args.fonte in ("aliexpress", "ali"):
+        from .sources import aliexpress
+        from .config import config
+        if not (config.aliexpress_app_key and config.aliexpress_app_secret):
+            raise SystemExit("Preencha ALIEXPRESS_APP_KEY e ALIEXPRESS_APP_SECRET no .env")
+        teste = aliexpress.testar_conexao()
+        if not teste.get("ok"):
+            raise SystemExit(f"Erro na conexão com AliExpress: {teste.get('erro')}")
+        print(f"✅ {teste.get('msg')}")
+        ofertas = aliexpress.buscar_ofertas(10)
     else:
-        raise SystemExit("Fontes testáveis: ml, shopee, amazon")
+        raise SystemExit("Fontes testáveis: ml, shopee, amazon, aliexpress")
     ofertas.sort(key=lambda o: o.desconto or 0, reverse=True)
     for o in ofertas[:10]:
         print(f"[-{o.desconto or 0:>2}%] R$ {o.preco} (de {o.preco_original}) — "
@@ -160,7 +170,7 @@ def main():
     sub.add_parser("ml-login", help="login único no Mercado Livre (salva a sessão)").set_defaults(fn=cmd_ml_login)
 
     pt = sub.add_parser("testar", help="testa uma fonte sem postar nada")
-    pt.add_argument("fonte", choices=["ml", "shopee", "amazon"])
+    pt.add_argument("fonte", choices=["ml", "shopee", "amazon", "aliexpress"])
     pt.set_defaults(fn=cmd_testar)
 
     args = p.parse_args()

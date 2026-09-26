@@ -41,6 +41,11 @@ class Config:
         self.ml_etiqueta: str = os.getenv("ML_ETIQUETA", "").strip()
         self.shopee_app_id: str = os.getenv("SHOPEE_APP_ID", "").strip()
         self.shopee_app_secret: str = os.getenv("SHOPEE_APP_SECRET", "").strip()
+        self.aliexpress_app_key: str = os.getenv("ALIEXPRESS_APP_KEY", "").strip()
+        self.aliexpress_app_secret: str = os.getenv("ALIEXPRESS_APP_SECRET", "").strip()
+        self.aliexpress_tracking_id: str = os.getenv("ALIEXPRESS_TRACKING_ID", "").strip()
+        self.aliexpress_api_endpoint: str = os.getenv("ALIEXPRESS_API_ENDPOINT", "").strip()
+        self.aliexpress_sign_method: str = os.getenv("ALIEXPRESS_SIGN_METHOD", "sha256").strip().lower()
 
         # config.yaml
         self.intervalo_minutos: int = int(geral.get("intervalo_minutos", 45))
@@ -60,6 +65,7 @@ class Config:
         self.fonte_ml: dict = fontes.get("mercadolivre") or {"ativa": False}
         self.fonte_shopee: dict = fontes.get("shopee") or {"ativa": False}
         self.fonte_amazon: dict = fontes.get("amazon") or {"ativa": False}
+        self.fonte_aliexpress: dict = fontes.get("aliexpress") or {"ativa": False}
 
         # Seleção de nichos feita no painel (data/nichos.json). Se houver, ela
         # SUBSTITUI as categorias/departamentos/buscas do config.yaml.
@@ -75,6 +81,7 @@ class Config:
                                      "departamentos": exp["amazon_dep"],
                                      "buscas": exp["amazon_buscas"]}
                 self.fonte_shopee = {**self.fonte_shopee, "buscas": exp["shopee"]}
+                self.fonte_aliexpress = {**self.fonte_aliexpress, "buscas": exp.get("aliexpress", exp.get("shopee", []))}
         except Exception:
             pass
 
@@ -112,6 +119,8 @@ def verificar() -> list[str]:
         pendencias.append("AMAZON_CREDENTIAL_ID / AMAZON_CREDENTIAL_SECRET (Creators API — busca automática)")
     if not (config.shopee_app_id and config.shopee_app_secret):
         pendencias.append("SHOPEE_APP_ID / SHOPEE_APP_SECRET (painel de afiliados > Open API)")
+    if config.fonte_aliexpress.get("ativa") and not (config.aliexpress_app_key and config.aliexpress_app_secret):
+        pendencias.append("ALIEXPRESS_APP_KEY / ALIEXPRESS_APP_SECRET (AliExpress Open Platform)")
     if not config.ml_etiqueta:
         pendencias.append("ML_ETIQUETA (a 'Etiqueta em uso' do Linkbuilder do ML)")
     if not list((DATA_DIR / "pw-browsers").glob("chromium-*")):

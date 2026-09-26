@@ -7,7 +7,7 @@ from telegram import Bot
 from . import db
 from .config import config, dentro_do_horario
 from .models import Oferta
-from .sources import amazon, mercadolivre, shopee
+from .sources import aliexpress, amazon, mercadolivre, shopee
 from .telegram_poster import postar_oferta
 
 log = logging.getLogger("ofertas.pipeline")
@@ -43,6 +43,15 @@ def coletar() -> list[Oferta]:
                 log.error("Mercado Livre: %s", e)
         else:
             log.warning("Mercado Livre ativo mas sem sessão de afiliado — rode: uv run python -m ofertas ml-login")
+
+    if config.fonte_aliexpress.get("ativa"):
+        if config.aliexpress_app_key and config.aliexpress_app_secret:
+            try:
+                todas += aliexpress.buscar_ofertas(int(config.fonte_aliexpress.get("limite", 30)))
+            except Exception as e:
+                log.error("AliExpress: %s", e)
+        else:
+            log.warning("AliExpress ativo no config.yaml mas sem credenciais no .env — pulando")
 
     return todas
 

@@ -1944,6 +1944,10 @@ async function atualizarStatus() {
       const shp = s.plataformas.shopee || {};
       selo($("#seloShp"), shp.conectado, shp.conectado ? "Conectado" : "Não configurado");
       $("#subShp").textContent = shp.conectado ? "Open API pronta" : "Sem credenciais de API";
+
+      const ali = s.plataformas.aliexpress || {};
+      selo($("#seloAli"), ali.conectado, ali.conectado ? "Conectado" : "Não configurado");
+      $("#subAli").textContent = ali.conectado ? "Open API pronta" : "Sem credenciais de API";
     }
 
     const dono = s.preenchidos && s.preenchidos.TELEGRAM_OWNER_ID;
@@ -2006,9 +2010,16 @@ const BLOCOS = [
   },
   {
     chave: "aliexpress", nome: "AliExpress", icone: "globe", classe: "ali", logo: "/assets/aliexpress.png",
-    sub: "Sem integração oficial no momento",
-    campos: [["Status da integração", "pbAliStatus"]],
-    acoes: [], fora: true,
+    sub: "AliExpress Open Platform / Affiliate API",
+    campos: [
+      ["App Key", "pbAliAppKey"],
+      ["App Secret", "pbAliSecret"],
+      ["Tracking ID", "pbAliTrackingId"],
+    ],
+    acoes: [
+      ["testar-aliexpress", "Testar conexão", "btn-neutro", "search"],
+      ["config", "Editar credenciais", "btn-neutro", "sliders"],
+    ],
   },
 ];
 
@@ -2063,9 +2074,11 @@ function renderPlataformas(s) {
   $("#pbShpSecret").textContent = shp.conectado ? "Definido" : "Não configurado";
 
   const ali = s.plataformas.aliexpress || {};
-  const sAli = $("#seloPb-aliexpress");
-  if (sAli) { sAli.className = "selo selo-fora"; sAli.textContent = "Indisponível"; }
-  $("#pbAliStatus").textContent = "Este projeto ainda não integra o AliExpress.";
+  selo($("#seloPb-aliexpress"), ali.conectado, ali.conectado ? "Conectado" : ali.status || "Não configurado");
+  $("#pbAliAppKey").textContent = ali.app_key || "Não configurado";
+  $("#pbAliAppKey").className = ali.app_key ? "mono" : "";
+  $("#pbAliSecret").textContent = ali.conectado ? "Definido" : "Não configurado";
+  $("#pbAliTrackingId").textContent = ali.tracking_id || "Padrão (opcional)";
 }
 
 function renderDiagnostico(s = statusAtual) {
@@ -2343,6 +2356,7 @@ const ROTULOS_ACAO = {
   "testar-ml": "testando o Mercado Livre",
   "testar-shopee": "testando a Shopee",
   "testar-amazon": "testando a Amazon",
+  "testar-aliexpress": "testando o AliExpress",
 };
 
 async function executarAcao(nome) {

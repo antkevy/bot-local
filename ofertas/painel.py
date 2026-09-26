@@ -54,6 +54,12 @@ CAMPOS = [
      "Painel de afiliados Shopee > menu 'Abrir API'."),
     ("SHOPEE_APP_SECRET", "App Secret", "Shopee", True,
      "Painel de afiliados Shopee > menu 'Abrir API'."),
+    ("ALIEXPRESS_APP_KEY", "App Key", "AliExpress", False,
+     "App Key da aplicação no AliExpress Open Platform / Portals."),
+    ("ALIEXPRESS_APP_SECRET", "App Secret", "AliExpress", True,
+     "App Secret gerado no AliExpress Open Platform."),
+    ("ALIEXPRESS_TRACKING_ID", "Tracking ID", "AliExpress", False,
+     "Seu Tracking ID de afiliado do AliExpress (ex: seunome_br)."),
 ]
 CHAVES = [c[0] for c in CAMPOS]
 
@@ -348,12 +354,14 @@ def status() -> dict:
 
     amz_conectado = bool(env.get("AMAZON_TAG"))
     shp_conectado = bool(env.get("SHOPEE_APP_ID") and env.get("SHOPEE_APP_SECRET"))
+    ali_conectado = bool(env.get("ALIEXPRESS_APP_KEY") and env.get("ALIEXPRESS_APP_SECRET"))
     total = total_postadas()
 
     from .config import config
     fontes = [nome for nome, f in (("Mercado Livre", config.fonte_ml),
                                    ("Shopee", config.fonte_shopee),
-                                   ("Amazon", config.fonte_amazon)) if f.get("ativa")]
+                                   ("Amazon", config.fonte_amazon),
+                                   ("AliExpress", config.fonte_aliexpress)) if f.get("ativa")]
 
     return {
         "bot_rodando": bot.rodando(),
@@ -388,9 +396,11 @@ def status() -> dict:
                 "app_id": env.get("SHOPEE_APP_ID", ""),
             },
             "aliexpress": {
-                "conectado": False,
-                "disponivel": False,
-                "status": "Integração indisponível",
+                "conectado": ali_conectado,
+                "disponivel": True,
+                "status": "Open API pronta" if ali_conectado else "Não configurado",
+                "app_key": env.get("ALIEXPRESS_APP_KEY", ""),
+                "tracking_id": env.get("ALIEXPRESS_TRACKING_ID", ""),
             },
         },
     }
@@ -420,14 +430,11 @@ def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
             plat = "mercadolivre"
         elif "shopee.com" in url_lower or "shp.ee" in url_lower:
             plat = "shopee"
-        elif "aliexpress.com" in url_lower:
+        elif "aliexpress.com" in url_lower or "ali.ski" in url_lower:
             plat = "aliexpress"
         else:
             return {"erro": ("Não reconheci o marketplace deste link. "
                              "Escolha a plataforma manualmente em 'Plataforma'.")}
-
-    if plat == "aliexpress":
-        return {"erro": "O AliExpress ainda não tem integração neste projeto."}
 
     sep = "&" if "?" in url else "?"
     if plat == "amazon":
@@ -448,6 +455,17 @@ def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
             return {"erro": "Configure o App ID da Shopee em Configurações "
                             "antes de gerar o link."}
         link_afiliado = f"{url}{sep}af_sub={app_id}"
+    elif plat == "aliexpress":
+        app_key = env.get("ALIEXPRESS_APP_KEY", "").strip()
+        app_secret = env.get("ALIEXPRESS_APP_SECRET", "").strip()
+        if not (app_key and app_secret):
+            return {"erro": "Configure ALIEXPRESS_APP_KEY e ALIEXPRESS_APP_SECRET em "
+                            "Configurações antes de gerar o link."}
+        try:
+            from .sources import aliexpress
+            link_afiliado = aliexpress.gerar_link_afiliado(url)
+        except Exception as e:
+            return {"erro": f"Erro na API do AliExpress: {e}"}
     else:
         return {"erro": f"Plataforma desconhecida: {plat}."}
 

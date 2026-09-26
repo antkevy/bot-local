@@ -56,3 +56,13 @@ fontes:
     #   - fone bluetooth
     #   - tênis
     #   - panela
+
+  aliexpress:
+    ativa: true
+    limite: 30                 # total de produtos pedidos à Affiliate API por ciclo
+    buscas: []                 # vazio = termos padrão de tecnologia/gadgets
+    # Para um nicho, liste palavras-chave, ex:
+    #   - smartwatch
+    #   - fone bluetooth
+    #   - drone
+

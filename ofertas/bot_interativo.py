@@ -24,7 +24,7 @@ _pendentes: dict[str, Oferta] = {}
 async def _cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 Bot de ofertas no ar!\n\n"
-        "• Cole aqui um link do Mercado Livre, Shopee ou Amazon e eu preparo o post "
+        "• Cole aqui um link do Mercado Livre, Shopee, Amazon ou AliExpress e eu preparo o post "
         "com o seu link de afiliado.\n"
         "• /id — mostra o id deste chat (ou do canal, se você encaminhar um post dele)\n"
         "• /ciclo — roda uma busca de ofertas agora\n"
@@ -44,7 +44,8 @@ async def _cmd_id(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def _cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fontes = [nome for nome, f in (("Mercado Livre", config.fonte_ml),
                                    ("Shopee", config.fonte_shopee),
-                                   ("Amazon", config.fonte_amazon)) if f.get("ativa")]
+                                   ("Amazon", config.fonte_amazon),
+                                   ("AliExpress", config.fonte_aliexpress)) if f.get("ativa")]
     await update.message.reply_text(
         f"📊 {db.total_postadas()} ofertas postadas até agora\n"
         f"🔎 Fontes automáticas: {', '.join(fontes) or 'nenhuma'}\n"
@@ -84,7 +85,7 @@ async def _receber_link(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             url = u
             break
     if not fonte:
-        await update.message.reply_text("Não reconheci nenhum link de ML, Shopee ou Amazon aí. 🤔")
+        await update.message.reply_text("Não reconheci nenhum link de ML, Shopee, Amazon ou AliExpress aí. 🤔")
         return
 
     aviso = await update.message.reply_text("🔎 Convertendo, um instante...")
@@ -172,7 +173,7 @@ def rodar():
         _receber_link))
 
     tem_fonte = any(f.get("ativa") for f in
-                    (config.fonte_ml, config.fonte_shopee, config.fonte_amazon))
+                    (config.fonte_ml, config.fonte_shopee, config.fonte_amazon, config.fonte_aliexpress))
     if tem_fonte and config.intervalo_minutos > 0 and config.chat_id:
         app.job_queue.run_repeating(_job_ciclo, interval=config.intervalo_minutos * 60, first=30)
         log.info("Ciclo automático a cada %d min", config.intervalo_minutos)
