@@ -45,6 +45,7 @@ from bs4 import BeautifulSoup
 
 from ofertas import db, pipeline
 from ofertas.config import config
+from ofertas.filters import passes_product_filters
 from ofertas.formatter import montar_caption
 from ofertas.models import Oferta
 from ofertas.sources import mercadolivre
@@ -565,6 +566,74 @@ class TestPendentesMl(BancoTemporario):
         self.assertEqual(self._pendentes(), [], "pendência já cumprida deve sair")
         postar.assert_not_called()
         reler.assert_not_called()
+
+
+class TestFiltroExigePreco(unittest.TestCase):
+    """O filtro de preco: nenhuma oferta sem preco utilizavel e publicada.
+
+    O caminho que discoveries isto nao foi a lista de ofertas do ciclo (que
+    sempre traz preco), e sim o scraper do Telegram: os links curtos da Shopee
+    do NERD OFERTAS apontam para produto fora do catalogo de ofertas da Open
+    API, `converter` cai no fallback e devolve titulo "Oferta Shopee" com
+    preco None. Isso passava por todos os filtros e virava post vazio:
+
+        \U0001F525 <b>Oferta Shopee</b>
+        \U0001F9E1 Shopee
+    """
+
+    def _oferta(self, **kw) -> Oferta:
+        base = dict(plataforma="shopee", id_produto="58255664210",
+                    titulo="Oferta Shopee", url_afiliado="https://s.shopee.com.br/abc")
+        base.update(kw)
+        return Oferta(**base)
+
+    def test_o_caso_real_do_scraper_e_rejeitado(self):
+        ok, motivo = passes_product_filters(self._oferta(preco=None))
+        self.assertFalse(ok)
+        self.assertEqual(motivo, "sem_preco")
+
+    def test_preco_zero_negativo_e_nan(self):
+        for valor in (0.0, -10.0, float("nan"), float("inf")):
+            with self.subTest(preco=valor):
+                ok, motivo = passes_product_filters(self._oferta(preco=valor))
+                self.assertFalse(ok)
+                self.assertEqual(motivo, "sem_preco")
+
+    def test_preco_ausente(self):
+        oferta = self._oferta()
+        oferta.preco = None
+        self.assertEqual(passes_product_filters(oferta)[1], "sem_preco")
+
+    def test_booleano_nao_vira_preco(self):
+        """True e 1 em Python: um parse que devolveu True viraria R$ 1,00."""
+        for valor in (True, False):
+            with self.subTest(preco=valor):
+                self.assertEqual(passes_product_filters(self._oferta(preco=valor))[1],
+                                 "sem_preco")
+
+    def test_preco_valido_passa(self):
+        for valor in (11.9, 79.99, 1358.00, 1):
+            with self.subTest(preco=valor):
+                ok, motivo = passes_product_filters(self._oferta(preco=valor, titulo="Furadeira"))
+                self.assertTrue(ok, f"preco {valor} foi rejeitado: {motivo}")
+
+    def test_legenda_nao_publica_preco_inventado(self):
+        """A legenda jamais deve preencher o buraco com um R$ 0,00."""
+        oferta = self._oferta(preco=None)
+        legenda = montar_caption(oferta)
+        self.assertNotIn("R$ 0", legenda)
+        self.assertNotIn("None", legenda)
+        self.assertNotIn("nan", legenda.lower())
+
+    def test_o_ciclo_nao_e_afetado(self):
+        """As 5 ofertas ja publicadas no ciclo real tem preco e titulo."""
+        for preco, titulo in ((11.9, "Pano Microfibra"), (42.89, "Fone de Ouvido"),
+                              (4.69, "Raspador de Lingua"), (79.99, "Parafusadeira"),
+                              (68.9, "Creatina")):
+            with self.subTest(preco=preco):
+                ok, motivo = passes_product_filters(
+                    self._oferta(preco=preco, titulo=titulo))
+                self.assertTrue(ok, motivo)
 
 
 if __name__ == "__main__":

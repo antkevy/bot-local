@@ -9,6 +9,7 @@ import logging
 from typing import Tuple
 
 from .config import config
+from .formatter import _preco_util
 from .models import Oferta
 
 log = logging.getLogger("ofertas.filters")
@@ -21,6 +22,22 @@ def passes_product_filters(oferta: Oferta) -> Tuple[bool, str]:
     """
     if not oferta.titulo:
         return False, "sem_titulo"
+
+    # 0. Preco utilizavel.
+    #
+    # Sem isto, uma oferta sem preco vira post vazio: o `montar_caption` tem
+    # poucos campos para preencher e, sem preco e sem desconto, sobra apenas o
+    # titulo generico e a assinatura do marketplace. Foi exatamente o que
+    # aconteceu com os links curtos da Shopee: o produto esta no canal, mas
+    # fora do catalogo de ofertas da Open API, entao `converter` cai no
+    # fallback e devolve titulo "Oferta Shopee" com preco None -- que passava
+    # por todos os filtros e era publicado.
+    #
+    # A definicao de "preco utilizavel" e a mesma do formatter, de proposito:
+    # duas copias divergem, e a que diverge e a que deixa passar lixo.
+    if _preco_util(oferta.preco) is None:
+        log.info("[FILTER] Produto '%s' ignorado: sem_preco", (oferta.titulo or "")[:40])
+        return False, "sem_preco"
 
     # 1. Filtro de palavras bloqueadas
     titulo_lower = oferta.titulo.lower()
