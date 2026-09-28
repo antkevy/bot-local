@@ -230,6 +230,21 @@ async def _receber_forward(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
 
 
+def _e_mesmo_canal(source_id: str, dest_id: str) -> bool:
+    """Diz se dois ids de chat são o mesmo canal, em qualquer das formas.
+
+    O Telegram representa um canal de três jeitos: -1001234..., 1234..., e
+    -1001234... de novo. Comparar as duas pontas exige tomar o prefixo como
+    prefixo. `lstrip("-100")` não serve: ele apaga o CONJUNTO {'-','1','0'}
+    do começo da string, então num canal -1001... comia dígitos do id e a
+    comparação deixava de valer — o anti-loop deixava de segurar.
+    """
+    if not source_id or not dest_id:
+        return False
+    curto = dest_id.removeprefix("-100")
+    return source_id in (dest_id, curto, "-100" + curto)
+
+
 async def _receber_mensagem_canal_grupo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.channel_post or update.message
     if not msg:
@@ -243,7 +258,7 @@ async def _receber_mensagem_canal_grupo(update: Update, ctx: ContextTypes.DEFAUL
     dest_id = str(config.chat_id).strip()
 
     # Anti-loop: nunca processar publicações do próprio canal de destino
-    if dest_id and (source_id == dest_id or source_id == dest_id.lstrip("-100")):
+    if _e_mesmo_canal(source_id, dest_id):
         return
 
     # Anti-loop: se o autor da mensagem for o próprio bot
