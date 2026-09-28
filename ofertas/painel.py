@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from . import db
 from .config import BASE_DIR, DATA_DIR
 from .db import contar_por_plataforma, listar_postadas, posts_por_dias, total_postadas
 from .painel_html import PAGINA
@@ -301,6 +302,37 @@ acao = Processo()     # ações pontuais (instalar, login, testar)
 
 
 # ── Ações auxiliares ──────────────────────────────────────────────────
+
+def _so_presentes(dados: dict, mapa: dict) -> dict:
+    """Filtra `dados` para as chaves de `mapa` que vieram no corpo.
+
+    Sem isso, um POST parcial gravava o default no lugar de tudo que o
+    cliente não mandou: um `{}` em /api/filtros voltava avaliacao_minima
+    para 0 e vendas_minimas para 0, apagando o ajuste do usuário. Chave
+    ausente = "não mexe"; chave presente e vazia = grava o que veio.
+    """
+    saida = {}
+    for chave, conversor in mapa.items():
+        if chave in dados:
+            saida[chave] = conversor(dados[chave])
+    return saida
+
+
+def _int(v):
+    return int(v or 0)
+
+
+def _float(v):
+    return float(v or 0)
+
+
+def _bool(v):
+    return bool(v)
+
+
+def _lista_de_palavras(v):
+    return [str(p).strip().lower() for p in (v or []) if str(p).strip()]
+
 
 def detectar_ids() -> dict:
     """Consulta o Telegram (getUpdates) e sugere owner id e chat id do canal."""
@@ -880,6 +912,11 @@ class Handler(BaseHTTPRequestHandler):
                     "avaliacao_minima": config.avaliacao_minima,
                     "vendas_minimas": config.vendas_minimas,
                     "desconto_minimo": config.desconto_minimo,
+                    # A tela chamava este campo de desconto_minimo_pct. Como a
+                    # chave antiga nunca era lida, o filtro de desconto ficava
+                    # sempre em 0 sem o usuário perceber. Devolvemos os dois
+                    # nomes para os dois lados do contrato fecharem.
+                    "desconto_minimo_pct": config.desconto_minimo,
                     "permitir_sem_desconto": config.permitir_sem_desconto,
                     "permitir_sem_avaliacao": config.permitir_sem_avaliacao,
                     "permitir_sem_vendas": config.permitir_sem_vendas,
@@ -888,23 +925,47 @@ class Handler(BaseHTTPRequestHandler):
                     "palavras_bloqueadas": config.palavras_bloqueadas,
                 })
             elif rota == "/api/publicacao-controle":
-                from .config import config
+                from . import config as config_mod
                 from .publishing_control import publishing_controller
-                pode, motivo, restante = publishing_controller.pode_publicar()
+                cfg = config_mod.config
+                # somente_leitura: este GET é polled a cada 5s pelo card de
+                # status. Como a cadência agora é estado compartilhado com o
+                # bot, consultar não pode iniciar a pausa de bloco nem
+                # gravar nada — o card é um painel, não o dono do relógio.
+                pode, motivo, restante = publishing_controller.pode_publicar(
+                    somente_leitura=True)
+                # Aninhado em "config"/"status" porque é o que o painel_js
+                # consome (painel_html.py -> p.config / p.status). A resposta
+                # era chapada, então o JS caía sempre no default ?? 300 e o
+                # card de cadência mostrava zero falso a cada 5s.
+                # Os tempos seguem em SEGUNDOS: quem converte para minutos é a
+                # tela, e o config.yaml/pipeline continuam em segundos.
                 self._json({
-                    "intervalo_entre_posts_segundos": config.intervalo_entre_posts_segundos,
-                    "posts_antes_pausa": config.posts_antes_pausa,
-                    "tempo_pausa_segundos": config.tempo_pausa_segundos,
-                    "max_posts_periodo": config.max_posts_periodo,
-                    "periodo_horas": config.periodo_horas,
-                    "pode_publicar": pode,
-                    "motivo_espera": motivo,
-                    "restante_segundos": restante,
+                    "config": {
+                        "intervalo_entre_posts_segundos": cfg.intervalo_entre_posts_segundos,
+                        "posts_antes_pausa": cfg.posts_antes_pausa,
+                        "tempo_pausa_segundos": cfg.tempo_pausa_segundos,
+                        "max_posts_periodo": cfg.max_posts_periodo,
+                        "periodo_horas": cfg.periodo_horas,
+                    },
+                    "status": {
+                        **publishing_controller.obter_status(),
+                        "pode_publicar": pode,
+                        "motivo_espera": motivo,
+                        "restante_segundos": restante,
+                    },
                 })
             elif rota == "/api/fontes-telegram":
                 self._json({
                     "fontes": db.listar_fontes_telegram(),
                     "total_processadas": db.total_msgs_telegram_processadas(),
+                })
+            elif rota == "/api/scraping-config":
+                from .config import config
+                self._json({
+                    "ativo": bool(config.scraping_telegram_ativo),
+                    "intervalo_segundos": config.scraping_intervalo_segundos,
+                    "limite_mensagens_por_ciclo": config.scraping_max_msgs,
                 })
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
@@ -944,32 +1005,55 @@ class Handler(BaseHTTPRequestHandler):
                 salvar_env(filtrados)
                 self._json({"ok": True})
             elif rota == "/api/filtros":
-                from .config import config, salvar_yaml_secao
-                salvar_yaml_secao("filtros", {
-                    "avaliacao_minima": float(dados.get("avaliacao_minima", 0) or 0),
-                    "vendas_minimas": int(dados.get("vendas_minimas", 0) or 0),
-                    "desconto_minimo": int(dados.get("desconto_minimo", 0) or 0),
-                    "permitir_sem_desconto": bool(dados.get("permitir_sem_desconto", True)),
-                    "permitir_sem_avaliacao": bool(dados.get("permitir_sem_avaliacao", True)),
-                    "permitir_sem_vendas": bool(dados.get("permitir_sem_vendas", True)),
-                    "preco_minimo": float(dados.get("preco_minimo", 0) or 0),
-                    "preco_maximo": float(dados.get("preco_maximo", 0) or 0),
-                    "palavras_bloqueadas": [str(p).strip().lower() for p in (dados.get("palavras_bloqueadas") or []) if str(p).strip()],
-                })
+                from . import config as config_mod
+                # A tela envia o desconto como "desconto_minimo_pct", mas quem
+                # lê e grava é "desconto_minimo". Sem esta tradução o _so_presentes
+                # descartava a chave e o filtro ficava travado em 0 para sempre.
+                if "desconto_minimo_pct" in dados and "desconto_minimo" not in dados:
+                    dados = dict(dados)
+                    dados["desconto_minimo"] = dados["desconto_minimo_pct"]
+                config_mod.salvar_yaml_secao("filtros", _so_presentes(dados, {
+                    "avaliacao_minima": _float,
+                    "vendas_minimas": _int,
+                    "desconto_minimo": _int,
+                    "permitir_sem_desconto": _bool,
+                    "permitir_sem_avaliacao": _bool,
+                    "permitir_sem_vendas": _bool,
+                    "preco_minimo": _float,
+                    "preco_maximo": _float,
+                    "palavras_bloqueadas": _lista_de_palavras,
+                }))
+                # Lê o atributo só depois do save (ver /api/scraping-config).
+                cfg = config_mod.config
                 self._json({"ok": True, "filtros": {
-                    "avaliacao_minima": config.avaliacao_minima,
-                    "vendas_minimas": config.vendas_minimas,
-                    "desconto_minimo": config.desconto_minimo,
+                    "avaliacao_minima": cfg.avaliacao_minima,
+                    "vendas_minimas": cfg.vendas_minimas,
+                    "desconto_minimo": cfg.desconto_minimo,
+                    "desconto_minimo_pct": cfg.desconto_minimo,
                 }})
             elif rota == "/api/publicacao-controle":
-                from .config import config, salvar_yaml_secao
-                salvar_yaml_secao("publicacao", {
-                    "intervalo_entre_posts_segundos": int(dados.get("intervalo_entre_posts_segundos", 300) or 300),
-                    "posts_antes_pausa": int(dados.get("posts_antes_pausa", 5) or 5),
-                    "tempo_pausa_segundos": int(dados.get("tempo_pausa_segundos", 1800) or 1800),
-                    "max_posts_periodo": int(dados.get("max_posts_periodo", 20) or 20),
-                    "periodo_horas": int(dados.get("periodo_horas", 24) or 24),
-                })
+                from . import config as config_mod
+                if dados.get("reset_cadencia"):
+                    from .publishing_control import publishing_controller
+                    publishing_controller.reset()
+                    return self._json({"ok": True})
+                # A tela manda SEGUNDOS (converte minutos na borda). Valida
+                # tempo negativo: o pipeline compara isso com um timestamp e
+                # sairia do controle de cadência.
+                for chave, rotulo in (("intervalo_entre_posts_segundos",
+                                       "O intervalo entre posts"),
+                                      ("tempo_pausa_segundos",
+                                       "A duração da pausa")):
+                    if chave in dados and int(dados[chave] or 0) < 0:
+                        return self._json({"erro": f"{rotulo} não pode ser "
+                                                   "negativo."}, 400)
+                config_mod.salvar_yaml_secao("publicacao", _so_presentes(dados, {
+                    "intervalo_entre_posts_segundos": _int,
+                    "posts_antes_pausa": _int,
+                    "tempo_pausa_segundos": _int,
+                    "max_posts_periodo": _int,
+                    "periodo_horas": _int,
+                }))
                 self._json({"ok": True})
             elif rota == "/api/start":
                 ok = bot.iniciar(["run"], "Bot")
@@ -992,7 +1076,17 @@ class Handler(BaseHTTPRequestHandler):
                 if nome not in mapa:
                     return self._json({"erro": "ação desconhecida"}, 400)
                 if acao.rodando():
-                    return self._json({"erro": f"Já rodando: {acao.rotulo}"}, 409)
+                    # O botão de login do ML é o caso que mais trava: o
+                    # navegador fica aberto até a pessoa fechá-lo, e durante
+                    # esse tempo TODA ação é recusada — clicar de novo só
+                    # repetia um toast rápido e passageiro. Por isso devolvemos
+                    # o rótulo e explicitamos o caminho para destravar.
+                    return self._json({
+                        "erro": f"Já rodando: {acao.rotulo}. Clique em "
+                                f"“Cancelar” na barra de ações para liberar.",
+                        "acao_rodando": acao.rotulo,
+                        "pode_cancelar": True,
+                    }, 409)
                 args, rotulo = mapa[nome]
                 acao.linhas.clear()
                 acao.iniciar(args, rotulo)
@@ -1038,22 +1132,33 @@ class Handler(BaseHTTPRequestHandler):
                 chat_id_raw = str(dados.get("chat_id", "") or dados.get("username", "")).strip()
                 nome = str(dados.get("nome", "")).strip()
                 tipo = str(dados.get("tipo", "canal")).strip()
-                ativa = bool(dados.get("ativa", True))
+                ativa = bool(dados.get("ativa", dados.get("ativo", True)))
                 if not chat_id_raw:
                     return self._json({"erro": "Username ou ID do canal/grupo é obrigatório."}, 400)
                 norm = normalizar_username_telegram(chat_id_raw)
                 nome = nome or f"Fonte {norm}"
                 db.salvar_fonte_telegram(norm, nome, tipo, ativa)
-                self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
+                # "fonte" volta junto porque a tela mostra d.fonte?.username no
+                # toast; sem a chave ele caía no fallback e mascarava o erro.
+                self._json({"ok": True, "fonte": {"username": norm, "chat_id": norm, "nome": nome},
+                            "fontes": db.listar_fontes_telegram()})
             elif rota == "/api/fontes-telegram/remover":
-                chat_id = str(dados.get("chat_id", "")).strip()
+                # Aceita "chat_id" e "username": a coluna e a resposta da API
+                # usam chat_id, mas a tela falava "username". Só esta rota e a
+                # de status não tinham o "or username" que /fontes-telegram e
+                # /testar já tinham — era essa assimetria que fazia o botão de
+                # excluir responder "ID da fonte é obrigatório".
+                chat_id = str(dados.get("chat_id", "") or dados.get("username", "")).strip()
                 if not chat_id:
                     return self._json({"erro": "ID da fonte é obrigatório."}, 400)
                 db.remover_fonte_telegram(chat_id)
                 self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
             elif rota == "/api/fontes-telegram/status":
-                chat_id = str(dados.get("chat_id", "")).strip()
-                ativa = bool(dados.get("ativa", True))
+                chat_id = str(dados.get("chat_id", "") or dados.get("username", "")).strip()
+                if not chat_id:
+                    return self._json({"erro": "ID da fonte é obrigatório."}, 400)
+                # "ativa" (coluna) e "ativo" (tela) — mesma tolerância acima.
+                ativa = bool(dados.get("ativa", dados.get("ativo", True)))
                 db.atualizar_status_fonte_telegram(chat_id, ativa)
                 self._json({"ok": True, "fontes": db.listar_fontes_telegram()})
             elif rota == "/api/fontes-telegram/testar":
@@ -1064,6 +1169,42 @@ class Handler(BaseHTTPRequestHandler):
                 import asyncio
                 res = asyncio.run(testar_conexao_fonte(fonte_str))
                 self._json(res)
+            elif rota == "/api/scraping-config":
+                from . import config as config_mod
+                # A tela manda "limite_mensagens_por_ciclo"; o config.yaml usa
+                # "max_mensagens_por_ciclo". A tradução fica aqui, no servidor,
+                # para o JS não precisar saber o nome interno do YAML.
+                if "intervalo_segundos" in dados:
+                    v = int(dados["intervalo_segundos"] or 0)
+                    if v < 5:
+                        return self._json({"erro": "O intervalo mínimo é de 5 segundos."}, 400)
+                if "limite_mensagens_por_ciclo" in dados:
+                    v = int(dados["limite_mensagens_por_ciclo"] or 0)
+                    if not 1 <= v <= 500:
+                        return self._json({"erro": "O limite deve ser entre 1 e 500 mensagens."}, 400)
+                novo = {}
+                if "ativo" in dados:
+                    novo["ativo"] = _bool(dados["ativo"])
+                if "intervalo_segundos" in dados:
+                    novo["intervalo_segundos"] = _int(dados["intervalo_segundos"])
+                if "limite_mensagens_por_ciclo" in dados:
+                    novo["max_mensagens_por_ciclo"] = _int(dados["limite_mensagens_por_ciclo"])
+                config_mod.salvar_yaml_secao("scraping_telegram", novo)
+                # Lê o atributo só DEPOIS do save: salvar_yaml_secao recria o
+                # objeto global, então um "from .config import config" feito
+                # antes devolveria a instância velha na resposta.
+                cfg = config_mod.config
+                self._json({
+                    "ok": True,
+                    "ativo": bool(cfg.scraping_telegram_ativo),
+                    "intervalo_segundos": cfg.scraping_intervalo_segundos,
+                    "limite_mensagens_por_ciclo": cfg.scraping_max_msgs,
+                })
+            elif rota == "/api/detectar-ids":
+                # Sem try/except: detectar_ids() já devolve {"erro": ...} nos
+                # três failure modes (sem token, Telegram fora do ar, token
+                # recusado) e o JS sabe mostrar isso na caixa de detecção.
+                self._json(detectar_ids())
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:

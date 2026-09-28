@@ -333,7 +333,7 @@ class TestFiltrosEPublicacao(unittest.TestCase):
 
     def test_publication_controller_intervalo(self):
         """Item 92, 93: Respeita intervalo mínimo entre posts."""
-        with patch("ofertas.publishing_control.config") as mock_cfg:
+        with patch("ofertas.config.config") as mock_cfg:
             mock_cfg.intervalo_entre_posts_segundos = 10
             mock_cfg.posts_antes_pausa = 5
             mock_cfg.tempo_pausa_segundos = 60
@@ -357,7 +357,7 @@ class TestFiltrosEPublicacao(unittest.TestCase):
 
     def test_publication_controller_pausa_bloco(self):
         """Item 94, 135: Após 5 posts, entra em pausa configurada de 30 minutos."""
-        with patch("ofertas.publishing_control.config") as mock_cfg:
+        with patch("ofertas.config.config") as mock_cfg:
             mock_cfg.intervalo_entre_posts_segundos = 0
             mock_cfg.posts_antes_pausa = 5
             mock_cfg.tempo_pausa_segundos = 1800
@@ -379,7 +379,7 @@ class TestFiltrosEPublicacao(unittest.TestCase):
 
     def test_publication_controller_limite_periodo(self):
         """Item 95, 96, 136: Atingiu limite de 20 posts no período de 24h -> bloqueia."""
-        with patch("ofertas.publishing_control.config") as mock_cfg:
+        with patch("ofertas.config.config") as mock_cfg:
             mock_cfg.intervalo_entre_posts_segundos = 0
             mock_cfg.posts_antes_pausa = 0
             mock_cfg.tempo_pausa_segundos = 0
@@ -416,7 +416,7 @@ class TestFiltrosEPublicacao(unittest.TestCase):
     def test_end_to_end_scraping_flow(self):
         """Item 138: Fluxo completo Mensagem -> AliExpress -> Rating 96% -> 4.8 -> Vendas 1500 -> Filtro -> Template."""
         with patch("ofertas.filters.config") as mock_filter_cfg, \
-             patch("ofertas.publishing_control.config") as mock_pub_cfg:
+             patch("ofertas.config.config") as mock_pub_cfg:
             
             mock_filter_cfg.palavras_bloqueadas = []
             mock_filter_cfg.avaliacao_minima = 4.5

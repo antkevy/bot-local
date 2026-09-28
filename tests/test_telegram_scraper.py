@@ -67,7 +67,12 @@ def setup_function():
     config.posts_antes_pausa = 0
     config.max_posts_periodo = 0
     config.palavras_bloqueadas = []
+    from ofertas import publishing_control as _pc
     from ofertas.publishing_control import publishing_controller
+    # O singleton persiste a cadência em data/cadencia.json, compartilhada com o
+    # bot. Sem apontar para um arquivo temporário, o reset() desta linha
+    # apagaria o estado real de publicação do usuário ao rodar a suíte.
+    _pc.ARQ_ESTADO = TEST_DB_PATH.with_name("test_cadencia_scraper.json")
     publishing_controller.reset()
 
 

@@ -859,6 +859,8 @@ PAGINA = r"""<!doctype html>
   .toast-erro .icone { color: var(--erro); }
   .toast-espera { border-color: var(--alerta-borda); }
   .toast-espera .icone { color: var(--alerta); }
+  .toast-alerta { border-color: var(--alerta-borda); }
+  .toast-alerta .icone { color: var(--alerta); }
   .toast-info { border-color: var(--primaria-borda); }
   .toast-info .icone { color: var(--primaria-forte); }
 
@@ -1622,11 +1624,11 @@ PAGINA = r"""<!doctype html>
             <label for="filtroAvaliacao">⭐ Avaliação mínima</label>
             <select id="filtroAvaliacao" name="avaliacao_minima">
               <option value="0">Desativado (qualquer nota)</option>
-              <option value="4.0">⭐ 4.0 ou mais</option>
+              <option value="4">⭐ 4.0 ou mais</option>
               <option value="4.2">⭐ 4.2 ou mais</option>
               <option value="4.5">⭐ 4.5 ou mais (Recomendado)</option>
               <option value="4.7">⭐ 4.7 ou mais</option>
-              <option value="5.0">⭐ 5.0 (nota máxima)</option>
+              <option value="5">⭐ 5.0 (nota máxima)</option>
             </select>
             <p class="ajuda">AliExpress (96% → 4.8) e demais plataformas com nota real.</p>
           </div>
@@ -1713,9 +1715,9 @@ PAGINA = r"""<!doctype html>
 
         <form id="formPublicacao" class="config-grade" novalidate>
           <div class="campo">
-            <label for="pubIntervalo">⏱️ Intervalo mínimo entre posts (segundos)</label>
-            <input id="pubIntervalo" name="intervalo_entre_posts_segundos" type="number" min="1" value="300" placeholder="300">
-            <p class="ajuda">Ex: 300 segundos = 5 minutos entre uma oferta e outra.</p>
+            <label for="pubIntervalo">⏱️ Intervalo mínimo entre posts (minutos)</label>
+            <input id="pubIntervalo" name="intervalo_entre_posts_minutos" type="number" min="0" step="1" value="5" placeholder="5">
+            <p class="ajuda">Ex: 5 = 5 minutos entre uma oferta e outra (0 = sem intervalo).</p>
           </div>
 
           <div class="campo">
@@ -1725,9 +1727,9 @@ PAGINA = r"""<!doctype html>
           </div>
 
           <div class="campo">
-            <label for="pubTempoPausa">⏳ Duração da pausa (segundos)</label>
-            <input id="pubTempoPausa" name="tempo_pausa_segundos" type="number" min="0" value="1800" placeholder="1800">
-            <p class="ajuda">Ex: 1800 segundos = 30 minutos de descanso antes do próximo bloco.</p>
+            <label for="pubTempoPausa">⏳ Duração da pausa (minutos)</label>
+            <input id="pubTempoPausa" name="tempo_pausa_minutos" type="number" min="0" step="1" value="30" placeholder="30">
+            <p class="ajuda">Ex: 30 = 30 minutos de descanso antes do próximo bloco (0 = sem pausa).</p>
           </div>
 
           <div class="campo">
@@ -1845,7 +1847,10 @@ PAGINA = r"""<!doctype html>
             </div>
             <div class="campo">
               <label for="scrapingLimiteMsg">Máx. mensagens por ciclo</label>
-              <input id="scrapingLimiteMsg" name="limite_mensagens_por_ciclo" type="number" min="1" max="100" value="20" placeholder="20">
+              <!-- teto 500: é o que o backend aceita e valida. Com max=100 a
+                   tela recusava valores válidos e o usuário não conseguia
+                   aumentar o ciclo. -->
+              <input id="scrapingLimiteMsg" name="limite_mensagens_por_ciclo" type="number" min="1" max="500" value="20" placeholder="20">
             </div>
           </form>
           <div class="acoes-form">
@@ -2794,7 +2799,20 @@ async function executarAcao(nome) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome }),
     })).json();
-    if (r.erro) { toast(r.erro, "erro"); return; }
+    if (r.erro) {
+      if (r.pode_cancelar) {
+        // Uma ação já em execução trava o botão de login do ML, e um toast
+        // passageiro some antes de a pessoa perceber que precisa cancelar.
+        // Por isso o aviso fica mais tempo e leva direto ao terminal.
+        toast(r.erro, "alerta", 9000);
+        const alvo = $("#view-plataformas").classList.contains("ativa")
+          ? "#view-plataformas" : "#view-logs";
+        switchView(alvo.slice(1));
+      } else {
+        toast(r.erro, "erro");
+      }
+      return;
+    }
     TERMINAIS_LIMPOS.acao = false;
     // Não sequestra a navegação: a saída da ação aparece nas duas abas que
     // têm terminal (Plataformas e Logs), então o toast só diz onde olhar.
@@ -3344,7 +3362,7 @@ function copiarTexto(txt) {
   }
 }
 
-function copiarLegudo(txt) {
+function copiarLegado(txt) {
   const ta = document.createElement("textarea");
   ta.value = txt;
   ta.setAttribute("readonly", "");
@@ -3358,18 +3376,20 @@ function copiarLegudo(txt) {
 }
 
 /* ══ Toasts ══════════════════════════════════════════════════════════ */
-const TOAST_ICONE = { ok: "check-circle", erro: "alert", espera: "alert-triangle", info: "alert" };
+const TOAST_ICONE = { ok: "check-circle", erro: "alert", espera: "alert-triangle", alerta: "alert-triangle", info: "alert" };
 
-function toast(msg, tipo = "info") {
+function toast(msg, tipo = "info", duracao = 4200) {
   const caixa = $("#caixaToasts");
   if (!caixa) return;
   const t = document.createElement("div");
-  t.className = `toast toast-${tipo}`;
-  t.innerHTML = icone(TOAST_ICONE[tipo] || "alert") + `<span>${esc(msg)}</span>`;
+  // tipo desconhecido caía em "toast-<tipo>" sem estilo nenhum; agora normaliza.
+  const classe = TOAST_ICONE[tipo] ? tipo : "info";
+  t.className = `toast toast-${classe}`;
+  t.innerHTML = icone(TOAST_ICONE[classe]) + `<span>${esc(msg)}</span>`;
   caixa.appendChild(t);
   const sair = () => { t.classList.remove("entrou"); setTimeout(() => t.remove(), 320); };
   setTimeout(() => t.classList.add("entrou"), 20);
-  setTimeout(sair, 4200);
+  setTimeout(sair, duracao);
   t.addEventListener("click", sair);
 }
 
@@ -3541,13 +3561,33 @@ async function abrirLoginSePrecisar() {
 }
 
 /* ══ Filtros de Produtos ═════════════════════════════════════════════ */
+
+/* O config guarda avaliacao_minima como float. Um <select> só casa por
+   igualdade de string, e String(4.0) é "4" — não "4.0". Quando não havia
+   option correspondente, o select ficava vazio, caía no primeiro item
+   ("Desativado") e o salvar seguinte gravava 0.0: o filtro de avaliação era
+   apagado sem nenhuma mensagem. Injetamos a option que falta para que
+   qualquer valor gravado continue visível. */
+function definirSelectComFallback(sel, valor) {
+  if (!sel) return;
+  const bruto = String(valor ?? 0);
+  if (![...sel.options].some(o => o.value === bruto)) {
+    const extra = document.createElement("option");
+    extra.value = bruto;
+    extra.textContent = `${Number(bruto).toFixed(1)} (valor salvo)`;
+    sel.appendChild(extra);
+  }
+  sel.value = bruto;
+}
+
 async function carregarFiltros() {
   try {
     const r = await fetch("/api/filtros", { cache: "no-store" });
     const f = await r.json();
-    if ($("#filtroAvaliacao")) $("#filtroAvaliacao").value = String(f.avaliacao_minima ?? 0);
+    definirSelectComFallback($("#filtroAvaliacao"), f.avaliacao_minima ?? 0);
     if ($("#filtroVendas")) $("#filtroVendas").value = String(f.vendas_minimas ?? 0);
-    if ($("#filtroDesconto")) $("#filtroDesconto").value = f.desconto_minimo_pct ?? 0;
+    // Aceita os dois nomes: o backend agora devolve ambos.
+    if ($("#filtroDesconto")) $("#filtroDesconto").value = f.desconto_minimo_pct ?? f.desconto_minimo ?? 0;
     if ($("#filtroPrecoMin")) $("#filtroPrecoMin").value = f.preco_minimo ?? "";
     if ($("#filtroPrecoMax")) $("#filtroPrecoMax").value = f.preco_maximo ?? "";
     if ($("#filtroSemAvaliacao")) $("#filtroSemAvaliacao").value = String(f.permitir_sem_avaliacao !== false);
@@ -3587,15 +3627,22 @@ async function salvarFiltros() {
 }
 
 /* ══ Controle de Publicação e Cadência ═══════════════════════════════ */
+/* A tela trabalha em MINUTOS; a API, o config.yaml e o pipeline continuam
+   em SEGUNDOS. A conversão fica estes dois helpers e em mais lugar nenhum —
+   foi o que evitou o config voltar em segundos depois de um round-trip. */
+const SEG_POR_MIN = 60;
+const segParaMin = (s, padrao) => (s == null ? padrao : Math.round(Number(s) / SEG_POR_MIN));
+const minParaSeg = (m, padrao) => (m == null ? padrao : Math.max(0, Math.round(Number(m) * SEG_POR_MIN)));
+
 async function carregarPublicacao() {
   try {
     const r = await fetch("/api/publicacao-controle", { cache: "no-store" });
     const p = await r.json();
     const cfg = p.config || {};
     const st = p.status || {};
-    if ($("#pubIntervalo")) $("#pubIntervalo").value = cfg.intervalo_entre_posts_segundos ?? 300;
+    if ($("#pubIntervalo")) $("#pubIntervalo").value = segParaMin(cfg.intervalo_entre_posts_segundos, 5);
     if ($("#pubPostsAntesPausa")) $("#pubPostsAntesPausa").value = cfg.posts_antes_pausa ?? 5;
-    if ($("#pubTempoPausa")) $("#pubTempoPausa").value = cfg.tempo_pausa_segundos ?? 1800;
+    if ($("#pubTempoPausa")) $("#pubTempoPausa").value = segParaMin(cfg.tempo_pausa_segundos, 30);
     if ($("#pubMaxPosts")) $("#pubMaxPosts").value = cfg.max_posts_periodo ?? 20;
     if ($("#pubPeriodoHoras")) $("#pubPeriodoHoras").value = cfg.periodo_horas ?? 24;
 
@@ -3610,6 +3657,15 @@ async function carregarPublicacao() {
       } else {
         txt += ` <span class="selo selo-ok"><span class="ponto"></span>Pronto para postar</span>`;
       }
+      /* motivo_espera/restante_segundos já vinham na API e não eram lidos em
+         lugar nenhum. Agora que a tela é em minutos, mostrar "faltam N min"
+         é o que fecha a conta com os campos de cima. */
+      const motivo = st.motivo_espera || "";
+      const restante = Number(st.restante_segundos || 0);
+      if (motivo && motivo !== "pronto" && restante > 0) {
+        const min = Math.ceil(restante / SEG_POR_MIN);
+        txt += ` <span class="selo selo-espera"><span class="ponto"></span>${esc(motivo)} — faltam ~${min} min</span>`;
+      }
       elSt.innerHTML = txt;
     }
   } catch (e) {
@@ -3619,9 +3675,9 @@ async function carregarPublicacao() {
 
 async function salvarPublicacao() {
   const body = {
-    intervalo_entre_posts_segundos: parseInt($("#pubIntervalo")?.value || 300, 10),
+    intervalo_entre_posts_segundos: minParaSeg($("#pubIntervalo")?.value, 300),
     posts_antes_pausa: parseInt($("#pubPostsAntesPausa")?.value || 5, 10),
-    tempo_pausa_segundos: parseInt($("#pubTempoPausa")?.value || 1800, 10),
+    tempo_pausa_segundos: minParaSeg($("#pubTempoPausa")?.value, 1800),
     max_posts_periodo: parseInt($("#pubMaxPosts")?.value || 20, 10),
     periodo_horas: parseInt($("#pubPeriodoHoras")?.value || 24, 10),
   };
@@ -3675,23 +3731,30 @@ async function carregarFontesTelegram() {
         corpo.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--texto-3);">Nenhuma fonte cadastrada ainda. Adicione acima.</td></tr>`;
       } else {
         corpo.innerHTML = fontes.map(f => {
-          const statusSelo = f.ativo
+          /* Estes são os nomes reais das colunas: chat_id / ativa /
+             ultimo_processamento. A tela usava username / ativo /
+             ultima_captura, que não existem — daí o "undefined" nos botões
+             e o "ID da fonte é obrigatório" ao excluir. */
+          const chatId = f.chat_id ?? f.username ?? "";
+          const ativo = f.ativa === 1 || f.ativa === true;
+          const statusSelo = ativo
             ? `<span class="selo selo-ok"><span class="ponto"></span>Ativo</span>`
             : `<span class="selo selo-neutro"><span class="ponto"></span>Inativo</span>`;
+          const ultima = f.ultimo_processamento || f.ultima_captura || "—";
           return `
             <tr>
-              <td><b>${esc(f.nome || f.username)}</b></td>
-              <td><code>${esc(f.username)}</code></td>
+              <td><b>${esc(f.nome || chatId)}</b></td>
+              <td><code>${esc(chatId)}</code></td>
               <td>${statusSelo}</td>
-              <td class="quando">${esc(f.ultima_captura || "—")}</td>
+              <td class="quando">${esc(ultima === "—" ? ultima : ultima.replace("T", " "))}</td>
               <td style="text-align:right;">
-                <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteItem('${esc(f.username)}', this)" title="Testar acesso">
+                <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteItem('${esc(chatId)}', this)" title="Testar acesso">
                   ${icone("refresh")} Testar
                 </button>
-                <button type="button" class="btn btn-neutro btn-sm" onclick="alternarStatusFonteTelegram('${esc(f.username)}', ${!f.ativo})">
-                  ${f.ativo ? "Desativar" : "Ativar"}
+                <button type="button" class="btn btn-neutro btn-sm" onclick="alternarStatusFonteTelegram('${esc(chatId)}', ${!ativo})">
+                  ${ativo ? "Desativar" : "Ativar"}
                 </button>
-                <button type="button" class="btn btn-perigo btn-sm" onclick="removerFonteTelegram('${esc(f.username)}')">
+                <button type="button" class="btn btn-perigo btn-sm" onclick="removerFonteTelegram('${esc(chatId)}')">
                   ${icone("trash")}
                 </button>
               </td>
@@ -3775,12 +3838,12 @@ async function testarConexaoFonte(username) {
   }
 }
 
-async function alternarStatusFonteTelegram(username, novoAtivo) {
+async function alternarStatusFonteTelegram(chatId, novoAtivo) {
   try {
     const r = await fetch("/api/fontes-telegram/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, ativo: novoAtivo }),
+      body: JSON.stringify({ chat_id: chatId, ativo: novoAtivo }),
     });
     const d = await r.json();
     if (d.ok) {
@@ -3794,17 +3857,17 @@ async function alternarStatusFonteTelegram(username, novoAtivo) {
   }
 }
 
-async function removerFonteTelegram(username) {
-  if (!confirm(`Deseja realmente remover a fonte ${username}?`)) return;
+async function removerFonteTelegram(chatId) {
+  if (!confirm(`Deseja realmente remover a fonte ${chatId}?`)) return;
   try {
     const r = await fetch("/api/fontes-telegram/remover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ chat_id: chatId }),
     });
     const d = await r.json();
     if (d.ok) {
-      toast(`Fonte ${username} removida.`, "ok");
+      toast(`Fonte ${chatId} removida.`, "ok");
       await carregarFontesTelegram();
     } else {
       toast(d.erro || "Erro ao remover fonte.", "erro");

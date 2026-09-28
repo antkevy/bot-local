@@ -8,32 +8,99 @@ Garante o controle unificado de:
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
+import os
 import threading
 from typing import Tuple
 
-from .config import config
+# Lê a configuração por atributo, e não por `from .config import config`.
+# O salvar_yaml_secao() recria o objeto global de config, então quem segura a
+# referência antiga passa a usar valores defasados: no painel, salvar o intervalo
+# na tela não mudava o intervalo usado de fato no cálculo da cadência.
+from . import config as _config_mod
+from .config import DATA_DIR
 
 log = logging.getLogger("ofertas.publishing")
+
+# O bot roda em outro processo (o painel o inicia com subprocess.Popen), então
+# o controlador do painel e o do bot são objetos diferentes. Com o estado só na
+# memória, o card "Status da Cadência" do painel mostrava sempre zero e o
+# "Zerar contadores" não afetava o bot. O arquivo abaixo é o estado comum.
+ARQ_ESTADO = DATA_DIR / "cadencia.json"
 
 
 class PublishingController:
     """Gerencia intervalos entre posts, pausas automáticas entre blocos e limites de envio."""
 
-    def __init__(self):
+    def __init__(self, persistir: bool = False):
+        # Só o singleton persiste. As instâncias criadas direto (usadas nos
+        # testes) ficam em memória, senão um ctrl.reset() de teste apagaria o
+        # estado real do bot em disco.
+        self._persistir = persistir
         self._lock = threading.Lock()
         self.ultimo_post_ts: float = 0.0
         self.posts_bloco_atual: int = 0
         self.inicio_pausa_ts: float = 0.0
         self.posts_periodo: list[float] = []
 
-    def pode_publicar(self, agora_ts: float | None = None) -> Tuple[bool, str, float]:
+    def _carregar(self) -> None:
+        if not self._persistir:
+            return
+        try:
+            with open(ARQ_ESTADO, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            return
+        try:
+            self.ultimo_post_ts = float(d.get("ultimo_post_ts", 0.0) or 0.0)
+            self.posts_bloco_atual = int(d.get("posts_bloco_atual", 0) or 0)
+            self.inicio_pausa_ts = float(d.get("inicio_pausa_ts", 0.0) or 0.0)
+            self.posts_periodo = [float(t) for t in (d.get("posts_periodo") or [])]
+        except (TypeError, ValueError):
+            # Arquivo de outra versão/corrompido: melhor começar limpo do que
+            # deixar a publicação travada por um valor ilegível.
+            self.ultimo_post_ts = 0.0
+            self.posts_bloco_atual = 0
+            self.inicio_pausa_ts = 0.0
+            self.posts_periodo = []
+
+    def _salvar(self) -> None:
+        if not self._persistir:
+            return
+        dados = {
+            "ultimo_post_ts": self.ultimo_post_ts,
+            "posts_bloco_atual": self.posts_bloco_atual,
+            "inicio_pausa_ts": self.inicio_pausa_ts,
+            "posts_periodo": self.posts_periodo,
+        }
+        tmp = ARQ_ESTADO.with_suffix(".json.tmp")
+        try:
+            # Grava em temporário e troca: o outro processo nunca lê um
+            # arquivo pela metade.
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(dados, f)
+            os.replace(tmp, ARQ_ESTADO)
+        except OSError as e:
+            log.debug("Não consegui salvar a cadência: %s", e)
+            tmp.unlink(missing_ok=True)
+
+    def pode_publicar(self, agora_ts: float | None = None,
+                      somente_leitura: bool = False) -> Tuple[bool, str, float]:
         """Verifica se uma nova publicação pode ser feita no momento.
-        
+
         Retorna (pode_postar: bool, motivo_espera: str, segundos_restantes: float).
+
+        `somente_leitura=True` responde a mesma pergunta sem gravar nada. O
+        painel usa esse modo no card de status: agora que o estado é
+        compartilhado em arquivo, um GET que só consultasse a cadência também
+        poderia iniciar a pausa de bloco no estado do bot — ou seja, um GET
+        mudando o estado de quem posta.
         """
         agora = agora_ts or dt.datetime.now().timestamp()
+        config = _config_mod.config
         with self._lock:
+            self._carregar()
             # 1. Limpa timestamps do período fora da janela (ex: 24h)
             janela_segundos = max(1, config.periodo_horas) * 3600
             self.posts_periodo = [t for t in self.posts_periodo if agora - t < janela_segundos]
@@ -52,12 +119,16 @@ class PublishingController:
                     return False, f"pausa_de_bloco_ativa ({int(restante // 60)} min restantes)", restante
                 else:
                     # Pausa concluída com sucesso
-                    self.inicio_pausa_ts = 0.0
-                    self.posts_bloco_atual = 0
+                    if not somente_leitura:
+                        self.inicio_pausa_ts = 0.0
+                        self.posts_bloco_atual = 0
+                        self._salvar()
 
             # 4. Verifica se atingiu a quantidade de posts antes da pausa
             if config.posts_antes_pausa > 0 and self.posts_bloco_atual >= config.posts_antes_pausa:
-                self.inicio_pausa_ts = agora
+                if not somente_leitura:
+                    self.inicio_pausa_ts = agora
+                    self._salvar()
                 return False, f"iniciando_pausa_de_bloco (apos {config.posts_antes_pausa} posts)", float(config.tempo_pausa_segundos)
 
             # 5. Verifica Intervalo Mínimo entre Posts Consecutivos
@@ -67,15 +138,20 @@ class PublishingController:
                     restante = config.intervalo_entre_posts_segundos - decorrido_post
                     return False, f"aguardando_intervalo_minimo ({int(restante)}s restantes)", restante
 
+            if not somente_leitura:
+                self._salvar()
             return True, "pronto", 0.0
 
     def registrar_publicacao(self, agora_ts: float | None = None) -> None:
         """Registra que um post acabou de ser enviado com sucesso."""
         agora = agora_ts or dt.datetime.now().timestamp()
+        config = _config_mod.config
         with self._lock:
+            self._carregar()
             self.ultimo_post_ts = agora
             self.posts_bloco_atual += 1
             self.posts_periodo.append(agora)
+            self._salvar()
             log.info(
                 "[PUBLISH-CTRL] Post registrado. Bloco: %d/%d, Período: %d/%d",
                 self.posts_bloco_atual,
@@ -87,7 +163,9 @@ class PublishingController:
     def obter_status(self, agora_ts: float | None = None) -> dict:
         """Retorna o estado atual da cadência de publicação."""
         agora = agora_ts or dt.datetime.now().timestamp()
+        config = _config_mod.config
         with self._lock:
+            self._carregar()
             janela = max(1, config.periodo_horas) * 3600
             posts_recentes = [t for t in self.posts_periodo if agora - t < janela]
             em_pausa = False
@@ -117,7 +195,10 @@ class PublishingController:
             self.posts_bloco_atual = 0
             self.inicio_pausa_ts = 0.0
             self.posts_periodo.clear()
+            self._salvar()
 
 
-publishing_controller = PublishingController()
+# Singleton: é o que o pipeline (bot) e o painel usam. Persiste em disco para
+# que os dois processos enxerguem a mesma cadência.
+publishing_controller = PublishingController(persistir=True)
 

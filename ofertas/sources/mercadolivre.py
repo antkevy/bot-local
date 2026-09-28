@@ -7,6 +7,7 @@ data/ml_profile). Faça login uma única vez com:
 
     uv run python -m ofertas ml-login
 """
+import json
 import logging
 import os
 import re
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from bs4 import BeautifulSoup
 
@@ -51,7 +53,16 @@ def tem_sessao_linkbuilder() -> bool:
         shutil.copyfile(cookie_file, tmp_path)
         conn = sqlite3.connect(tmp_path)
         cur = conn.cursor()
-        cur.execute("SELECT name FROM cookies WHERE name IN ('org_user_id', 'ssid', 'c_user', 'user_id', '_mldataToken', 'cp')")
+        # Nomes que a lista observada no perfil realmente usa. Antes só olhava
+        # org_user_id/user_id/_mldataToken, que o ML não emite mais, então uma
+        # sessão válida era reportada como ausente e o painel mandava refazer
+        # o login. orguserid e _mldataSessionId são os cookies de identidade.
+        cur.execute(
+            "SELECT name FROM cookies WHERE name IN ("
+            "'org_user_id', 'ssid', 'c_user', 'user_id', '_mldataToken', 'cp', "
+            "'orguserid', 'orguseridp', '_mldataSessionId', 'c_ontg', 'p_dsid', "
+            "'p_edsid') AND host_key LIKE '%mercadolivre%'"
+        )
         rows = cur.fetchall()
         conn.close()
         try:
@@ -183,6 +194,51 @@ def _limpar_locks_perfil():
                 pass
     except Exception:
         pass
+    _anular_prompt_de_recuperacao()
+
+
+def _anular_prompt_de_recuperacao():
+    """Impede que o Chromium abra a janela de login do Google por cima do app.
+
+    O build do Playwright é um "Chrome for Testing", assinado pelo Google.
+    Quando o processo do navegador é encerrado à força (e o painel faz isso ao
+    cancelar uma ação, ou quando o usuário fecha o terminal), o perfil fica
+    gravado como encerramento Abortado. Na abertura seguinte o Chrome reage a
+    esse estado com a janela "Fazer login nas Contas do Google" — que abre por
+    cima da aba do Link Builder e faz o usuário achar que o login do ML quebrou.
+
+    Marcamos o perfil como encerrado normalmente e desligamos os prompts de
+    primeiro uso. Só escrevemos se o arquivo já existir, para não criar um
+    Preferences vazio que o Chromium rejeitaria.
+    """
+    prefs = PERFIL_DIR / "Default" / "Preferences"
+    if not prefs.exists():
+        return
+    try:
+        with open(prefs, encoding="utf-8") as f:
+            dados = json.load(f)
+        if not isinstance(dados, dict):
+            return
+        # num perfil recem-criado a chave "profile" ainda não existe, e
+        # dados["profile"] direto levantava KeyError aqui
+        perfil = dados.setdefault("profile", {})
+        perfil["exit_type"] = "Normal"
+        perfil["exited_cleanly"] = True
+        for chave in ("session.restore_apps", "session.restore_on_startup",
+                      "session.startup_urls", "browser.has_seen_welcome_page",
+                      "signin.allowed", "browser.signin_with_device_challenge",
+                      "profile.last_signin_time", "signin.last_signin_time"):
+            # remove só prompts/estado de login, nunca configuração do usuário
+            if chave in dados:
+                dados.pop(chave, None)
+        if isinstance(dados.get("signin"), dict):
+            dados["signin"] = {"allowed": False}
+        with open(prefs, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False)
+    except (OSError, ValueError, TypeError) as e:
+        # Este ajuste é uma conveniência: se der erro, o login ainda funciona,
+        # só pode voltar a aparecer o aviso do Google.
+        log.debug("Não consegui neutralizar o prompt de recuperação: %s", e)
 
 
 def _abrir_contexto(pw, headless: bool):
@@ -196,6 +252,13 @@ def _abrir_contexto(pw, headless: bool):
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-infobars",
+            # Não passamos --disable-features aqui de propósito: o Playwright
+            # já envia a dele e, no Chrome, o último --disable-features vence.
+            # Sobrescrever a lista do Playwright removeria as proteções
+            # anti-detecção e o ML passaria a tratar o bot como robô.
+            # O prompt de login do Google é neutralizado em
+            # _anular_prompt_de_recuperacao(), no próprio perfil.
+            "--disable-sync",
         ],
         ignore_default_args=["--enable-automation"],
     )
@@ -203,6 +266,9 @@ def _abrir_contexto(pw, headless: bool):
         kwargs["user_agent"] = USER_AGENT
     else:
         kwargs["no_viewport"] = True
+        # Sem isto a janela nasce pequena e atrás das outras, e o usuário
+        # conclui que o navegador "não abriu".
+        kwargs["args"] = kwargs["args"] + ["--start-maximized"]
 
     try:
         # Usa o Chromium isolado do projeto para nunca conflitar com instâncias abertas do usuário
@@ -273,6 +339,20 @@ def _achar_chrome() -> str:
     raise RuntimeError("Nenhum navegador baseado em Chromium (Chrome, Brave ou Edge) encontrado.")
 
 
+def _pagina_util(ctx):
+    """Devolve uma aba real do app, ignorando as páginas internas do Chromium.
+
+    `ctx.pages[0]` não é garantidamente a aba que queremos: quando o navegador
+    resolve abrir um aviso de primeira execução, a primeira aba é a dele e o
+    `goto` pode ser interceptado. Preferimos uma aba em branco e, só se não
+    houver nenhuma, reaproveitamos a que não for interna.
+    """
+    for p in list(ctx.pages):
+        if p.url.startswith(("about:blank", "data:", "chrome://", "edge://")):
+            return p
+    return ctx.new_page()
+
+
 def ml_login() -> None:
     """Abre um navegador visível para o usuário fazer login no Mercado Livre."""
     from playwright.sync_api import sync_playwright
@@ -284,20 +364,49 @@ def ml_login() -> None:
 
     with sync_playwright() as pw:
         ctx = _abrir_contexto(pw, headless=False)
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        page = _pagina_util(ctx)
+        carregou = False
+        for tentativa in (1, 2):
+            try:
+                page.goto(URL_LINKBUILDER, wait_until="domcontentloaded", timeout=45000)
+                carregou = True
+                break
+            except Exception as e:
+                log.warning("Tentativa %d ao abrir o Link Builder falhou: %s", tentativa, e)
+                if tentativa < 2:
+                    time.sleep(2)
+        if carregou:
+            print(f"    ✅ Link Builder carregado: {page.url}\n", flush=True)
+        else:
+            # Antes isto era só um log.warning e a pessoa ficava olhando
+            # para uma página em branco, sem nenhuma pista do que houve.
+            print("    ⚠️  Não consegui carregar o Link Builder. Se a janela "
+                  "estiver em branco, feche-a e clique em 'Fazer login' de novo.\n",
+                  flush=True)
         try:
-            page.goto(URL_LINKBUILDER)
-        except Exception as e:
-            log.warning("Aviso ao abrir Link Builder: %s", e)
+            # Traz a aba do ML para a frente de qualquer janela auxiliar que o
+            # navegador tenha aberto por cima dela.
+            page.bring_to_front()
+        except Exception:
+            pass
 
-        # Mantém aberto enquanto a janela estiver ativa
+        # Mantém aberto enquanto a janela estiver ativa. O wait_for_timeout é o
+        # que bombeia os eventos do navegador, então é ele que percebe quando
+        # a pessoa fecha a janela.
+        limite = time.monotonic() + 30 * 60
         try:
             while len(ctx.pages) > 0 and not page.is_closed():
+                if time.monotonic() > limite:
+                    print("    ⏱️  30 min sem interação: encerrando a janela.", flush=True)
+                    break
                 page.wait_for_timeout(1000)
         except Exception:
             pass
         finally:
             try:
+                # Encerrar o Chromium em ordem é o que grava os cookies em
+                # disco. Se o processo for morto antes, o login se perde e
+                # tem_sessao_linkbuilder() volta a dizer que não há sessão.
                 ctx.close()
             except Exception:
                 pass

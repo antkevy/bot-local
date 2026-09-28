@@ -206,7 +206,7 @@ def test_6_produto_com_cupom():
         assert otimizada.titulo == "Fone Bluetooth TWS"
 
         caption = montar_caption(otimizada)
-        assert "🎟 Cupom: <code>OFERTA20</code>" in caption
+        assert "🏷️ Cupom: <code>OFERTA20</code>" in caption
         print("✅ TESTE 6 (Produto + Cupom extraído e formatado): OK")
 
 
@@ -428,8 +428,8 @@ def test_14_dados_criticos_protegidos():
         assert "Air Fryer Fritadeira Sem Óleo 4L" in caption
         assert "R$ 249,90" in caption
         assert "R$ 399,90" in caption
-        assert "-37%" in caption
-        assert "🎟 Cupom: <code>FRY10</code>" in caption
+        assert "37% OFF" in caption
+        assert "🏷️ Cupom: <code>FRY10</code>" in caption
         assert "💛 Mercado Livre" in caption
         print("✅ TESTE 14 (Dados críticos de preço/link/ID 100% protegidos): OK")
 

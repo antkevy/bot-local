@@ -53,6 +53,13 @@ def setup_function():
     config.ml_etiqueta = "fastpromo"
     ml_auth._notificacao_enviada = False
     ml_auth._ultimo_aviso_ts = 0.0
+    # O singleton da cadência persiste em data/cadencia.json, o mesmo arquivo
+    # que o bot de verdade usa. Sem apontar para um temporário, este teste lia a
+    # cadência real do usuário (e publicava em cima dela), o que fazia o
+    # teste 12 falhar e ainda deixava o arquivo do usuário sujo.
+    import ofertas.publishing_control as _pc
+    _pc.ARQ_ESTADO = TEST_DB_PATH.with_name("test_cadencia_ml.json")
+    _pc.publishing_controller.reset()
 
 
 def test_1_linkbuilder_funcionando():
