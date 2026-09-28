@@ -41,6 +41,12 @@ TEST_DB_PATH = Path(tempfile.gettempdir()) / "test_ofertas_ml.db"
 db.DB_PATH = TEST_DB_PATH
 db.init_db()
 
+# Mesmo cuidado com o cache do Grok: otimizar oferta chama o serviço, que grava
+# em data/grok_cache.json. Sem desvio, esta suíte sobrescreve o cache real.
+import ofertas.grok as _grok_mod  # noqa: E402
+
+_grok_mod.CACHE_FILE = Path(tempfile.gettempdir()) / "test_grok_cache_ml.json"
+
 
 def setup_function():
     with db._conn() as c:

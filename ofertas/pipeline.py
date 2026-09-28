@@ -60,7 +60,14 @@ def coletar() -> list[Oferta]:
 
 
 def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
-    """Aplica o sistema central de filtros de qualidade (estrelas, vendas, descontos, palavras bloqueadas)."""
+    """Aplica o sistema central de filtros de qualidade (estrelas, vendas, descontos, palavras bloqueadas).
+
+    Cada oferta aprovada sai daqui **reservada** para este processo. Não é
+    cosmético: entre esta função e o `db.registrar()` no fim da publicação há
+    a geração de link de afiliado no navegador e a normalização com a IA, o
+    que dá tempo de outro processo passar pelo mesmo `ja_postada` e postar a
+    mesma oferta. Quem não conseguir a reserva simplesmente não recebe a oferta.
+    """
     aprovadas = []
     for o in ofertas:
         if not o.titulo:
@@ -69,10 +76,13 @@ def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
             log.info("[FILTER] Oferta '%s' ignorada: já postada nos últimos %d dias.", o.titulo[:40], config.nao_repetir_dias)
             continue
         ok, motivo = passes_product_filters(o)
-        if ok:
-            aprovadas.append(o)
-        else:
+        if not ok:
             log.info("[FILTER] Oferta '%s' rejeitada: %s", o.titulo[:40], motivo)
+            continue
+        if not db.reservar(o.uid):
+            log.info("[FILTER] Oferta '%s' ignorada: outro processo já está publicando ela.", o.titulo[:40])
+            continue
+        aprovadas.append(o)
     return aprovadas
 
 
@@ -123,6 +133,14 @@ async def executar_ciclo(bot: Bot) -> int:
     boas = filtrar(brutas)
     escolhidas = escolher(boas, config.max_posts_por_ciclo)
 
+    # `filtrar` reservou todas as aprovadas, mas só max_posts_por_ciclo serão
+    # tentadas agora. As que ficaram de fora precisam voltar ao limbo, senão
+    # ficariam bloqueadas até o TTL sem nunca terem sido publicadas.
+    a_liberar = {o.uid for o in escolhidas}
+    for o in boas:
+        if o.uid not in a_liberar:
+            db.liberar_reserva(o.uid)
+
     # Mercado Livre: gerar link de afiliado só das escolhidas (linkbuilder é caro)
     ml_pendentes = [o for o in escolhidas if o.plataforma == "mercadolivre" and not o.url_afiliado]
     if ml_pendentes:
@@ -161,9 +179,19 @@ async def executar_ciclo(bot: Bot) -> int:
             log.error("Falha ao postar '%s': %s", o.titulo[:60], e)
             continue
         db.registrar(o)
+        a_liberar.discard(o.uid)      # registrada: a reserva sumiu com ela
         postadas += 1
         if o is not escolhidas[-1]:
             await asyncio.sleep(config.espacamento_segundos)
+
+    # O que sobrou em a_liberar não foi publicado: seja porque faltou link de
+    # afiliado, o Grok classificou como irrelevante, a pausa interrompeu o ciclo
+    # (o `break` deixa as próximas intocadas) ou o envio falhou. Todas voltam
+    # ao limbo para poderem ser tentadas de novo.
+    for uid in a_liberar:
+        db.liberar_reserva(uid)
+    if a_liberar:
+        log.info("[FILTER] %d oferta(s) voltaram ao limbo sem serem publicadas.", len(a_liberar))
 
     log.info("Ciclo: %d coletadas, %d aprovadas, %d postadas", len(brutas), len(boas), postadas)
     return postadas
@@ -295,11 +323,32 @@ async def processar_mensagem_telegram(
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status=f"filtrada: {motivo_filtro}")
         return {"ok": False, "motivo": f"filtrada: {motivo_filtro}"}
 
+    # 7.1 Deduplicação por produto, e não por mensagem.
+    # A deduplicação acima (mensagens_telegram) é por (canal, message_id): o
+    # mesmo produto anunciado em duas mensagens diferentes, ou anunciado num
+    # canal e ainda encontrado na listagem de ofertas, passava duas vezes e era
+    # postado duas vezes. Aqui conferimos contra `postadas` e reservamos o
+    # produto, igual ao ciclo automático.
+    if db.ja_postada(oferta.uid, config.nao_repetir_dias):
+        log.info("[FILTROS] Oferta '%s' ignorada: produto já postado nos últimos %d dias.",
+                 oferta.titulo[:50], config.nao_repetir_dias)
+        if source_id and message_id:
+            db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="produto_ja_postado")
+        return {"ok": False, "motivo": "produto_ja_postado"}
+
+    if not db.reservar(oferta.uid):
+        log.info("[FILTROS] Oferta '%s' ignorada: outro processo já está publicando este produto.",
+                 oferta.titulo[:50])
+        if source_id and message_id:
+            db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="produto_em_publicacao")
+        return {"ok": False, "motivo": "produto_em_publicacao"}
+
     # 8. Controle de Velocidade e Pausas Globais
     if not dry_run:
         pode_postar, motivo_ctrl, espera_s = publishing_controller.pode_publicar()
         if not pode_postar:
             log.info("[PUBLISH-CTRL] Publicação retida pelo controle de velocidade: %s", motivo_ctrl)
+            db.liberar_reserva(oferta.uid)
             if source_id and message_id:
                 db.registrar_msg_telegram(source_id, message_id, oferta.uid, status=f"retida: {motivo_ctrl}")
             return {"ok": False, "motivo": f"controle_velocidade: {motivo_ctrl}", "espera_segundos": espera_s}
@@ -307,6 +356,9 @@ async def processar_mensagem_telegram(
     # 9. Publicação (respeitando dry_run e canal de destino)
     if dry_run or not config.chat_id or not bot:
         log.info("[PUBLISH] [DRY-RUN] Oferta aprovada para publicação (chat=%s): %s", config.chat_id, oferta.titulo[:50])
+        # Nada vai ser publicado, então a reserva não pode ficar segurada: um
+        # dry-run bloquearia este produto por até uma hora.
+        db.liberar_reserva(oferta.uid)
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="dry_run")
         return {"ok": True, "dry_run": True, "oferta": oferta}
@@ -315,12 +367,13 @@ async def processar_mensagem_telegram(
         log.info("[PUBLISH] Publicando oferta no canal %s: %s", config.chat_id, oferta.titulo[:50])
         await postar_oferta(bot, oferta, config.chat_id)
         publishing_controller.registrar_publicacao()
-        db.registrar(oferta)
+        db.registrar(oferta)          # a reserva é consumida aqui
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="publicada")
         return {"ok": True, "oferta": oferta}
     except Exception as e:
         log.error("[PUBLISH] Falha ao publicar oferta: %s", e)
+        db.liberar_reserva(oferta.uid)
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status=f"erro: {e}")
         return {"ok": False, "motivo": f"erro_envio: {e}"}

@@ -345,12 +345,12 @@ class MercadoLivreAuthService:
         log.info("[ML-AUTH] 🔄 Reprocessando %d oferta(s) pendente(s) do Mercado Livre...", len(pendentes_db))
         total_publicadas = 0
 
-        from ..formatter import montar_caption
         from ..pipeline import filtrar, postar_oferta
 
         for row in pendentes_db:
             uid = row["uid"]
-            # Deduplicação: se já foi postada nesse intervalo, apenas limpa a pendência
+            # Deduplicação: se já foi postada nesse intervalo, a pendência
+            # cumpriu o papel dela e pode sair.
             if db.ja_postada(uid, config.nao_repetir_dias):
                 db.remover_oferta_pendente_ml(uid)
                 continue
@@ -370,27 +370,75 @@ class MercadoLivreAuthService:
                 extra=row["raw_data"],
             )
 
+            # O preço foi lido quando a oferta foi coletada, e pode ter sido
+            # horas ou dias atrás — foi justamente o tempo de esperar o login
+            # do ML. Relemos a página agora, senão a postagem vai ao ar com um
+            # preço que já não existe.
+            self._atualizar_preco(oferta)
+
             # Tenta gerar o link de afiliado
             self.gerar_links_afiliado([oferta], bot=bot)
 
-            if oferta.url_afiliado:
-                # Passa pelos filtros existentes
-                aprovadas = filtrar([oferta])
-                if aprovadas and config.chat_id and bot:
-                    try:
-                        import asyncio
-                        if asyncio.iscoroutinefunction(postar_oferta):
-                            asyncio.run(postar_oferta(bot, oferta, config.chat_id))
-                        else:
-                            postar_oferta(bot, oferta, config.chat_id)
-                        db.registrar(oferta)
-                        total_publicadas += 1
-                        log.info("[ML-AUTH] ✅ Oferta pendente '%s' publicada com sucesso!", oferta.titulo[:40])
-                    except Exception as e:
-                        log.error("[ML-AUTH] Falha ao postar oferta pendente: %s", e)
+            if not oferta.url_afiliado:
+                # Sem link não há postagem (regra do projeto) e a oferta
+                # continua na fila para a próxima tentativa.
+                db.marcar_tentativa_pendente_ml(uid, "sem link de afiliado")
+                continue
+
+            if not (config.chat_id and bot):
+                db.marcar_tentativa_pendente_ml(uid, "sem canal de destino ou sem bot")
+                continue
+
+            # Passa pelos filtros existentes (reserva a oferta para este
+            # processo; se outro estiver publicando, `aprovadas` vem vazio).
+            aprovadas = filtrar([oferta])
+            if not aprovadas:
+                db.marcar_tentativa_pendente_ml(uid, "rejeitada pelos filtros")
+                continue
+
+            try:
+                import asyncio
+                if asyncio.iscoroutinefunction(postar_oferta):
+                    asyncio.run(postar_oferta(bot, oferta, config.chat_id))
+                else:
+                    postar_oferta(bot, oferta, config.chat_id)
+                db.registrar(oferta)
                 db.remover_oferta_pendente_ml(uid)
+                total_publicadas += 1
+                log.info("[ML-AUTH] ✅ Oferta pendente publicada: %s", oferta.titulo[:50])
+            except Exception as e:
+                # A reserva foi pega por filtrar() e nada foi publicado: devolve
+                # ao limbo e mantém a pendência para nova tentativa.
+                db.liberar_reserva(uid)
+                db.marcar_tentativa_pendente_ml(uid, f"falha ao postar: {e}")
+                log.error("[ML-AUTH] Falha ao postar oferta pendente '%s': %s", oferta.uid, e)
 
         return total_publicadas
+
+    @staticmethod
+    def _atualizar_preco(oferta: Oferta) -> None:
+        """Relê o preço na página e corrige a oferta se ele tiver mudado.
+
+        Se a releitura não trouxer preço nenhum, o ML pode ter bloqueado a
+        leitura em vez de o produto ter sumido. Nesse caso mantemos o preço
+        guardado: descartar a oferta por uma leitura que falhou seria perder
+        uma venda que ainda existe.
+        """
+        if not oferta.url_produto:
+            return
+        from . import mercadolivre
+        atual, anterior = mercadolivre.reler_preco(oferta.url_produto)
+        if atual is None:
+            log.warning("[ML-AUTH] Não consegui reler o preço de '%s'; mantendo o preço guardado.",
+                        oferta.titulo[:50])
+            return
+        if oferta.preco is not None and abs(atual - oferta.preco) > 0.01:
+            log.info("[ML-AUTH] Preço mudou desde a coleta: %s -> %s (oferta '%s').",
+                     oferta.preco, atual, oferta.titulo[:40])
+        oferta.preco = atual
+        if anterior is not None:
+            oferta.preco_original = anterior
+            oferta.desconto_pct = None      # recalcula a partir dos preços atuais
 
 
 # Instância global singleton do serviço

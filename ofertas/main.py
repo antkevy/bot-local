@@ -12,6 +12,41 @@ def _log():
     logging.getLogger("telethon").setLevel(logging.WARNING)
 
 
+def _assumir_trava(papel: str, derrubar_anterior: bool = True) -> bool:
+    """Garante que só exista um processo publicando por vez.
+
+    Sem isto, o painel, o terminal e um segundo painel podiam subir o bot ao
+    mesmo tempo: cada cópia consultava `db.ja_postada()` antes de qualquer uma
+    registrar o post, e todas publicavam as mesmas ofertas.
+
+    `derrubar_anterior=False` é usado pelo `ciclo`, que é uma publicação
+    pontual: se o bot já está rodando, recusar é melhor do que derrubar um
+    processo que o usuário está vendo na tela do painel.
+    """
+    import os
+
+    from . import instancia
+
+    def _aviso(anterior: dict) -> None:
+        print(f"↪ O '{papel}' anterior (PID {anterior.get('pid')}, iniciado em "
+              f"{anterior.get('iniciado_em', '?')}) foi encerrado.")
+
+    inst = instancia.adquirir(papel, derrubar_anterior=derrubar_anterior,
+                              ao_assumir=_aviso if derrubar_anterior else None)
+    if inst is None:
+        atual = instancia.titular_vivo(papel)
+        if atual:
+            print(f"✋ Já existe um '{papel}' rodando (PID {atual.get('pid')}, "
+                  f"iniciado em {atual.get('iniciado_em', '?')}). "
+                  f"Esta execução foi cancelada para não duplicar postagens.")
+        else:
+            print(f"✋ Não consegui assumir a trava de '{papel}'. "
+                  f"Esta execução foi cancelada.")
+        return False
+    print(f"🔒 Trava de '{papel}' assumida por este processo (PID {os.getpid()}).")
+    return True
+
+
 def cmd_check(_):
     from .config import config, verificar
     pendencias = verificar()
@@ -42,11 +77,17 @@ def cmd_check(_):
 
 
 def cmd_run(_):
+    if not _assumir_trava("bot"):
+        raise SystemExit(1)
     from .bot_interativo import rodar
     rodar()
 
 
 def cmd_ciclo(_):
+    # Publica no mesmo canal do bot: precisa da mesma trava, mas sem derrubar
+    # um bot que já esteja rodando.
+    if not _assumir_trava("bot", derrubar_anterior=False):
+        raise SystemExit(1)
     from telegram import Bot
     from . import pipeline
     from .config import config
@@ -79,6 +120,8 @@ def cmd_converter(args):
 
 
 def cmd_postar(args):
+    if not _assumir_trava("bot", derrubar_anterior=False):
+        raise SystemExit(1)
     from telegram import Bot
     from . import db
     from .config import config
@@ -98,6 +141,12 @@ def cmd_postar(args):
 
 
 def cmd_painel(_):
+    # Dois painéis disputando o mesmo diretório de dados shredariam a tela um
+    # do outro. Derrubar o painel anterior mataria o bot que ele iniciou junto,
+    # então aqui a trava recusa em vez de derrubar: a trava do "bot" é que
+    # resolve a duplicação de postagem.
+    if not _assumir_trava("painel", derrubar_anterior=False):
+        raise SystemExit(1)
     from .painel import painel
     painel()
 

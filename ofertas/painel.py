@@ -414,8 +414,17 @@ def status() -> dict:
                                    ("Amazon", config.fonte_amazon),
                                    ("AliExpress", config.fonte_aliexpress)) if f.get("ativa")]
 
+    # A trava de instância diz se existe algum bot publicando, inclusive um
+    # que este painel não iniciou (terminal, outro painel, execução anterior
+    # que ficou viva). Sem isso o painel só enxergava o próprio filho.
+    from . import instancia
+    trava_bot = instancia.status("bot")
+    bot_externo = bool(trava_bot.get("ocupado")) and not bot.rodando()
+
     return {
         "bot_rodando": bot.rodando(),
+        "bot_externo": bot_externo,
+        "bot_externo_pid": trava_bot.get("pid") if bot_externo else None,
         "acao_rodando": acao.rotulo if acao.rodando() else "",
         "preenchidos": {k: bool(env.get(k)) for k in CHAVES},
         "navegador": tem_navegador,
@@ -1056,8 +1065,17 @@ class Handler(BaseHTTPRequestHandler):
                 }))
                 self._json({"ok": True})
             elif rota == "/api/start":
+                from . import instancia
+                # Bot que este painel não iniciou: se existir, o novo processo
+                # vai encerrá-lo (trava de instância). Avisamos para o clique não
+                # parecer um desligamento do nada.
+                anterior = instancia.titular_vivo("bot")
                 ok = bot.iniciar(["run"], "Bot")
-                self._json({"ok": ok, "rodando": bot.rodando()})
+                self._json({
+                    "ok": ok,
+                    "rodando": bot.rodando(),
+                    "substituiu": (anterior or {}).get("pid") if anterior else None,
+                })
             elif rota == "/api/stop":
                 bot.parar()
                 self._json({"ok": True, "rodando": bot.rodando()})
@@ -1220,6 +1238,24 @@ def painel():
     servidor = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"\n  Painel de controle aberto em {url}")
     print("  (deixe esta janela aberta; feche-a para desligar o painel)\n")
+
+    # O bot é filho deste painel. Sem isto, fechar o painel (ou matá-lo)
+    # deixava o bot vivo e órfão, publicando sem ninguém no comando — foi
+    # assim que se acumularam quatro cópias rodando ao mesmo tempo. atexit
+    # cobre também o caminho de exceção e o Ctrl+C, em que o bloco do fim
+    # nem chega a rodar.
+    import atexit
+
+    def _desligar_bot() -> None:
+        try:
+            if bot.rodando():
+                print("  Painel encerrando: desligando o bot...")
+                bot.parar()
+        except Exception:
+            pass
+
+    atexit.register(_desligar_bot)
+
     try:
         webbrowser.open(url)
     except Exception:
@@ -1234,8 +1270,8 @@ def painel():
             print(f"Erro no servidor: {e}", file=sys.stderr)
             import time
             time.sleep(1)
+    _desligar_bot()
     try:
-        bot.parar()
         servidor.server_close()
     except Exception:
         pass

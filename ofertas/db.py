@@ -1,10 +1,16 @@
 import datetime as dt
+import os
 import sqlite3
 
 from .config import DATA_DIR
 from .models import Oferta
 
-_DB = DATA_DIR / "ofertas.db"
+# Nome público de propósito. As três suítes manuais redirecionam o banco com
+# `db.DB_PATH = <temporário>` believing que assim ficam isoladas; enquanto esta
+# variável se chamava `_DB`, essa troca não fazia nada e elas gravavam — e
+# apagavam — linhas do banco de verdade a cada execução. Um teste novo
+# (tests/test_isolamento_dados.py) falha se o banco real for tocado.
+DB_PATH = DATA_DIR / "ofertas.db"
 
 _COLUNAS = (
     "uid TEXT PRIMARY KEY,"
@@ -50,20 +56,62 @@ _COLUNAS_PENDENTES_ML = (
     " adicionada_em TEXT,"
     " status TEXT"
 )
+# Tentativas e último erro das pendências do ML. Antes, uma oferta que não
+# conseguisse ser publicada era apagada da tabela sem dejar rastro, e a
+# pendência sumia sem nunca ter saído. Com estas colunas dá para ver o que
+# travou e quantas vezes.
+_COLUNAS_PENDENTES_ML_EXTRA = (
+    "tentativas INTEGER DEFAULT 0",
+    "ultimo_erro TEXT",
+    "ultima_tentativa_em TEXT",
+)
+
+# Reserva de uma oferta que já passou pelos filtros e está a caminho da
+# publicação. Sem ela, `ja_postada` e `registrar` ficavam separados por todo o
+# trabalho caro do meio (gerar link no Playwright, normalizar com o Grok,
+# esperar o intervalo de velocidade): durante essa janela outro processo
+# consultava `ja_postada`, via a mesma oferta, e publicava em duplicidade.
+_COLUNAS_RESERVAS = (
+    "uid TEXT PRIMARY KEY,"
+    " reservado_em TEXT,"
+    " pid INTEGER"
+)
+
+# Tempo máximo que uma reserva vale sem o dono se-renovar. Nunca é o
+# mecanismo principal de expiração: um processo que morre libera a reserva na
+# hora (o PID não existe mais) e o TTL cobre só o dono que ficou pendurado.
+TTL_RESERVA_SEGUNDOS = 3600
 
 
 def _conn() -> sqlite3.Connection:
-    c = sqlite3.connect(_DB)
+    c = sqlite3.connect(DB_PATH)
     c.execute("CREATE TABLE IF NOT EXISTS postadas (" + _COLUNAS + ")")
     c.execute("CREATE TABLE IF NOT EXISTS fontes_telegram (" + _COLUNAS_FONTES + ")")
     c.execute("CREATE TABLE IF NOT EXISTS mensagens_telegram (" + _COLUNAS_MSGS + ")")
     c.execute("CREATE TABLE IF NOT EXISTS ofertas_pendentes_ml (" + _COLUNAS_PENDENTES_ML + ")")
+    c.execute("CREATE TABLE IF NOT EXISTS reservas (" + _COLUNAS_RESERVAS + ")")
+    # O painel e o bot agora escrevem no mesmo arquivo ao mesmo tempo (a trava
+    # de instância reduz a concorrência, mas não elimina: o painel grava
+    # fontes/cadência enquanto o bot reserva ofertas). Sem espera, um deles
+    # levaria "database is locked" e a reserva se perderia — justamente o que
+    # abriria brecha para o post duplicado. Não usamos WAL de propósito: ele
+    # criaria arquivos .db-wal/.db-shm novos no banco do usuário.
+    c.execute("PRAGMA busy_timeout=5000")
     # Bancos criados por versões antigas não têm url_afiliado/imagem; adiciona sem perder dados.
     existentes = {r[1] for r in c.execute("PRAGMA table_info(postadas)")}
     for coluna in ("url_afiliado", "imagem"):
         if coluna not in existentes:
             try:
                 c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
+            except sqlite3.OperationalError:
+                pass
+    # Mesma ideia para as pendências do ML.
+    existentes = {r[1] for r in c.execute("PRAGMA table_info(ofertas_pendentes_ml)")}
+    for coluna in _COLUNAS_PENDENTES_ML_EXTRA:
+        nome = coluna.split()[0]
+        if nome not in existentes:
+            try:
+                c.execute(f"ALTER TABLE ofertas_pendentes_ml ADD COLUMN {coluna}")
             except sqlite3.OperationalError:
                 pass
     c.commit()
@@ -98,6 +146,90 @@ def registrar(oferta: Oferta) -> None:
              oferta.url_afiliado, oferta.imagem,
              dt.datetime.now().isoformat(timespec="seconds")),
         )
+        # A reserva virou postagem: some na mesma transação, senão a oferta fica
+        # travada até o TTL.
+        c.execute("DELETE FROM reservas WHERE uid = ?", (oferta.uid,))
+
+
+# ── Reservas (fecha a janela entre checar e registrar) ─────────────────
+
+def _reserva_ativa(linha, agora: dt.datetime, ttl: int) -> bool:
+    """A linha de reserva ainda vale? Considera dono morto e TTL vencido."""
+    if not linha:
+        return False
+    _uid, reservado_em, pid = linha
+    if pid:
+        # Dono que não existe mais: a reserva é liberada na hora, para uma
+        # queda no meio da publicação não travar a oferta por uma hora.
+        from .instancia import processo_vivo
+        if not processo_vivo(pid):
+            return False
+    try:
+        quando = dt.datetime.fromisoformat(reservado_em)
+    except (TypeError, ValueError):
+        return False
+    return (agora - quando) < dt.timedelta(seconds=ttl)
+
+
+def reservar(uid: str, ttl: int = TTL_RESERVA_SEGUNDOS) -> bool:
+    """Toma a oferta para este processo. True se ninguém a tinha reservado.
+
+    Incorpora o PID de quem reservou: se esse processo morrer, a reserva é
+    liberada na próxima consulta, sem esperar o TTL.
+    """
+    agora = dt.datetime.now()
+    with _conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        linha = c.execute("SELECT uid, reservado_em, pid FROM reservas WHERE uid = ?",
+                          (uid,)).fetchone()
+        if _reserva_ativa(linha, agora, ttl):
+            return False
+        c.execute(
+            "INSERT INTO reservas (uid, reservado_em, pid) VALUES (?, ?, ?)"
+            " ON CONFLICT(uid) DO UPDATE SET"
+            " reservado_em = excluded.reservado_em, pid = excluded.pid",
+            (uid, agora.isoformat(timespec="seconds"), os.getpid()),
+        )
+    return True
+
+
+def liberar_reserva(uid: str) -> None:
+    """Devolve a oferta ao limbo (a publicação não aconteceu)."""
+    with _conn() as c:
+        c.execute("DELETE FROM reservas WHERE uid = ?", (uid,))
+
+
+def esta_reservada(uid: str, ttl: int = TTL_RESERVA_SEGUNDOS) -> bool:
+    agora = dt.datetime.now()
+    with _conn() as c:
+        linha = c.execute("SELECT uid, reservado_em, pid FROM reservas WHERE uid = ?",
+                          (uid,)).fetchone()
+        ativa = _reserva_ativa(linha, agora, ttl)
+        if linha and not ativa:
+            c.execute("DELETE FROM reservas WHERE uid = ?", (uid,))
+    return ativa
+
+
+def ja_ou_reservada(uid: str, dentro_de_dias: int,
+                    ttl: int = TTL_RESERVA_SEGUNDOS) -> bool:
+    """A oferta já foi postada, ou está sendo postada agora por alguém?"""
+    return ja_postada(uid, dentro_de_dias) or esta_reservada(uid, ttl)
+
+
+def limpar_reservas_vencidas(ttl: int = TTL_RESERVA_SEGUNDOS) -> int:
+    """Apaga reservas cujo dono morreu ou cujo TTL venceu. Devolve quantas saiu."""
+    agora = dt.datetime.now()
+    with _conn() as c:
+        linhas = c.execute("SELECT uid, reservado_em, pid FROM reservas").fetchall()
+        mortas = [ln[0] for ln in linhas if not _reserva_ativa(ln, agora, ttl)]
+        for uid in mortas:
+            c.execute("DELETE FROM reservas WHERE uid = ?", (uid,))
+    return len(mortas)
+
+
+def total_reservadas() -> int:
+    with _conn() as c:
+        return c.execute("SELECT COUNT(*) FROM reservas").fetchone()[0]
 
 
 def total_postadas() -> int:
@@ -256,6 +388,33 @@ def listar_ofertas_pendentes_ml(status: str | None = None) -> list[dict]:
 def remover_oferta_pendente_ml(uid: str) -> None:
     with _conn() as c:
         c.execute("DELETE FROM ofertas_pendentes_ml WHERE uid = ?", (uid,))
+
+
+def marcar_tentativa_pendente_ml(uid: str, erro: str = "") -> None:
+    """Registra que a publicação da pendência falhou, e a MANTÉM na tabela.
+
+    A oferta só é removida quando foi realmente publicada (ou quando já tinha
+    sido postada por outro caminho). Antes ela era apagada em qualquer
+    desfecho — inclusive quando faltava link de afiliado, quando os filtros
+    recusavam ou quando o envio ao Telegram falhava — e a oportunidade se
+    perdia em silêncio, sem log e sem chance de recovery.
+    """
+    with _conn() as c:
+        c.execute(
+            "UPDATE ofertas_pendentes_ml SET"
+            " tentativas = COALESCE(tentativas, 0) + 1,"
+            " ultimo_erro = ?,"
+            " ultima_tentativa_em = ?"
+            " WHERE uid = ?",
+            (erro[:500], dt.datetime.now().isoformat(timespec="seconds"), uid),
+        )
+
+
+def total_tentativas_pendentes_ml(uid: str) -> int:
+    with _conn() as c:
+        row = c.execute("SELECT tentativas FROM ofertas_pendentes_ml WHERE uid = ?",
+                        (uid,)).fetchone()
+    return int((row[0] if row else 0) or 0)
 
 
 def total_ofertas_pendentes_ml() -> int:

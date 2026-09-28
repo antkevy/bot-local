@@ -126,6 +126,53 @@ def _preco_de(card, seletor_base: str) -> float | None:
     return parse_preco_br(texto)
 
 
+_RE_ARIA_PRECO = re.compile(
+    r"(\d[\d.]*)\s*reais?\s+com\s+(\d{1,2})\s*centavos?", re.IGNORECASE
+)
+
+
+def _preco_do_bloco(el) -> float | None:
+    """Preço de um bloco `.andes-money-amount`, lendo as partes que o ML marca.
+
+    Três caminhos, do mais confiável ao menos:
+
+    1. `aria-label="263 reais com 41 centavos"` — é o nome acessível do bloco
+       de preço vigente, escrito por extenso, sem depender de layout nenhum;
+    2. `__fraction` + `__cents` do próprio elemento;
+    3. o texto do bloco, como último recurso.
+
+    O terceiro caminho é o que não pode vir primeiro. O bloco do ML traz a
+    vírgula dos centavos escondida num `<span class="andes-visually-hidden">`,
+    então o texto lido é "R$ 419 , 90": o `parse_preco_br` descarta a vírgula e
+    devolve 41990 — um preço de R$ 419,90 publicado como R$ 41.990,00. Foi
+    exatamente o que aconteceu com os quatro produtos capturados em
+    tests/fixtures/ml_precos_reais.json, todos lidos 100x acima do valor.
+
+    Nos dois layouts do ML (card e página de produto) a divisão entre reais e
+    centavos é o oposta do que os nomes sugerem: `__fraction` guarda a parte
+    em reais e `__cents` os centavos.
+    """
+    if el is None:
+        return None
+
+    m = _RE_ARIA_PRECO.search(el.get("aria-label") or "")
+    if m:
+        try:
+            return float(m.group(1).replace(".", "")) + int(m.group(2)) / 100
+        except ValueError:
+            pass
+
+    fracao = el.select_one(".andes-money-amount__fraction")
+    if fracao:
+        centavos = el.select_one(".andes-money-amount__cents")
+        texto = fracao.get_text(strip=True)
+        if centavos:
+            texto += "," + centavos.get_text(strip=True)
+        return parse_preco_br(texto)
+
+    return parse_preco_br(el.get_text(" ", strip=True))
+
+
 def _parse_card(card) -> Oferta | None:
     a = card.select_one("a.poly-component__title")
     if not (a and a.get("href")):
@@ -480,6 +527,49 @@ def gerar_links_afiliado(ofertas: list[Oferta], bot: Any = None) -> None:
     ml_auth_service.gerar_links_afiliado(ofertas, bot=bot)
 
 
+def _precos_da_pagina(soup) -> tuple[float | None, float | None]:
+    """(preço atual, preço anterior) lidos da página de produto já aberta."""
+    # O preço original era lido só pela "fração", então aparecia R$ 419 em vez
+    # de R$ 419,90 — e o desconto derivado saía errado.
+    anterior = _preco_do_bloco(soup.select_one("s.andes-money-amount--previous"))
+
+    el = soup.select_one('meta[itemprop="price"]')
+    if el and el.get("content"):
+        try:
+            return float(el["content"]), anterior
+        except ValueError:
+            pass                       # conteúdo ilegível: cai no bloco
+
+    segunda_linha = soup.select_one(".ui-pdp-price__second-line")
+    if segunda_linha is None:
+        return None, anterior
+
+    # Dentro da linha do preço há o bloco vigente e o `s` do preço original. O
+    # vigente é o único com `aria-label` ("263 reais com 41 centavos"); sem ele,
+    # vale o primeiro `.andes-money-amount` da linha.
+    atual = (_preco_do_bloco(segunda_linha.select_one(".andes-money-amount[aria-label]"))
+             or _preco_do_bloco(segunda_linha.select_one(".andes-money-amount")))
+    return atual, anterior
+
+
+def reler_preco(url: str) -> tuple[float | None, float | None]:
+    """Relê o preço de um produto já conhecido. Devolve (atual, anterior).
+
+    Oferta que ficou pendente (o ML estava sem autenticação) pode ter sido
+    coletada horas ou dias antes. Publicá-la depois com o preço de então posta
+    na mensagem um valor que não existe mais. Relendo a página na hora de
+    publicar, o preço vai junto com a oferta; se o produto tiver saído do ar,
+    volta None e a oferta é descartada em vez de ir ao ar com preço antigo.
+    """
+    try:
+        r = sessao().get(url, timeout=20)
+        r.raise_for_status()
+        return _precos_da_pagina(BeautifulSoup(r.text, "lxml"))
+    except Exception as e:
+        log.warning("Não consegui reler o preço de '%s': %s", url[:60], e)
+        return None, None
+
+
 def converter(url: str) -> Oferta:
     """Link de produto -> Oferta com dados da página + link de afiliado."""
     url = url.split("#")[0]
@@ -496,14 +586,7 @@ def converter(url: str) -> Oferta:
         titulo = el.get_text(strip=True) if el else None
         el = soup.select_one('meta[property="og:image"]')
         imagem = el.get("content") if el else None
-        el = soup.select_one('meta[itemprop="price"]')
-        if el and el.get("content"):
-            preco = float(el["content"])
-        else:
-            el = soup.select_one(".ui-pdp-price__second-line .andes-money-amount__fraction")
-            preco = parse_preco_br(el.get_text()) if el else None
-        el = soup.select_one("s.andes-money-amount--previous .andes-money-amount__fraction")
-        preco_original = parse_preco_br(el.get_text()) if el else None
+        preco, preco_original = _precos_da_pagina(soup)
     except Exception as e:
         log.warning("Não consegui ler a página do produto: %s", e)
 

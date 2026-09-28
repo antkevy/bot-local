@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, PropertyMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,9 +32,21 @@ try:
 except Exception:
     pass
 
+from ofertas import grok as _grok_mod
 from ofertas.formatter import montar_caption
 from ofertas.grok import GrokResult, GrokService, grok_service
 from ofertas.models import Oferta
+
+# O serviço do Grok persiste cada otimização em data/grok_cache.json. Sem este
+# desvio, rodar esta suíte sobrescrevia o cache real do usuário com as respostas
+# dos testes — chegou a reduzir um cache de 1112 para 264 bytes. Não é preciso
+# recriar o serviço: `_carregar_cache`/`_salvar_cache` leem CACHE_FILE do módulo
+# a cada chamada, então trocar o atributo aqui já basta.
+_grok_mod.CACHE_FILE = Path(tempfile.gettempdir()) / "test_grok_cache.json"
+if _grok_mod.CACHE_FILE.exists():
+    _grok_mod.CACHE_FILE.unlink()
+
+
 
 
 def test_1_titulo_normal_mantido():
