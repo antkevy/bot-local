@@ -366,6 +366,18 @@ def buscar_ofertas() -> list[Oferta]:
 
 # ── Conversor de link ────────────────────────────────────────────────
 
+def e_id_produto(id_produto: str | None) -> bool:
+    """Diz se o id e um ASIN de produto.
+
+    O `converter` so chega aqui com o ASIN extraido da URL do produto -- se o
+    link nao tiver um, ele levanta ValueError em vez de devolver oferta. A
+    funcao existe para o pipeline poder tratar as plataformas pela mesma
+    interface, e porque um id de 10 caracteres que nao casa com o padrao do
+    ASIN tambem nao identifica produto nenhum.
+    """
+    return bool(id_produto) and bool(re.fullmatch(r"[A-Z0-9]{10}", str(id_produto)))
+
+
 def _expandir(url: str) -> str:
     """Segue o redirecionamento dos links curtos ate chegar na pagina do produto.
 

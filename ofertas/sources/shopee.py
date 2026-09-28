@@ -123,6 +123,23 @@ def buscar_ofertas(limite: int = 30) -> list[Oferta]:
 _RE_IDS = re.compile(r"-?i\.(\d+)\.(\d+)|/product/(\d+)/(\d+)")
 
 
+def e_id_produto(id_produto: str | None) -> bool:
+    """Diz se o id e de um produto, e nao de uma pagina da Shopee.
+
+    O `converter` monta o id de duas formas, e a diferenca importa. Quando o
+    `_RE_IDS` acha `i.<shop>.<item>` ou `/product/<shop>/<item>`, o id e o
+    itemId numerico. Quando nao acha, o fallback usa o ultimo segmento do
+    caminho, e o que sai e a slug da loja ou do voucher: "espaco-tecnica",
+    "cupom-de-desconto".
+
+    Os dois chegam ao pipeline com a mesma forma de Oferta e o mesmo titulo
+    generico, e so o id os distingue. Confundir os dois faz o bot tratar
+    produtos diferentes como o mesmo -- o uid fica identico e o dedup descarta
+    a segunda oferta como "produto ja postado".
+    """
+    return bool(id_produto) and str(id_produto).isdigit()
+
+
 def converter(url: str) -> Oferta:
     """Link de produto/short link -> Oferta com link de afiliado."""
     if "s.shopee." in url or "shp.ee/" in url:

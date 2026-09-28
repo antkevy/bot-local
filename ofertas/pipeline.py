@@ -198,6 +198,69 @@ async def executar_ciclo(bot: Bot) -> int:
     return postadas
 
 
+def _e_id_produto(fonte_mod, oferta: Oferta) -> bool:
+    """A plataforma sabe dizer se o id que ela montou e de um produto.
+
+    `converter` monta o id de duas formas: achando o identificador na URL, ou
+    caindo no ultimo segmento do caminho quando nao acha. A segunda devolve a
+    slug da loja ou da pagina de cupom, e as duas chegam aqui com titulo
+    generico e sem preco -- indistinguiveis a olho nu.
+
+    Plataforma que nao expoe o predicado e tratada como "confia": so a Shopee,
+    a Amazon e o Mercado Livre tem essa ambiguidade, e mudar o comportamento
+    delas por conta de uma plataforma que nao pediu seria chute.
+    """
+    checa = getattr(fonte_mod, "e_id_produto", None)
+    if checa is None:
+        return True
+    try:
+        return bool(checa(oferta.id_produto))
+    except Exception:
+        return True
+
+
+# Quantos links de uma mensagem testar antes de desistir. As mensagens reais do
+# canal tem 2; 3 da folga sem transformar o scraper em varredura de rede.
+MAX_LINKS_POR_MENSAGEM = 3
+
+
+async def _converter_primeiro_produto(links_mp: list[dict]) -> tuple[Oferta | None, str]:
+    """Converte os links da mensagem em ordem e devolve o primeiro produto de verdade.
+
+    Nem toda mensagem de oferta tem o link do produto primeiro. No NERD OFERTAS
+    o primeiro link e sempre o mesmo link de loja e o produto vem no segundo, e
+    o pipeline ficava com a loja: todas as ofertas saiam com o mesmo uid, o
+    dedup via-las como repetidas e 5 de cada 6 ofertas iam embora sem aviso.
+
+    Se nenhum link for de produto, devolve a primeira conversao que deu certo
+    -- o filtro de preco e o resto da qualidade decidem se ela serve. Descartar
+    a mensagem inteira aqui seria trocar um erro visivel por um sumico.
+    """
+    reserva: Oferta | None = None
+    url_reserva = ""
+    for link in links_mp[:MAX_LINKS_POR_MENSAGEM]:
+        url = link["url"]
+        fonte_mod = link["fonte"]
+        try:
+            oferta = await asyncio.to_thread(fonte_mod.converter, url)
+        except Exception as e:
+            log.warning("[SCRAPER] Erro ao converter produto do link '%s': %s", url, e)
+            continue
+        if not oferta:
+            continue
+        if _e_id_produto(fonte_mod, oferta):
+            log.info("[SCRAPER] Link de produto: '%s' -> %s", url, oferta.id_produto)
+            return oferta, url
+        if reserva is None:
+            reserva, url_reserva = oferta, url
+            log.info("[SCRAPER] '%s' nao e link de produto (id '%s'); tentando o proximo",
+                     url, oferta.id_produto)
+    if reserva is not None:
+        log.info("[SCRAPER] Nenhum link de produto em %s; usando '%s' (id '%s')",
+                 len(links_mp), url_reserva, reserva.id_produto)
+    return reserva, url_reserva
+
+
 def _aplicar_preco_texto(oferta: Oferta, pre: dict) -> None:
     """Preenche o preco da oferta com o que estava escrito na mensagem, se faltar.
 
@@ -258,13 +321,7 @@ async def processar_mensagem_telegram(
     oferta: Oferta | None = None
 
     if links_mp:
-        primeiro = links_mp[0]
-        url = primeiro["url"]
-        fonte_mod = primeiro["fonte"]
-        try:
-            oferta = await asyncio.to_thread(fonte_mod.converter, url)
-        except Exception as e:
-            log.warning("[SCRAPER] Erro ao converter produto do link '%s': %s", url, e)
+        oferta, _url_usada = await _converter_primeiro_produto(links_mp)
 
     # 4. Inteligência e Classificação com Grok
     log.info("[AI] Classificando mensagem...")

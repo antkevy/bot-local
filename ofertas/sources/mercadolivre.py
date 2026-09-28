@@ -37,6 +37,16 @@ def e_link(url: str) -> bool:
     return any(d in url for d in ("mercadolivre.com", "mercadolibre.com", "meli.la/"))
 
 
+def e_id_produto(id_produto: str | None) -> bool:
+    """Diz se o id e de um anuncio, e nao de uma pagina do Mercado Livre.
+
+    Mesmo motivo da Shopee: o `converter` cai no ultimo segmento do caminho
+    quando a URL nao tem MLB, e essa pagina (loja, cupom) chega ao pipeline
+    com a mesma cara de produto.
+    """
+    return bool(id_produto) and bool(re.fullmatch(r"MLB\d{6,}", str(id_produto)))
+
+
 def tem_sessao_linkbuilder() -> bool:
     """Verifica se há sessão autenticada real no perfil persistente do Link Builder."""
     cookie_file = PERFIL_DIR / "Default" / "Network" / "Cookies"
