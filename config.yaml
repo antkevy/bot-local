@@ -6,9 +6,9 @@ geral:
   horario_ativo: ''
 publicacao:
   intervalo_entre_posts_segundos: 300
-  posts_antes_pausa: 5
-  tempo_pausa_segundos: 1800
-  max_posts_periodo: 20
+  posts_antes_pausa: 20
+  tempo_pausa_segundos: 600
+  max_posts_periodo: 80
   periodo_horas: 24
 filtros:
   avaliacao_minima: 4.7
