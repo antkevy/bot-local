@@ -8,7 +8,7 @@ import logging
 import re
 from typing import Any
 
-from ..utils import extrair_urls
+from ..utils import extrair_precos_texto, extrair_urls
 
 log = logging.getLogger("ofertas.scraper")
 
@@ -65,12 +65,24 @@ def pre_processar_mensagem(texto: str) -> dict[str, Any]:
     # Pistas simples de cupom (sem substituir a IA, apenas como apoio)
     cupons_candidatos = re.findall(r"(?:cupom|código|code)[:\s]+([A-Z0-9_-]{4,25})\b", texto_limpo, re.IGNORECASE)
 
+    # Preco escrito no proprio texto da mensagem.
+    #
+    # Fica aqui, e nao dentro de cada marketplace, porque e o mesmo para todos:
+    # o preco e propriedade da mensagem, nao da plataforma. Guardado como
+    # fallback, ele so entra na Oferta se a fonte da plataforma nao trouxer
+    # preco utilizavel -- API que responde vazio nao pode ser overridada por
+    # um valor inventado aqui, nem o valor do texto pode ser posto de lado
+    # quando a API traz um preco real.
+    preco_texto, preco_antigo_texto = extrair_precos_texto(texto_limpo)
+
     return {
         "texto_original": texto_limpo,
         "urls": urls,
         "links_marketplace": links_por_marketplace,
         "cupons_candidatos": cupons_candidatos,
         "tem_links_afiliados_potenciais": bool(links_por_marketplace),
+        "preco_texto": preco_texto,
+        "preco_antigo_texto": preco_antigo_texto,
     }
 
 

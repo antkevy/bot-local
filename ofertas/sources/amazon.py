@@ -10,6 +10,7 @@ Docs: https://affiliate-program.amazon.com/creatorsapi/docs
 import logging
 import re
 import time
+from urllib.parse import urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -38,9 +39,48 @@ SEARCH_INDEX = {"electronics": "Electronics", "computers": "Computers", "videoga
 _RE_ASIN = re.compile(r"/(?:dp|gp/product|gp/aw/d)/([A-Z0-9]{10})")
 _token = {"valor": None, "expira": 0.0}
 
+# Hosts aceitos como Amazon, sem o "www." e sem subdominios: a comparacao
+# abaixo cuida desses casos.
+#
+# A checagem e por host, e nao por substring. Com substring, "amazon.com.br"
+# dentro da URL tambem casava com "https://notamazon.com.br/x" e
+# "https://amazon.com.br.evil.tld/x" -- e o que o pipeline tratava como oferta
+# da Amazon, pagava com a tag do usuario e publicava. Uma lista de dominios
+# exatos elimina essa classe inteira de falso positivo.
+#
+# "link.amazon" entrou aqui porque e o formato que os canais de ofertas
+# publicam (`https://link.amazon/B09NnFj0N`).
+_HOSTS_AMAZON = frozenset({
+    "amazon.com.br",
+    "amazon.com",
+    "amzn.to",
+    "amzn.eu",
+    "link.amazon",
+})
+
+
+def _host_de(url: str) -> str:
+    """Host de uma URL, aceitando tambem a forma sem protocolo.
+
+    `link.amazon/B09NnFj0N`, sem "https://" na frente, nao tem o que o
+    urlsplit leia como host -- ele leria "link.amazon" como caminho. O "//"
+    descartavel resolve isso, e permite reconhecer o link curto mesmo quando
+    ele chega colado no texto, sem protocolo.
+    """
+    bruto = str(url or "").strip()
+    if "//" not in bruto:
+        bruto = "//" + bruto
+    try:
+        return (urlsplit(bruto).hostname or "").lower()
+    except ValueError:
+        return ""
+
 
 def e_link(url: str) -> bool:
-    return any(d in url for d in ("amazon.com.br", "amazon.com/", "amzn.to/", "amzn.eu/"))
+    host = _host_de(url)
+    if not host:
+        return False
+    return any(host == d or host.endswith("." + d) for d in _HOSTS_AMAZON)
 
 
 def tem_api() -> bool:
@@ -327,7 +367,14 @@ def buscar_ofertas() -> list[Oferta]:
 # ── Conversor de link ────────────────────────────────────────────────
 
 def _expandir(url: str) -> str:
-    if "amzn.to/" in url or "amzn.eu/" in url:
+    """Segue o redirecionamento dos links curtos ate chegar na pagina do produto.
+
+    Sem isto, `link.amazon/B09NnFj0N` nao tem ASIN reconhecivel: o caminho do
+    link curto e um token de rastreamento de 9 digitos, e o ASIN so existe na
+    URL de destino. O `_RE_ASIN` pede 10 caracteres, entao sem expandir a
+    oferta morria em "Nao encontrei o ASIN nesse link da Amazon".
+    """
+    if e_link(url) and _host_de(url) in ("amzn.to", "amzn.eu", "link.amazon"):
         try:
             return sessao().get(url, allow_redirects=True, timeout=20).url
         except Exception as e:

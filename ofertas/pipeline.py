@@ -7,6 +7,7 @@ from telegram import Bot
 from . import db
 from .config import config, dentro_do_horario
 from .filters import passes_product_filters
+from .formatter import _preco_util
 from .grok import grok_service
 from .models import Oferta
 from .publishing_control import publishing_controller
@@ -197,6 +198,36 @@ async def executar_ciclo(bot: Bot) -> int:
     return postadas
 
 
+def _aplicar_preco_texto(oferta: Oferta, pre: dict) -> None:
+    """Preenche o preco da oferta com o que estava escrito na mensagem, se faltar.
+
+    Quem decide a ordem e a confianca, nao a plataforma: um preco coletado da
+    Shopee, da Amazon ou do Mercado Livre e dado de primeira linha e nunca e
+    descartado. O texto da mensagem so entra no buraco que sobrou.
+
+    O desconto fica por conta da property `Oferta.desconto`, que so calcula com
+    preco e preco_original de verdade e com o original acima do atual. Por isso
+    aqui nao se inventa `desconto_pct`: sem os dois numeros, nao ha desconto a
+    calcular, e a property devolve None sozinha.
+    """
+    preco_txt = _preco_util(pre.get("preco_texto"))
+    if preco_txt is None:
+        return
+
+    if _preco_util(oferta.preco) is not None:
+        # A plataforma trouxe preco confiavel. Fica ele.
+        return
+
+    oferta.preco = preco_txt
+
+    antigo_txt = _preco_util(pre.get("preco_antigo_texto"))
+    if antigo_txt is not None and antigo_txt > preco_txt:
+        oferta.preco_original = antigo_txt
+
+    log.info("[SCRAPER] Preco obtido do texto da mensagem: R$ %.2f (%s)",
+             preco_txt, oferta.plataforma)
+
+
 async def processar_mensagem_telegram(
     texto: str,
     imagem_url: str | None = None,
@@ -297,6 +328,17 @@ async def processar_mensagem_telegram(
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, status="sem_produto")
         return {"ok": False, "motivo": "sem_produto"}
+
+    # 4.1 Preco escrito no texto da mensagem, como fallback.
+    #
+    # Fica aqui, num ponto unico, em vez de dentro de cada marketplace: e a
+    # regra valida para todas elas, e a ordem de confianca e a mesma. Um preco
+    # que veio da plataforma (API, pagina do produto) manda no texto -- sempre.
+    # O texto so entra quando a plataforma nao trouxe preco utilizavel, que e o
+    # caso dos short links da Shopee: o produto existe mas esta fora do catalogo
+    # de ofertas da Open API, a API responde lista vazia, e antes disso a
+    # oferta saia com preco None e era publicada sem nenhum preco.
+    _aplicar_preco_texto(oferta, pre)
 
     # 5. Mercado Livre: se precisa de link de afiliado
     if oferta.plataforma == "mercadolivre" and not oferta.url_afiliado:
