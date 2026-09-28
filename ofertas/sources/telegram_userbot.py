@@ -22,6 +22,18 @@ log = logging.getLogger("ofertas.userbot")
 _cliente_global: TelegramClient | None = None
 _tarefa_monitor: asyncio.Task | None = None
 
+# Índice invertido id numérico do Telegram -> chave da fonte como está no
+# banco ("@nerdofertas"). Ver `_montar_indice_fontes` para por que o caminho
+# inverso (achar a chave pelo username) não funciona.
+_indice_por_id: dict[int, str] = {}
+_ids_por_chave: dict[str, int] = {}
+_chaves_ja_resolvidas: set[str] = set()
+
+# Teto de mensagens recuperadas por fonte quando o bot volta do ar. Sem teto,
+# uma fonte que ficou dias sem ser lida despejaria o histórico inteiro no
+# canal de destino de uma vez.
+MAX_MSG_RECUPERACAO = 50
+
 
 def tem_credenciais() -> bool:
     """Verifica se as credenciais de API do Telegram (my.telegram.org) estão preenchidas."""
@@ -117,6 +129,162 @@ def _chave_cadastrada(chat_str: str, username_str: str) -> str | None:
     return None
 
 
+async def _montar_indice_fontes(client: TelegramClient, fontes: list[dict]) -> None:
+    """Resolve, uma vez no startup, o id numérico de cada fonte cadastrada.
+
+    O caminho óbvio para casar uma mensagem com sua fonte é o username: o
+    handler montava "@nerdofertas" a partir de `chat.username` e procurava no
+    banco. Só que `chat.username` chega `None` para canais — o Telethon traz o
+    que está no cache de entidades da sessão, e o `get_entity` do canal devolve
+    título e id, não o username. Aí `_chave_cadastrada` recebia `""` como
+    username, nenhuma das três candidatas ("1465877129", "1465877129", "")
+    batia com "@nerdofertas", e o handler voltava em silêncio: nenhuma linha de
+    log, `ultima_msg_id` congelado no zero, `mensagens_telegram` vazio — o
+    scraper "funcionando" e capturando nada.
+
+    O id numérico não tem essa fragilidade: é o mesmo número dos dois lados.
+    Resolve-se cada fonte uma vez e guarda-se o índice invertido.
+    """
+    _indice_por_id.clear()
+    _ids_por_chave.clear()
+    _chaves_ja_resolvidas.clear()
+
+    for fonte in fontes:
+        chave = str(fonte["chat_id"]).strip()
+        if not chave:
+            continue
+        _chaves_ja_resolvidas.add(chave)
+        try:
+            entidade = await client.get_entity(chave)
+        except Exception as e:
+            log.warning("[USERBOT] Não consegui resolver a fonte '%s': %s", chave, e)
+            continue
+        if entidade is None:
+            log.warning("[USERBOT] A fonte '%s' não devolveu entidade no Telegram.", chave)
+            continue
+        _ids_por_chave[chave] = int(entidade.id)
+        _indice_por_id[int(entidade.id)] = chave
+
+    for chave, chat_id in _ids_por_chave.items():
+        log.info("[USERBOT] Fonte '%s' resolvida para o chat_id %s.", chave, chat_id)
+
+    sem_id = [str(f["chat_id"]) for f in fontes if str(f["chat_id"]).strip() not in _ids_por_chave]
+    if sem_id:
+        log.warning("[USERBOT] %d fonte(s) sem id do Telegram e serão ignoradas: %s",
+                    len(sem_id), ", ".join(sem_id))
+
+
+async def _chave_do_chat(client: TelegramClient, chat_id: int, chat_str: str, username_str: str) -> str | None:
+    """A chave cadastrada deste chat, ou None se não for fonte."""
+    if chat_id in _indice_por_id:
+        return _indice_por_id[chat_id]
+
+    # Chave nova cadastrada com o bot já no ar: ainda não está no índice.
+    # Só custa uma resolução, e só uma vez por chave sem id.
+    for fonte in db.listar_fontes_telegram(ativas_apenas=True):
+        chave = str(fonte["chat_id"]).strip()
+        if not chave or chave in _chaves_ja_resolvidas:
+            continue
+        _chaves_ja_resolvidas.add(chave)
+        try:
+            entidade = await client.get_entity(chave)
+        except Exception as e:
+            log.warning("[USERBOT] Não consegui resolver a fonte '%s': %s", chave, e)
+            continue
+        if entidade is not None:
+            _ids_por_chave[chave] = int(entidade.id)
+            _indice_por_id[int(entidade.id)] = chave
+            log.info("[USERBOT] Fonte '%s' resolvida para o chat_id %s.", chave, entidade.id)
+            break
+
+    if chat_id in _indice_por_id:
+        return _indice_por_id[chat_id]
+    return _chave_cadastrada(chat_str, username_str)
+
+
+async def _processar_mensagem_fonte(
+    chave: str, texto: str, message_id: int, bot_poster: Any, dry_run: bool
+) -> None:
+    """Marca a mensagem como vista e entrega o texto ao pipeline.
+
+    Único caminho para o pipeline: o que chega ao vivo e o que é recuperado
+    depois ficam idênticos, inclusive no registro de "já vi esta mensagem".
+    """
+    db.marcar_ultima_mensagem_fonte(chave, message_id)
+    resultado = await pipeline.processar_mensagem_telegram(
+        texto=texto,
+        imagem_url=None,
+        source_id=chave,
+        message_id=message_id,
+        bot=bot_poster,
+        dry_run=dry_run,
+    )
+    if resultado.get("ok"):
+        log.info("[USERBOT] ✅ Oferta da fonte %s processada com sucesso!", chave)
+    else:
+        log.info("[USERBOT] ℹ️ Mensagem da fonte %s não publicada: %s", chave, resultado.get("motivo"))
+
+
+async def _recuperar_perdidas(
+    client: TelegramClient, bot_poster: Any, dry_run: bool
+) -> int:
+    """Reprocessa o que foi postado enquanto o bot não estava olhando.
+
+    Uma fonte só recebe update do Telegram enquanto o userbot está conectado.
+    Entre um reinício e o outro, o canal continua postando e essas mensagens
+    existem no histórico — mas nunca chegam como update. Sem isto, cada
+    parada do bot vira uma janela de ofertas perdidas, silenciosamente.
+
+    Só recupera a partir de `ultima_msg_id`. Com a marcação zerada (fonte
+    nunca capturou nada) não há onde recuar, e reprocessar o histórico inteiro
+    de um canal com 140 mil mensagens inundaria o destino.
+    """
+    total = 0
+    for fonte in db.listar_fontes_telegram(ativas_apenas=True):
+        chave = str(fonte["chat_id"]).strip()
+        ultima = int(fonte.get("ultima_msg_id") or 0)
+        if ultima <= 0:
+            log.info("[USERBOT] Fonte '%s' nunca capturou nada — começando do zero, sem histórico.", chave)
+            continue
+        chat_id_num = _ids_por_chave.get(chave)
+        if chat_id_num is None:
+            log.warning("[USERBOT] Sem id do Telegram para recuperar a fonte '%s'.", chave)
+            continue
+
+        try:
+            entidade = await client.get_entity(chat_id_num)
+            perdidas = [
+                m async for m in client.iter_messages(
+                    entidade, min_id=ultima, limit=MAX_MSG_RECUPERACAO
+                )
+            ]
+        except Exception as e:
+            log.warning("[USERBOT] Falha ao recuperar mensagens da fonte '%s': %s", chave, e)
+            continue
+
+        # O teto é aplicado aqui, e não só pedido ao `iter_messages`: depender
+        # de o cliente respeitar `limit` deixa o limite sem dono no dia em que
+        # oTelethon mudar de comportamento. `iter_messages` traz do mais novo
+        # para o mais velho, então o corte fica no fim.
+        if len(perdidas) > MAX_MSG_RECUPERACAO:
+            perdidas = perdidas[:MAX_MSG_RECUPERACAO]
+
+        if not perdidas:
+            continue
+        # O pipeline espera a ordem em que o canal publicou.
+        log.info("[USERBOT] Recuperando %d mensagem(ns) perdidas da fonte '%s'...",
+                 len(perdidas), chave)
+        for mensagem in reversed(perdidas):
+            texto = mensagem.raw_text or ""
+            if not texto:
+                continue
+            if e_postagem_propria(mensagem.chat_id, destination_chat_id=config.chat_id):
+                continue
+            await _processar_mensagem_fonte(chave, texto, mensagem.id, bot_poster, dry_run)
+            total += 1
+    return total
+
+
 async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
     """Inicia o Userbot em segundo plano para monitorar as fontes cadastradas."""
     global _tarefa_monitor
@@ -140,7 +308,7 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
 
     # Obter lista de fontes ativas
     fontes_db = db.listar_fontes_telegram(ativas_apenas=True)
-    chats_monitorados = [f["chat_id"] for f in fontes_db]
+    await _montar_indice_fontes(client, fontes_db)
 
     # Handler de novas mensagens
     @client.on(events.NewMessage)
@@ -159,7 +327,7 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
             # indexado. Usar o id resolvido aqui fazia todo UPDATE de
             # "última captura" cair em zero linhas, e a tela do painel mostrava
             # para sempre a data em que a fonte foi cadastrada.
-            chave = _chave_cadastrada(chat_str, username_str)
+            chave = await _chave_do_chat(client, chat_id, chat_str, username_str)
             if chave is None:
                 return
 
@@ -174,27 +342,18 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
 
             log.info("[USERBOT] Nova mensagem capturada do canal/grupo %s (ID: %s, Msg: %s)", getattr(chat, "title", username), chat_id, event.id)
 
-            # Marcar que a fonte já viu esta mensagem, mesmo que ela não
-            # resulted em oferta.
-            db.marcar_ultima_mensagem_fonte(chave, event.id)
-
-            # Enviar para o pipeline central
-            resultado = await pipeline.processar_mensagem_telegram(
-                texto=texto,
-                imagem_url=None,
-                source_id=chave,
-                message_id=event.id,
-                bot=bot_poster,
-                dry_run=dry_run,
-            )
-
-            if resultado.get("ok"):
-                log.info("[USERBOT] ✅ Oferta da fonte %s processada com sucesso!", chave)
-            else:
-                log.info("[USERBOT] ℹ️ Mensagem da fonte %s não publicada: %s", chave, resultado.get("motivo"))
+            await _processar_mensagem_fonte(chave, texto, event.id, bot_poster, dry_run)
 
         except Exception as e:
             log.error("[USERBOT] Erro ao processar mensagem do evento Telethon: %s", e)
 
-    log.info("[USERBOT] Monitorando %d fontes ativas do Telegram em tempo real.", len(chats_monitorados))
+    log.info("[USERBOT] Monitorando %d fontes ativas do Telegram em tempo real.", len(fontes_db))
+
+    try:
+        recuperadas = await _recuperar_perdidas(client, bot_poster, dry_run)
+        if recuperadas:
+            log.info("[USERBOT] %d mensagem(ns) recuperada(s) que chegaram durante a parada.", recuperadas)
+    except Exception as e:
+        log.warning("[USERBOT] Falha na recuperação de mensagens perdidas: %s", e)
+
     return True
