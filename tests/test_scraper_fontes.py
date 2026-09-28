@@ -29,6 +29,7 @@ except Exception:
 
 from ofertas import db
 from ofertas.sources import telegram_userbot as ub
+from ofertas.sources.telegram_scraper import e_postagem_propria
 
 
 class BancoTemporario(unittest.TestCase):
@@ -209,6 +210,53 @@ class TestStartupDoMonitor(BancoTemporario):
         não declara. A assinatura virou parte do contrato."""
         with self.assertRaises(TypeError):
             db.listar_fontes_telegram(somente_ativas=True)
+
+
+class TestAntiLoop(unittest.TestCase):
+    """A trava que impede o bot de reprocessar a propria postagem.
+
+    Aqui o `lstrip("-100")` era pior que no `_chave_cadastrada`: o erro nao
+    custava uma fonte silenciosa, custava o bot republicando as ofertas que ele
+    mesmo acabara de postar, porque a trava deixava de reconhecer o canal de
+    destino e o tratava como fonte externa legitima.
+    """
+
+    def test_reconhece_o_destino_pelas_tres_formas_de_id(self):
+        for origem in ("-1001465877129", "1465877129", -1001465877129):
+            with self.subTest(origem=origem):
+                self.assertTrue(
+                    e_postagem_propria(origem, destination_chat_id="-1001465877129")
+                )
+
+    def test_reconhece_o_destino_comecado_em_zero(self):
+        """Regressao do lstrip: '-1000123456789' perdia digitos e a trava
+        falhava, abrindo caminho para o bot se alimentar do proprio canal."""
+        for origem in ("-1000123456789", "0123456789"):
+            with self.subTest(origem=origem):
+                self.assertTrue(
+                    e_postagem_propria(origem, destination_chat_id="-1000123456789"),
+                    "o id do destino comeca em 0 e o lstrip comia digitos",
+                )
+
+    def test_nao_confunde_outro_canal(self):
+        for origem in ("-1003942213987", "3942213987", "@nerdofertas"):
+            with self.subTest(origem=origem):
+                self.assertFalse(
+                    e_postagem_propria(origem, destination_chat_id="-1001465877129")
+                )
+
+    def test_canal_de_destino_por_username(self):
+        """O destino tambem pode ser cadastrado como @username."""
+        self.assertTrue(
+            e_postagem_propria("@nerdofertas", destination_chat_id="@nerdofertas")
+        )
+
+    def test_sem_destino_configurado_nao_trava(self):
+        self.assertFalse(e_postagem_propria("-1001465877129", destination_chat_id=None))
+
+    def test_mensagem_do_proprio_bot(self):
+        self.assertTrue(e_postagem_propria(555, bot_id=555, message_from_id=555))
+        self.assertFalse(e_postagem_propria(555, bot_id=555, message_from_id=999))
 
 
 if __name__ == "__main__":

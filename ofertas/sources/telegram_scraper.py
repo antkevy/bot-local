@@ -23,8 +23,18 @@ def e_postagem_propria(
     chat_str = str(chat_id).strip()
     dest_str = str(destination_chat_id or "").strip()
 
-    # Se o chat de origem for o mesmo canal de destino do bot
-    if dest_str and (chat_str == dest_str or chat_str == dest_str.lstrip("-100")):
+    # Se o chat de origem for o mesmo canal de destino do bot.
+    #
+    # Compara os dois lados ja sem o prefixo "-100" do Telegram, porque o id
+    # chega em tres formas: o Telethon entrega o canal como 1465877129, o .env
+    # costuma guardar -1001465877129, e a tela do painel deixa digitar o id
+    # curto. Antes usavam `dest_str.lstrip("-100")`, que nao remove prefixo:
+    # remove o conjunto de caracteres {'-', '1', '0'} da esquerda. Quando o id
+    # do destino comeca em 1 ou 0 logo depois do prefixo, o lstrip comia
+    # digitos do id, a comparacao falhava, e a trava anti-loop deixava de
+    # reconhecer o proprio canal -- ou seja, o bot passava a reprocessar as
+    # postagens que ele mesmo acabara de publicar.
+    if dest_str and chat_str.removeprefix("-100") == dest_str.removeprefix("-100"):
         return True
 
     # Se o autor da mensagem for o próprio bot
