@@ -43,14 +43,35 @@ class PublishingController:
         self.posts_bloco_atual: int = 0
         self.inicio_pausa_ts: float = 0.0
         self.posts_periodo: list[float] = []
+        # True quando o arquivo existe mas não deu para lê-lo. Nesse estado
+        # o histórico é desconhecido, e é justamente aí que nasce a rajada.
+        self.cadencia_ilegivel: bool = False
 
     def _carregar(self) -> None:
         if not self._persistir:
             return
+        self.cadencia_ilegivel = False
         try:
             with open(ARQ_ESTADO, encoding="utf-8") as f:
                 d = json.load(f)
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            # Primeira execução: ainda não existe histórico, e não postar é
+            # justamente o certo. Não é estado ilegível.
+            return
+        except (OSError, ValueError) as e:
+            # O arquivo está lá, mas não foi possível lê-lo. Antes isto caía
+            # num `return` mudo e o controlador seguia com o que tinha em
+            # memória. Num processo recém-subido isso é tudo zerado, e o passo
+            # 5 de `pode_publicar` (o que exige intervalo entre posts) é
+            # pulado justamente porque `ultimo_post_ts` é 0.0. Resultado
+            # observado: 11 registros em posts_periodo em 19 segundos, com
+            # intervalo_entre_posts_segundos = 300. Aqui estado desconhecido
+            # vira "não publica", e aparece no painel.
+            log.warning("[CADENCIA] Não consegui ler %s (%s). Publicação "
+                        "travada até o arquivo voltar a ser legível.",
+                        ARQ_ESTADO.name, e)
+            self._zera()
+            self.cadencia_ilegivel = True
             return
         try:
             self.ultimo_post_ts = float(d.get("ultimo_post_ts", 0.0) or 0.0)
@@ -60,10 +81,17 @@ class PublishingController:
         except (TypeError, ValueError):
             # Arquivo de outra versão/corrompido: melhor começar limpo do que
             # deixar a publicação travada por um valor ilegível.
-            self.ultimo_post_ts = 0.0
-            self.posts_bloco_atual = 0
-            self.inicio_pausa_ts = 0.0
-            self.posts_periodo = []
+            log.warning("[CADENCIA] %s tem valores que não são número. "
+                        "Publicação travada até o arquivo voltar a ser legível.",
+                        ARQ_ESTADO.name)
+            self._zera()
+            self.cadencia_ilegivel = True
+
+    def _zera(self) -> None:
+        self.ultimo_post_ts = 0.0
+        self.posts_bloco_atual = 0
+        self.inicio_pausa_ts = 0.0
+        self.posts_periodo = []
 
     def _salvar(self) -> None:
         if not self._persistir:
@@ -74,7 +102,11 @@ class PublishingController:
             "inicio_pausa_ts": self.inicio_pausa_ts,
             "posts_periodo": self.posts_periodo,
         }
-        tmp = ARQ_ESTADO.with_suffix(".json.tmp")
+        # O temporário leva o PID de propósito. O painel e o bot são dois
+        # processos que reescrevem o mesmo arquivo: com um nome único para o
+        # temporário, um nunca apaga o arquivo pela metade do outro, e quem lê
+        # nunca pega JSON truncado. Antes era um nome só, e a disputa existia.
+        tmp = ARQ_ESTADO.with_name(f"{ARQ_ESTADO.stem}.{os.getpid()}.tmp")
         try:
             # Grava em temporário e troca: o outro processo nunca lê um
             # arquivo pela metade.
@@ -101,6 +133,11 @@ class PublishingController:
         config = _config_mod.config
         with self._lock:
             self._carregar()
+            # Estado ilegível trava a publicação. Sem isso, `ultimo_post_ts`
+            # fica 0.0, o passo 5 abaixo é pulado por inteiro (ele só roda
+            # `if self.ultimo_post_ts > 0`) e o ciclo pode postar em rajada.
+            if self.cadencia_ilegivel:
+                return False, "cadencia_ilegivel (arquivo nao legivel)", 300.0
             # 1. Limpa timestamps do período fora da janela (ex: 24h)
             janela_segundos = max(1, config.periodo_horas) * 3600
             self.posts_periodo = [t for t in self.posts_periodo if agora - t < janela_segundos]
@@ -152,6 +189,20 @@ class PublishingController:
             self.posts_bloco_atual += 1
             self.posts_periodo.append(agora)
             self._salvar()
+            # Canário. `pode_publicar` recusa qualquer post dentro de
+            # `intervalo_entre_posts_segundos`, então dois registros de
+            # `posts_periodo` nunca deveriam ficar a menos de 60s um do outro.
+            # Se ficarem, alguma coisa escreveu no arquivo sem passar por um
+            # post de verdade — e foi assim que a cadência chegou a 126
+            # registros fantasma contra 7 ofertas postadas. O stack sai junto
+            # porque, sozinho, o número não diz quem escreveu.
+            anterior = self.posts_periodo[-2] if len(self.posts_periodo) > 1 else 0.0
+            if anterior and (agora - anterior) < 60:
+                import traceback
+                log.warning("[CADENCIA] Gap de %.1fs entre registros, mas o "
+                            "intervalo minimo e de %ds. PID=%d. Chamado por:\n%s",
+                            agora - anterior, config.intervalo_entre_posts_segundos,
+                            os.getpid(), "".join(traceback.format_stack()[-9:-1]))
             log.info(
                 "[PUBLISH-CTRL] Post registrado. Bloco: %d/%d, Período: %d/%d",
                 self.posts_bloco_atual,
@@ -185,16 +236,15 @@ class PublishingController:
                 "em_pausa": em_pausa,
                 "pausa_ate": pausa_ate,
                 "limite_atingido": limite_atingido,
+                "cadencia_ilegivel": self.cadencia_ilegivel,
             }
 
 
     def reset(self) -> None:
         """Reseta contadores (usado em testes ou reinicialização manual)."""
         with self._lock:
-            self.ultimo_post_ts = 0.0
-            self.posts_bloco_atual = 0
-            self.inicio_pausa_ts = 0.0
-            self.posts_periodo.clear()
+            self._zera()
+            self.cadencia_ilegivel = False
             self._salvar()
 
 
