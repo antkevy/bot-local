@@ -94,6 +94,29 @@ async def testar_conexao() -> dict[str, Any]:
         return {"ok": False, "motivo": str(e)}
 
 
+def _chave_cadastrada(chat_str: str, username_str: str) -> str | None:
+    """A chave da fonte que este chat corresponde, ou None se não for fonte.
+
+    Aceita as três formas em que o dono pode ter cadastrado o grupo: id
+    completo do Telegram ("-1001755551234"), id curto ("1755551234") e
+    @username.
+
+    O id curto usava `str.lstrip("-100")`, e isso é remova o conjunto de
+    caracteres {'-', '1', '0'} da esquerda, não o prefixo: "-1001234567890"
+    virava "234567890", comendo o primeiro dígito do id. Uma fonte cadastrada
+    pelo id curto recebia zero mensagens, e nenhuma mensagem era gravada em
+    log para explicar — silêncio puro.
+    """
+    cadastradas = {
+        str(f["chat_id"]).strip().lower()
+        for f in db.listar_fontes_telegram(ativas_apenas=True)
+    }
+    for candidata in (chat_str, chat_str.removeprefix("-100"), username_str):
+        if candidata and candidata.lower() in cadastradas:
+            return next(c for c in cadastradas if c == candidata.lower())
+    return None
+
+
 async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
     """Inicia o Userbot em segundo plano para monitorar as fontes cadastradas."""
     global _tarefa_monitor
@@ -129,18 +152,15 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
             chat_str = str(chat_id)
             username_str = f"@{username.lower()}" if username else ""
 
-            # Verificar se este chat/canal está na lista de fontes ativas
-            fontes_atuais = db.listar_fontes_telegram(ativas_apenas=True)
-            ids_ativas = {str(f["chat_id"]).strip().lower() for f in fontes_atuais}
-
-            # Se o chat estiver cadastrado por ID ou por @username
-            chat_autorizado = (
-                chat_str in ids_ativas
-                or chat_str.lstrip("-100") in ids_ativas
-                or (username_str and username_str in ids_ativas)
-            )
-
-            if not chat_autorizado:
+            # Verificar se este chat/canal está na lista de fontes ativas.
+            # Devolvemos a chave COMO ESTÁ CADASTRADA, e não o id numérico
+            # resolvido: a fonte pode ter sido salva como "@nerdofertas" ou
+            # como "-1001755...", e é por essa chave que o banco está
+            # indexado. Usar o id resolvido aqui fazia todo UPDATE de
+            # "última captura" cair em zero linhas, e a tela do painel mostrava
+            # para sempre a data em que a fonte foi cadastrada.
+            chave = _chave_cadastrada(chat_str, username_str)
+            if chave is None:
                 return
 
             texto = event.raw_text or event.message.message or ""
@@ -154,23 +174,24 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
 
             log.info("[USERBOT] Nova mensagem capturada do canal/grupo %s (ID: %s, Msg: %s)", getattr(chat, "title", username), chat_id, event.id)
 
-            # Atualizar status da fonte
-            db.atualizar_status_fonte_telegram(chat_str, event.id)
+            # Marcar que a fonte já viu esta mensagem, mesmo que ela não
+            # resulted em oferta.
+            db.marcar_ultima_mensagem_fonte(chave, event.id)
 
             # Enviar para o pipeline central
             resultado = await pipeline.processar_mensagem_telegram(
                 texto=texto,
                 imagem_url=None,
-                source_id=chat_str,
+                source_id=chave,
                 message_id=event.id,
                 bot=bot_poster,
                 dry_run=dry_run,
             )
 
             if resultado.get("ok"):
-                log.info("[USERBOT] ✅ Oferta da fonte %s processada com sucesso!", chat_str)
+                log.info("[USERBOT] ✅ Oferta da fonte %s processada com sucesso!", chave)
             else:
-                log.info("[USERBOT] ℹ️ Mensagem da fonte %s não publicada: %s", chat_str, resultado.get("motivo"))
+                log.info("[USERBOT] ℹ️ Mensagem da fonte %s não publicada: %s", chave, resultado.get("motivo"))
 
         except Exception as e:
             log.error("[USERBOT] Erro ao processar mensagem do evento Telethon: %s", e)

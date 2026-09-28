@@ -288,6 +288,25 @@ def ja_processada_msg_telegram(source_id: str | int, message_id: int) -> bool:
         return bool(row)
 
 
+def marcar_ultima_mensagem_fonte(chat_id: str | int, message_id: int) -> None:
+    """Registra que a fonte já viu a mensagem `message_id`.
+
+    Precisa ser uma função própria, e não o `atualizar_status_fonte_telegram`:
+    aquele muda a flag `ativa` e o userbot o chamava com o id da mensagem no
+    lugar do booleano, o que não marcava nada e ainda podia reativar uma
+    fonte que o dono tinha desligado. O `chat_id` tem de ser a chave como
+    ela está cadastrada — se a fonte foi salva como "@nerdofertas", é
+    "@nerdofertas" que o UPDATE precisa encontrar.
+    """
+    with _conn() as c:
+        c.execute(
+            "UPDATE fontes_telegram"
+            " SET ultima_msg_id = MAX(ultima_msg_id, ?), ultimo_processamento = ?"
+            " WHERE chat_id = ?",
+            (int(message_id), dt.datetime.now().isoformat(timespec="seconds"), str(chat_id)),
+        )
+
+
 def registrar_msg_telegram(source_id: str | int, message_id: int, uid: str = "", status: str = "ok") -> None:
     agora = dt.datetime.now().isoformat(timespec="seconds")
     with _conn() as c:
@@ -297,18 +316,25 @@ def registrar_msg_telegram(source_id: str | int, message_id: int, uid: str = "",
             " VALUES (?, ?, ?, ?, ?)",
             (str(source_id), int(message_id), agora, uid, status),
         )
-        c.execute(
-            "UPDATE fontes_telegram SET ultima_msg_id = MAX(ultima_msg_id, ?), ultimo_processamento = ?"
-            " WHERE chat_id = ?",
-            (int(message_id), agora, str(source_id)),
-        )
+    marcar_ultima_mensagem_fonte(source_id, message_id)
 
 
-def listar_fontes_telegram() -> list[dict]:
+def listar_fontes_telegram(ativas_apenas: bool = False) -> list[dict]:
+    """Lista as fontes do Telegram. Por padrão, todas.
+
+    `ativas_apenas` existia nos chamadores (`telegram_userbot.py`) sem existir
+    aqui: a chamada levantava TypeError, e o monitor do userbot morria no
+    startup — dentro de um `except` genérico que registrava só um aviso
+    "Não foi possível iniciar o Telethon Userbot", sem dizer que era um erro
+    de código e não de configuração.
+    """
     with _conn() as c:
         c.row_factory = sqlite3.Row
-        rows = c.execute("SELECT * FROM fontes_telegram ORDER BY adicionada_em DESC").fetchall()
-        return [dict(r) for r in rows]
+        sql = "SELECT * FROM fontes_telegram"
+        if ativas_apenas:
+            sql += " WHERE ativa = 1"
+        sql += " ORDER BY adicionada_em DESC"
+        return [dict(r) for r in c.execute(sql)]
 
 
 def salvar_fonte_telegram(chat_id: str | int, nome: str, tipo: str = "canal", ativa: bool = True) -> None:
