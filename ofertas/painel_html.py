@@ -419,6 +419,7 @@ PAGINA = r"""<!doctype html>
   .selo .ponto { width: 5px; height: 5px; background: currentColor; }
   .selo-ok { color: var(--ok); background: var(--ok-fundo); border: 1px solid var(--ok-borda); }
   .selo-espera { color: var(--alerta); background: var(--alerta-fundo); border: 1px solid var(--alerta-borda); }
+  .selo-erro { color: var(--erro); background: var(--erro-fundo); border: 1px solid var(--erro-borda); }
   .selo-neutro { color: var(--texto-3); background: var(--fundo-sub); border: 1px solid var(--borda); }
   .selo-fora { color: var(--texto-3); background: transparent; border: 1px dashed var(--borda); }
 
@@ -514,19 +515,19 @@ PAGINA = r"""<!doctype html>
   .link-item .btn-icone { width: 34px; height: 34px; min-height: 34px; }
 
   /* == Plataformas =================================================
-     Um card por plataforma, com a credencial dentro do proprio card.
-     Antes era uma lista vertical: o logo e o nome desciam pela tela e a
-     configuracao vivia numa outra aba, sem nenhuma relacao visual com o
-     marketplace. Duas colunas, nao tres: quatro plataformas num 2x2 em vez
-     de 3+1 orfa, e sobra largura para os campos de credencial. */
+     Grade de cards compactos: logo, nome, uma linha de status, uma linha
+     de resumo e o botao "Configurar". Nenhum campo de credencial na grade —
+     quem abre e o drawer lateral, e a pagina principal continua limpa.
+     A altura e a mesma em todos os cards porque o rodape usa
+     `margin-top:auto` e o resumo tem altura reservada. */
   .plato-grade {
-    display: grid; gap: 16px; align-items: stretch;
+    display: grid; gap: 14px; align-items: stretch;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .plato {
     --cor: var(--primaria);
-    position: relative; display: flex; flex-direction: column; gap: 15px;
-    padding: 20px 22px 18px; background: var(--fundo-card);
+    position: relative; display: flex; flex-direction: column; gap: 11px;
+    padding: 16px 18px 15px; background: var(--fundo-card);
     border: 1px solid var(--borda); border-radius: var(--r-lg);
     box-shadow: var(--sombra-1); overflow: hidden; scroll-margin-top: 20px;
     transition: border-color var(--t-media) var(--ease),
@@ -545,9 +546,9 @@ PAGINA = r"""<!doctype html>
     box-shadow: var(--sombra-2), 0 0 0 1px var(--cor);
   }
 
-  .plato-topo { display: flex; align-items: center; gap: 13px; }
+  .plato-topo { display: flex; align-items: center; gap: 12px; }
   .plato-logo {
-    width: 46px; height: 46px; border-radius: var(--r-md); flex: none;
+    width: 40px; height: 40px; border-radius: var(--r-md); flex: none;
     overflow: hidden; background: var(--fundo-card-hi);
     border: 1px solid var(--borda-sutil); box-shadow: var(--sombra-1);
   }
@@ -555,50 +556,158 @@ PAGINA = r"""<!doctype html>
      ativ-logo-img) — e' o que permite conferir as quatro por seletor
      sem depender do elemento que as envolve. */
   .plato-logo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Telegram não tem PNG em /assets: o mesmo slot recebe um ícone. Sem
+     centralizar, o traço encosta na borda da caixa. */
+  .plato-logo-glyph { padding: 9px; color: var(--cor, var(--primaria-texto)); }
   .plato-id { min-width: 0; flex: 1; }
-  .plato-id h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .plato-id h3 { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
   .plato-id small {
-    display: block; margin-top: 2px; font-size: 12px; color: var(--texto-3);
+    display: block; margin-top: 1px; font-size: 11.5px; color: var(--texto-3);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  /* Uma linha de estado por card, sempre. A altura minima existe para os
-     campos comecarem na mesma altura em todos os cards: sem isso, um
-     marketplace com estado e outro sem desalinham a coluna de inputs. */
-  .plato-estado { min-height: 30px; display: flex; align-items: center; }
+  /* A linha de status: uma caixa com o texto que o servidor mandou.
+     Duas linhas reservadas, nao uma: "Sessão pendente (Faça login ou
+     insira o Cookie)" é o status do Mercado Livre sem sessão, e cortar
+     no meio esconderia justamente a instrução que resolve o problema.
+     A altura é fixa nos cinco cards, então o rodape de todos continua
+     na mesma linha mesmo com textos de comprimentos diferentes. */
+  .plato-estado { min-height: 24px; display: flex; align-items: stretch; }
   .plato-linha {
-    display: flex; align-items: baseline; gap: 10px; width: 100%;
-    padding: 7px 12px; border-radius: var(--r-sm);
+    display: flex; align-items: center; width: 100%;
+    min-height: 50px; padding: 7px 11px; border-radius: var(--r-sm);
     background: var(--fundo-sub); border: 1px solid var(--borda-sutil);
-    font-size: 12.5px; color: var(--texto-3);
+    font-size: 12.5px; line-height: 1.45; color: var(--texto-2); font-weight: 600;
   }
-  .plato-linha .val {
-    margin-left: auto; text-align: right; color: var(--texto-2);
-    font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .plato-linha > span {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere;
   }
-  .plato-linha .val.mono { font-family: var(--mono); font-size: 12px; }
-  .plato-linha .val.sem-valor { color: var(--texto-3); font-weight: 500; }
 
-  .plato-credenciais { display: flex; flex-direction: column; gap: 14px; }
-  .plato-salvar { display: flex; align-items: center; gap: 10px; }
   .plato-dica { font-size: 12px; color: var(--texto-3); }
   .plato-dica.ok { color: var(--ok); }
 
-  /* margin-top:auto cola o rodape no fundo, entao os botoes dos quatro
-     cards ficam na mesma linha mesmo com quantidades diferentes de campos. */
+  /* So o botao de configurar na grade: um unico caminho para as credenciais,
+     em vez de tres botoes disputando o mesmo cartao. */
   .plato-rodape {
-    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
-    margin-top: auto; padding-top: 15px; border-top: 1px solid var(--borda-sutil);
+    display: flex; align-items: center; gap: 9px;
+    margin-top: auto; padding-top: 12px; border-top: 1px solid var(--borda-sutil);
   }
   .plato-rodape .btn { flex: none; }
-  .plato-rodape .btn-perigo { margin-left: auto; }
 
   @media (max-width: 980px) {
     .plato-grade { grid-template-columns: 1fr; }
   }
 
+  /* == Drawer de configuracao =========================================
+     Painel lateral que entra pela direita, por cima da grade. Reaproveita
+     o overlay e o `aoTeclarModal` dos modais: os dois ficam empilhados no
+     DOM e o `pop()` de `.overlay.aberto` pega o de cima, que e o drawer
+     quando um modal e aberto de dentro dele.
+
+     O seletor leva as duas classes de proposito. `.overlay` (0,1,0) vem
+     depois no arquivo e declara `place-items:center` com 20px de padding —
+     com uma classe só, a gaveta saia centrada e recuada 480px da borda,
+     parecendo um modal largo. */
+  .overlay.overlay-gaveta { place-items: stretch end; padding: 0; }
+  .gaveta {
+    width: 100%; max-width: 460px; height: 100%;
+    display: flex; flex-direction: column;
+    background: var(--fundo-card); border-left: 1px solid var(--borda-forte);
+    box-shadow: var(--sombra-3);
+    transform: translateX(100%);
+    transition: transform var(--t-media) var(--ease);
+  }
+  .overlay.aberto .gaveta { transform: none; }
+  @media (min-width: 561px) { .gaveta { max-width: 480px; } }
+
+  .gaveta-topo {
+    display: flex; align-items: center; gap: 12px; flex: none;
+    padding: 16px 18px; border-bottom: 1px solid var(--borda);
+  }
+  .gaveta-id { min-width: 0; flex: 1; }
+  .gaveta-id h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .gaveta-id small { display: block; margin-top: 2px; font-size: 12px; color: var(--texto-3); }
+  .gaveta-corpo {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 18px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .gaveta-pe {
+    display: flex; align-items: center; gap: 10px; flex: none;
+    padding: 13px 18px; background: var(--fundo-sub); border-top: 1px solid var(--borda);
+  }
+  .gaveta-pe .btn-primario { margin-left: auto; }
+  .gaveta-secao-titulo {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.9px; color: var(--primaria-texto);
+    padding-bottom: 7px; border-bottom: 1px solid var(--borda-sutil);
+  }
+  .gaveta-campos { display: flex; flex-direction: column; gap: 15px; }
+  .gaveta-acoes { display: flex; flex-wrap: wrap; gap: 9px; }
+  .gaveta-acoes .btn-perigo { margin-left: auto; }
+  .gaveta-status { font-size: 12.5px; color: var(--texto-2); }
+
   /* ══ Formulário ════════════════════════════════════════════════════ */
   .config-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; }
+
+  /* ── Seções de Configurações ──────────────────────────────────────────
+     A página empilhava seis cards num scroll só, todos com o mesmo peso
+     visual: não dava para saber o que era o mais usado. As seções agrupam
+     por intenção, e a barra no topo pula direto para cada uma.
+
+     Dentro de cada seção os cards vão lado a lado, na mesma grade de duas
+     colunas da aba Plataformas: assim a comparação entre plataformas e entre
+     campos de configuração fica igual. O gap de 22px na vertical repete o da
+     .view de propósito — sem isso, embrulhar os cards mudaria o espaçamento
+     e nenhum diff mostraria por que a página afrouxou. */
+  .config-secao {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 24px; scroll-margin-top: 74px;
+  }
+  .config-secao-titulo {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.9px; color: var(--primaria-texto);
+    padding-bottom: 8px; border-bottom: 1px solid var(--borda-sutil);
+  }
+  /* Card que não cabe em meia coluna — a tabela de fontes tem cinco colunas
+     de dados e espremida em meia tela vira um garrancho. Ocupa a linha
+     inteira, que é o mesmo truque do .grupo-titulo, e é o que evita que o
+     último card de cada seção deixe um buraco na coluna da direita. */
+  .config-largo { grid-column: 1 / -1; }
+  .config-secao-titulo .icone { color: var(--primaria-forte); }
+  .config-nav {
+    position: sticky; top: 0; z-index: 6;
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 9px; margin-bottom: 2px;
+    background: rgba(13, 23, 48, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--borda); border-radius: var(--r-md);
+  }
+  .config-nav a {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border-radius: var(--r-sm);
+    font-size: 12.5px; font-weight: 600; color: var(--texto-2);
+    text-decoration: none; white-space: nowrap;
+    transition: background var(--t-rapida) var(--ease), color var(--t-rapida) var(--ease);
+  }
+  .config-nav a:hover { background: var(--fundo-card-hi); color: var(--texto); }
+  .config-nav a.ativo { background: var(--primaria-fundo); color: var(--primaria-texto); }
+  .config-nav a:focus-visible { outline: 2px solid var(--primaria-texto); outline-offset: 2px; }
+
+  /* Salvo e não salvo. `configSuja` já era lida no JS, mas só para pular a
+     repinta: o estado existia e não aparecia em lugar nenhum da tela. */
+  .config-nav .pendente {
+    display: none; align-items: center; gap: 6px;
+    margin-left: auto; padding: 7px 12px; border-radius: var(--r-sm);
+    font-size: 12.5px; font-weight: 700; color: #FCD34D;
+    background: rgba(252, 211, 77, 0.12);
+    border: 1px solid rgba(252, 211, 77, 0.34);
+  }
+  .config-nav.sujo .pendente { display: inline-flex; }
+  .config-nav .pendente .icone { color: #FCD34D; }
   .grupo-titulo {
     grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
     font-size: 12px; font-weight: 700; text-transform: uppercase;
@@ -872,6 +981,10 @@ PAGINA = r"""<!doctype html>
   @media (max-width: 1000px) {
     .metricas { grid-template-columns: 1fr; }
     .config-grade { grid-template-columns: 1fr; }
+    /* As duas grades de Configurações caem juntas: meia coluna de card com
+       meia coluna de campo dentro vira um campo de 140px, e aí é melhor a
+       página inteira virar uma coluna. */
+    .config-secao { grid-template-columns: 1fr; }
     .logs-grade { grid-template-columns: 1fr; height: auto; }
     .terminal { height: 300px; }
   }
@@ -1390,7 +1503,7 @@ PAGINA = r"""<!doctype html>
               Transforme qualquer link de produto em link com a sua tag de afiliado.
             </p>
             <button type="button" class="btn btn-primario btn-bloco" onclick="abrirModalLink()">
-              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-wand"/></svg>
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-sparkles"/></svg>
               Abrir link builder
             </button>
             <button type="button" class="btn btn-neutro btn-bloco" style="margin-top:8px;"
@@ -1479,9 +1592,9 @@ PAGINA = r"""<!doctype html>
           <div>
             <div class="card-titulo">
               <svg class="icone" aria-hidden="true"><use href="#i-layers"/></svg>
-              <h3 id="t-plat">Marketplaces</h3>
+              <h3 id="t-plat">Plataformas</h3>
             </div>
-            <p class="card-sub">Cada marketplace com a sua credencial, sessão e teste. Preencha e salve aqui mesmo.</p>
+            <p class="card-sub">Configure suas contas e mantenha suas conexões ativas.</p>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap">
             <button type="button" class="btn btn-neutro" id="btnInstalarNav" onclick="executarAcao('instalar-navegador')">
@@ -1519,8 +1632,61 @@ PAGINA = r"""<!doctype html>
       </div>
     </section>
 
+    <!-- Drawer de configuracao. Fica antes dos dois modais no DOM de
+         proposito: `aoTeclarModal` fecha e prende o foco no ultimo
+         `.overlay.aberto`, e assim um modal aberto de dentro do drawer
+         (Detalhes da sessao) e o que ganha o Escape. -->
+    <div class="overlay overlay-gaveta" id="gavetaPlataforma" role="dialog" aria-modal="true"
+         aria-labelledby="gavetaTitulo" tabindex="-1" hidden>
+      <aside class="gaveta" id="gaveta">
+        <div class="gaveta-topo">
+          <span class="plato-logo" id="gavetaLogoCaixa">
+            <img class="plato-logo-img" id="gavetaLogo" src="/assets/mercadolivre.png" alt="" width="40" height="40">
+          </span>
+          <div class="gaveta-id">
+            <h3 id="gavetaTitulo">Configurar</h3>
+            <small id="gavetaSub"></small>
+          </div>
+          <button type="button" class="btn-icone" onclick="fecharGaveta()" aria-label="Fechar">
+            <svg class="icone" aria-hidden="true"><use href="#i-x"/></svg>
+          </button>
+        </div>
+        <div class="gaveta-corpo">
+          <div id="gavetaResumo"></div>
+          <div id="gavetaCamposBloco"></div>
+          <div id="gavetaAcoesBloco"></div>
+          <!-- O resultado da deteccao precisa cair aqui. A funcao escreveria
+               em #caixaDeteccao, que esta na aba Configuracoes: quem clica
+               em "Detectar IDs" dentro da gaveta veria o resultado em outra
+               aba, fora da tela. -->
+          <div id="gavetaDeteccao"></div>
+        </div>
+        <div class="gaveta-pe">
+          <span class="plato-dica" id="gavetaDica" role="status"></span>
+          <button type="button" class="btn btn-primario" id="gavetaSalvar"
+                  onclick="salvarPlataforma(gavetaChave)">Salvar</button>
+        </div>
+      </aside>
+    </div>
+
     <!-- ── Configurações ────────────────────────────────────────── -->
     <section class="view" id="view-config" aria-labelledby="t-config">
+      <nav class="config-nav" id="configNav" aria-label="Seções de Configurações">
+        <a href="#sec-conta"><svg class="icone-sm" aria-hidden="true"><use href="#i-shield"/></svg>Conta</a>
+        <a href="#sec-oferta"><svg class="icone-sm" aria-hidden="true"><use href="#i-package"/></svg>O que posta</a>
+        <a href="#sec-cadencia"><svg class="icone-sm" aria-hidden="true"><use href="#i-clock"/></svg>Cadência</a>
+        <a href="#sec-fontes"><svg class="icone-sm" aria-hidden="true"><use href="#i-megaphone"/></svg>Fontes</a>
+        <span class="pendente" id="configPendente" role="status">
+          <svg class="icone-sm" aria-hidden="true"><use href="#i-alert-triangle"/></svg>
+          Falta salvar
+        </span>
+      </nav>
+
+      <section class="config-secao" id="sec-conta" aria-labelledby="t-sec-conta">
+        <h2 class="config-secao-titulo" id="t-sec-conta">
+          <svg class="icone-sm" aria-hidden="true"><use href="#i-shield"/></svg>Conta e integrações
+        </h2>
+
       <div class="card">
         <div class="card-topo">
           <div>
@@ -1541,13 +1707,13 @@ PAGINA = r"""<!doctype html>
             <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
             Salvar credenciais
           </button>
-          <button type="button" class="btn btn-neutro" onclick="detectarIds()">
-            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-search"/></svg>
-            Detectar IDs do Telegram
-          </button>
           <span id="configAviso" aria-live="polite"></span>
         </div>
 
+        <!-- Saida da deteccao de ids. O botao que a disparava foi da pagina:
+             a gaveta do Telegram faz isso agora, e um botao aqui duplicava a
+             mesma acao em dois lugares. A tecla "?" continua usando esta
+             caixa, e por isso ela continua aqui. -->
         <div id="caixaDeteccao" style="margin-top:16px"></div>
       </div>
 
@@ -1584,6 +1750,12 @@ PAGINA = r"""<!doctype html>
           <span id="contaAviso" aria-live="polite"></span>
         </div>
       </div>
+      </section>
+
+      <section class="config-secao" id="sec-oferta" aria-labelledby="t-sec-oferta">
+        <h2 class="config-secao-titulo" id="t-sec-oferta">
+          <svg class="icone-sm" aria-hidden="true"><use href="#i-package"/></svg>O que o bot posta
+        </h2>
 
       <div class="card">
         <div class="card-titulo">
@@ -1621,20 +1793,20 @@ PAGINA = r"""<!doctype html>
 
         <form id="formFiltros" class="config-grade" novalidate>
           <div class="campo">
-            <label for="filtroAvaliacao">⭐ Avaliação mínima</label>
+            <label for="filtroAvaliacao"><svg class="icone-sm" aria-hidden="true"><use href="#i-award"/></svg>Avaliação mínima</label>
             <select id="filtroAvaliacao" name="avaliacao_minima">
               <option value="0">Desativado (qualquer nota)</option>
-              <option value="4">⭐ 4.0 ou mais</option>
-              <option value="4.2">⭐ 4.2 ou mais</option>
-              <option value="4.5">⭐ 4.5 ou mais (Recomendado)</option>
-              <option value="4.7">⭐ 4.7 ou mais</option>
-              <option value="5">⭐ 5.0 (nota máxima)</option>
+              <option value="4">4.0 ou mais</option>
+              <option value="4.2">4.2 ou mais</option>
+              <option value="4.5">4.5 ou mais (Recomendado)</option>
+              <option value="4.7">4.7 ou mais</option>
+              <option value="5">5.0 (nota máxima)</option>
             </select>
             <p class="ajuda">AliExpress (96% → 4.8) e demais plataformas com nota real.</p>
           </div>
 
           <div class="campo">
-            <label for="filtroVendas">🛒 Vendas mínimas</label>
+            <label for="filtroVendas"><svg class="icone-sm" aria-hidden="true"><use href="#i-shopping-bag"/></svg>Vendas mínimas</label>
             <select id="filtroVendas" name="vendas_minimas">
               <option value="0">Desativado (qualquer volume)</option>
               <option value="10">10+ vendas</option>
@@ -1649,13 +1821,13 @@ PAGINA = r"""<!doctype html>
           </div>
 
           <div class="campo">
-            <label for="filtroDesconto">💰 Desconto mínimo (%)</label>
+            <label for="filtroDesconto"><svg class="icone-sm" aria-hidden="true"><use href="#i-tag"/></svg>Desconto mínimo (%)</label>
             <input id="filtroDesconto" name="desconto_minimo_pct" type="number" min="0" max="99" value="0" placeholder="0">
             <p class="ajuda">Percentual mínimo de desconto real quando fornecido.</p>
           </div>
 
           <div class="campo">
-            <label for="filtroPrecoMin">💵 Faixa de preço (R$)</label>
+            <label for="filtroPrecoMin"><svg class="icone-sm" aria-hidden="true"><use href="#i-tag"/></svg>Faixa de preço (R$)</label>
             <div style="display:flex; gap:8px; align-items:center;">
               <input id="filtroPrecoMin" name="preco_minimo" type="number" step="0.5" min="0" placeholder="Mín (ex: 5)" style="flex:1">
               <span style="color:var(--texto-3)">até</span>
@@ -1688,7 +1860,7 @@ PAGINA = r"""<!doctype html>
               <option value="true">Permitir e postar preço atual / cupom (não inventar preço "De / Por")</option>
               <option value="false">Ignorar produtos sem desconto real</option>
             </select>
-            <p class="ajuda">Se aprovado sem preço anterior, o bot posta direto: 💰 R$ 49,90 e cupom, sem inventar percentuais falsos.</p>
+            <p class="ajuda">Se aprovado sem preço anterior, o bot posta direto: R$ 49,90 e cupom, sem inventar percentuais falsos.</p>
           </div>
         </form>
 
@@ -1700,6 +1872,71 @@ PAGINA = r"""<!doctype html>
           <span id="filtrosAviso" class="metrica-rotulo" aria-live="polite"></span>
         </div>
       </div>
+      </section>
+
+      <section class="config-secao" id="sec-cadencia" aria-labelledby="t-sec-cadencia">
+        <h2 class="config-secao-titulo" id="t-sec-cadencia">
+          <svg class="icone-sm" aria-hidden="true"><use href="#i-clock"/></svg>Com que frequência posta
+        </h2>
+
+      <!-- A cadência que roda de verdade. Estes cinco campos são o bloco
+           `geral` do config.yaml: o intervalo do job que dispara o ciclo, quantas
+           ofertas o ciclo escolhe, o sleep entre uma e outra, a janela de não
+           repetir e o portão de horário. A página só expunha o bloco
+           `publicacao` (o card ao lado, que está zerado e por isso não muda
+           nada no bot) — ou seja, o ritmo que o bot usava aparecia só dentro de
+           uma frase de status e não tinha onde ser ajustado. -->
+      <div class="card" id="cardCadencia">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-wave"/></svg>
+              <h3>Cadência das publicações</h3>
+            </div>
+            <p class="card-sub">O ritmo que o bot segue de verdade. O bot em execução lê estes valores quando sobe: mudar aqui vale no próximo start, sem precisar reiniciar o painel.</p>
+          </div>
+        </div>
+
+        <form id="formCadencia" class="config-grade" novalidate>
+          <div class="campo">
+            <label for="cadIntervalo"><svg class="icone-sm" aria-hidden="true"><use href="#i-clock"/></svg>Intervalo entre ciclos (minutos)</label>
+            <input id="cadIntervalo" name="intervalo_minutos" type="number" min="0" step="1" value="45" placeholder="45">
+            <p class="ajuda">De quanto em quanto tempo o bot roda um ciclo. 0 = não roda sozinho.</p>
+          </div>
+
+          <div class="campo">
+            <label for="cadMaxPosts"><svg class="icone-sm" aria-hidden="true"><use href="#i-package"/></svg>Máximo de ofertas por ciclo</label>
+            <input id="cadMaxPosts" name="max_posts_por_ciclo" type="number" min="0" step="1" value="3" placeholder="3">
+            <p class="ajuda">Quantas ofertas ele pode escolher no ciclo. 0 = nenhuma.</p>
+          </div>
+
+          <div class="campo">
+            <label for="cadEspacamento"><svg class="icone-sm" aria-hidden="true"><use href="#i-wave"/></svg>Espaçamento entre posts (segundos)</label>
+            <input id="cadEspacamento" name="espacamento_segundos" type="number" min="0" step="1" value="120" placeholder="120">
+            <p class="ajuda">Pausa entre uma oferta e a seguinte. É o que evita o Telegram derrubar a conta.</p>
+          </div>
+
+          <div class="campo">
+            <label for="cadNaoRepetir"><svg class="icone-sm" aria-hidden="true"><use href="#i-history"/></svg>Não repetir a mesma oferta (dias)</label>
+            <input id="cadNaoRepetir" name="nao_repetir_dias" type="number" min="0" step="1" value="7" placeholder="7">
+            <p class="ajuda">Janela de deduplicação. 7 = não reposta a mesma oferta por uma semana.</p>
+          </div>
+
+          <div class="campo">
+            <label for="cadHorario"><svg class="icone-sm" aria-hidden="true"><use href="#i-power"/></svg>Horário ativo</label>
+            <input id="cadHorario" name="horario_ativo" type="text" value="" placeholder="24h" autocomplete="off" spellcheck="false">
+            <p class="ajuda">Janela em que posta: <code>08:00-23:00</code>. Vazio ou <code>24h</code> = a qualquer hora.</p>
+          </div>
+        </form>
+
+        <div class="acoes-form">
+          <button type="button" class="btn btn-primario" onclick="salvarCadencia()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+            Salvar cadência
+          </button>
+          <span id="cadAviso" class="metrica-rotulo" aria-live="polite"></span>
+        </div>
+      </div>
 
       <!-- Controle de Publicação e Agendamento -->
       <div class="card" id="cardPublicacao">
@@ -1707,45 +1944,45 @@ PAGINA = r"""<!doctype html>
           <div>
             <div class="card-titulo">
               <svg class="icone" aria-hidden="true"><use href="#i-clock"/></svg>
-              <h3>Controle de Publicação e Cadência</h3>
+              <h3>Blocos e pausas automáticas</h3>
             </div>
-            <p class="card-sub">Intervalos globais, pausas automáticas em bloco e limite de segurança por período.</p>
+            <p class="card-sub">Camada extra por cima da cadência: posting em rajada, com pausa depois de N posts, e um teto por período. Está zerado, então hoje não muda nada no bot.</p>
           </div>
         </div>
 
         <form id="formPublicacao" class="config-grade" novalidate>
           <div class="campo">
-            <label for="pubIntervalo">⏱️ Intervalo mínimo entre posts (minutos)</label>
+            <label for="pubIntervalo"><svg class="icone-sm" aria-hidden="true"><use href="#i-clock"/></svg>Intervalo mínimo entre posts (minutos)</label>
             <input id="pubIntervalo" name="intervalo_entre_posts_minutos" type="number" min="0" step="1" value="5" placeholder="5">
             <p class="ajuda">Ex: 5 = 5 minutos entre uma oferta e outra (0 = sem intervalo).</p>
           </div>
 
           <div class="campo">
-            <label for="pubPostsAntesPausa">⏸️ Posts antes da pausa</label>
+            <label for="pubPostsAntesPausa"><svg class="icone-sm" aria-hidden="true"><use href="#i-layers"/></svg>Posts antes da pausa</label>
             <input id="pubPostsAntesPausa" name="posts_antes_pausa" type="number" min="0" value="5" placeholder="5">
             <p class="ajuda">Quantidade de posts num bloco antes de entrar em pausa (0 = desativado).</p>
           </div>
 
           <div class="campo">
-            <label for="pubTempoPausa">⏳ Duração da pausa (minutos)</label>
+            <label for="pubTempoPausa"><svg class="icone-sm" aria-hidden="true"><use href="#i-stop"/></svg>Duração da pausa (minutos)</label>
             <input id="pubTempoPausa" name="tempo_pausa_minutos" type="number" min="0" step="1" value="30" placeholder="30">
             <p class="ajuda">Ex: 30 = 30 minutos de descanso antes do próximo bloco (0 = sem pausa).</p>
           </div>
 
           <div class="campo">
-            <label for="pubMaxPosts">📊 Limite máximo de posts por período</label>
+            <label for="pubMaxPosts"><svg class="icone-sm" aria-hidden="true"><use href="#i-bar-chart"/></svg>Limite máximo de posts por período</label>
             <input id="pubMaxPosts" name="max_posts_periodo" type="number" min="0" value="20" placeholder="20">
             <p class="ajuda">Ex: 20 posts no período de segurança (0 = sem limite).</p>
           </div>
 
           <div class="campo">
-            <label for="pubPeriodoHoras">🕒 Janela do período (horas)</label>
+            <label for="pubPeriodoHoras"><svg class="icone-sm" aria-hidden="true"><use href="#i-history"/></svg>Janela do período (horas)</label>
             <input id="pubPeriodoHoras" name="periodo_horas" type="number" min="1" value="24" placeholder="24">
             <p class="ajuda">Período de rotação do limite (padrão: 24 horas).</p>
           </div>
 
           <div class="campo">
-            <label>🚦 Status da Cadência em Tempo Real</label>
+            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-wave"/></svg>Status da Cadência em Tempo Real</label>
             <div id="pubStatusCadencia" class="painel-info" style="font-size:12.5px; padding:10px 14px;">
               Carregando estado de publicação…
             </div>
@@ -1764,104 +2001,123 @@ PAGINA = r"""<!doctype html>
           <span id="pubAviso" class="metrica-rotulo" aria-live="polite"></span>
         </div>
       </div>
+      </section>
 
-      <!-- Fontes de Scraping Telegram -->
-      <div class="card" id="cardFontesTelegram">
+      <section class="config-secao" id="sec-fontes" aria-labelledby="t-sec-fontes">
+        <h2 class="config-secao-titulo" id="t-sec-fontes">
+          <svg class="icone-sm" aria-hidden="true"><use href="#i-megaphone"/></svg>De onde vêm as ofertas
+        </h2>
+
+      <!-- Fontes de Scraping Telegram. Era um card so com as tres coisas
+           dentro (adicionar, tabela e configuracao do robo). Na grade de duas
+           colunas isso dava um card altissimo e meio vazio, entao virou tres:
+           dois de meia linha e a tabela na linha inteira — cinco colunas de
+           dados espremidas em meia tela viram um garrancho. -->
+      <div class="card" id="cardNovaFonteTelegram">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-send"/></svg>
+              <h3>Adicionar fonte Telegram</h3>
+            </div>
+            <p class="card-sub">Canais e supergrupos públicos de ofertas, por @username. O scraper extrai, filtra e joga na fila de publicação.</p>
+          </div>
+        </div>
+
+        <form id="formNovaFonteTelegram" class="config-grade" novalidate onsubmit="adicionarFonteTelegram(event)">
+          <div class="campo">
+            <label for="novaFonteUsername">@username ou link público</label>
+            <input id="novaFonteUsername" name="username" type="text" placeholder="@canal_ofertas ou t.me/canal_ofertas" autocomplete="off" spellcheck="false" required>
+            <p class="ajuda">Canais públicos e supergrupos compatíveis.</p>
+          </div>
+          <div class="campo">
+            <label for="novaFonteNome">Nome amigável</label>
+            <input id="novaFonteNome" name="nome" type="text" placeholder="Ex: Canal Ofertas Promo" autocomplete="off" spellcheck="false">
+            <p class="ajuda">Identificação nos logs e relatórios.</p>
+          </div>
+          <div class="acoes-form" style="grid-column:1/-1; margin-top:6px; padding-top:10px;">
+            <button type="submit" class="btn btn-primario btn-sm">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+              Salvar fonte
+            </button>
+            <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteNova()">
+              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-search"/></svg>
+              Testar conexão
+            </button>
+            <span id="novaFonteAviso" class="metrica-rotulo" aria-live="polite"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card" id="cardScraping">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-cpu"/></svg>
+              <h3>Robô de scraping</h3>
+            </div>
+            <p class="card-sub">Com que frequência ele varre os canais cadastrados e quantas mensagens leva por rodada.</p>
+          </div>
+        </div>
+
+        <form id="formScrapingCfg" class="config-grade" novalidate>
+          <div class="campo">
+            <label for="scrapingAtivo">Status do Scraper</label>
+            <select id="scrapingAtivo" name="ativo">
+              <option value="true">Scraping Ativo</option>
+              <option value="false">Scraping Desativado</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="scrapingIntervalo">Intervalo de varredura (segundos)</label>
+            <input id="scrapingIntervalo" name="intervalo_segundos" type="number" min="5" value="30" placeholder="30">
+          </div>
+          <div class="campo">
+            <label for="scrapingLimiteMsg">Máx. mensagens por ciclo</label>
+            <!-- teto 500: é o que o backend aceita e valida. Com max=100 a
+                 tela recusava valores válidos e o usuário não conseguia
+                 aumentar o ciclo. -->
+            <input id="scrapingLimiteMsg" name="limite_mensagens_por_ciclo" type="number" min="1" max="500" value="20" placeholder="20">
+          </div>
+        </form>
+        <div class="acoes-form">
+          <button type="button" class="btn btn-neutro btn-sm" onclick="salvarConfigScraping()">
+            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+            Salvar configurações do scraper
+          </button>
+          <span id="scrapingCfgAviso" class="metrica-rotulo" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div class="card config-largo" id="cardFontesTelegram">
         <div class="card-topo">
           <div>
             <div class="card-titulo">
               <svg class="icone" aria-hidden="true"><use href="#i-megaphone"/></svg>
-              <h3>Fontes de Scraping Telegram</h3>
+              <h3>Fontes cadastradas</h3>
             </div>
-            <p class="card-sub">Monitore canais e supergrupos públicos de ofertas via @username. O scraper extrai, filtra e envia para a fila de publicação.</p>
+            <p class="card-sub">O que o robô está lendo agora, e quando foi a última vez que cada canal entregou oferta.</p>
           </div>
         </div>
 
-        <div style="background:var(--fundo-sub); border:1px solid var(--borda); border-radius:var(--r-md); padding:16px 18px; margin-bottom:18px;">
-          <h4 style="font-size:13.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-            <svg class="icone icone-sm" style="color:var(--primaria-forte)"><use href="#i-send"/></svg>
-            Adicionar nova fonte Telegram
-          </h4>
-          <form id="formNovaFonteTelegram" class="config-grade" novalidate onsubmit="adicionarFonteTelegram(event)">
-            <div class="campo">
-              <label for="novaFonteUsername">@username ou link público</label>
-              <input id="novaFonteUsername" name="username" type="text" placeholder="@canal_ofertas ou t.me/canal_ofertas" autocomplete="off" spellcheck="false" required>
-              <p class="ajuda">Canais públicos e supergrupos compatíveis.</p>
-            </div>
-            <div class="campo">
-              <label for="novaFonteNome">Nome amigável</label>
-              <input id="novaFonteNome" name="nome" type="text" placeholder="Ex: Canal Ofertas Promo" autocomplete="off" spellcheck="false">
-              <p class="ajuda">Identificação nos logs e relatórios.</p>
-            </div>
-            <div class="acoes-form" style="grid-column:1/-1; margin-top:6px; padding-top:10px;">
-              <button type="submit" class="btn btn-primario btn-sm">
-                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
-                Salvar fonte
-              </button>
-              <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteNova()">
-                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-search"/></svg>
-                Testar conexão
-              </button>
-              <span id="novaFonteAviso" class="metrica-rotulo" aria-live="polite"></span>
-            </div>
-          </form>
-        </div>
-
-        <div style="margin-bottom:16px;">
-          <h4 style="font-size:13px; font-weight:700; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--texto-3);">
-            Fontes cadastradas
-          </h4>
-          <div class="tabela-caixa">
-            <table class="tabela">
-              <thead>
-                <tr>
-                  <th>Fonte / Nome</th>
-                  <th>@Username</th>
-                  <th>Status</th>
-                  <th>Última Captura</th>
-                  <th style="text-align:right">Ações</th>
-                </tr>
-              </thead>
-              <tbody id="tabelaFontesTelegramCorpo">
-                <tr><td colspan="5" style="text-align:center; padding:18px;">Carregando fontes…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style="border-top:1px solid var(--borda-sutil); padding-top:16px;">
-          <h4 style="font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px; color:var(--primaria-texto); margin-bottom:12px;">
-            Configurações do Robô de Scraping
-          </h4>
-          <form id="formScrapingCfg" class="config-grade" novalidate>
-            <div class="campo">
-              <label for="scrapingAtivo">Status do Scraper</label>
-              <select id="scrapingAtivo" name="ativo">
-                <option value="true">🟢 Scraping Ativo</option>
-                <option value="false">⚪ Scraping Desativado</option>
-              </select>
-            </div>
-            <div class="campo">
-              <label for="scrapingIntervalo">Intervalo de varredura (segundos)</label>
-              <input id="scrapingIntervalo" name="intervalo_segundos" type="number" min="5" value="30" placeholder="30">
-            </div>
-            <div class="campo">
-              <label for="scrapingLimiteMsg">Máx. mensagens por ciclo</label>
-              <!-- teto 500: é o que o backend aceita e valida. Com max=100 a
-                   tela recusava valores válidos e o usuário não conseguia
-                   aumentar o ciclo. -->
-              <input id="scrapingLimiteMsg" name="limite_mensagens_por_ciclo" type="number" min="1" max="500" value="20" placeholder="20">
-            </div>
-          </form>
-          <div class="acoes-form">
-            <button type="button" class="btn btn-neutro btn-sm" onclick="salvarConfigScraping()">
-              <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
-              Salvar configurações do scraper
-            </button>
-            <span id="scrapingCfgAviso" class="metrica-rotulo" aria-live="polite"></span>
-          </div>
+        <div class="tabela-caixa">
+          <table class="tabela">
+            <thead>
+              <tr>
+                <th>Fonte / Nome</th>
+                <th>@Username</th>
+                <th>Status</th>
+                <th>Última Captura</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaFontesTelegramCorpo">
+              <tr><td colspan="5" style="text-align:center; padding:18px;">Carregando fontes…</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
+      </section>
     </section>
 
     <!-- ── Logs ─────────────────────────────────────────────────── -->
@@ -2022,7 +2278,7 @@ PAGINA = r"""<!doctype html>
     <div class="modal-pe">
       <button type="button" class="btn btn-neutro" data-fechar="modalLink">Fechar</button>
       <button type="submit" form="formLink" class="btn btn-primario" id="btnGerarLink">
-        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-wand"/></svg>
+        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-sparkles"/></svg>
         Gerar link
       </button>
     </div>
@@ -2167,6 +2423,39 @@ function injetarIconesFaltantes() {
   }
 }
 
+/* ══ Barra de seções de Configurações ══════════════════════════════
+   Dois estados que a tela nao mostrava: qual das quatro secoes esta a
+   vista, e que o formulario de credenciais tem alteracao nao salva. O
+   `configSuja` ja existia desde antes, so que lido apenas para pular a
+   repinta - o estado era mantido e nunca exibido. */
+function marcarSecaoAtiva() {
+  const nav = $("#configNav");
+  if (!nav) return;
+  const secoes = $$("#view-config .config-secao");
+  if (!secoes.length) return;
+  // 140px: a barra tem ~46px e fica grudada no topo. O que passou dessa
+  // marca conta como "a secao atual", e nao a que ainda esta chegando.
+  let atual = null;
+  for (const s of secoes) {
+    if (s.getBoundingClientRect().top <= 140) atual = s.id;
+  }
+  if (!atual) atual = secoes[0].id;
+  $$("#configNav a").forEach(a =>
+    a.classList.toggle("ativo", a.getAttribute("href") === "#" + atual));
+}
+
+function marcarConfigSuja(sujo) {
+  const nav = $("#configNav");
+  if (nav) nav.classList.toggle("sujo", !!sujo);
+}
+
+let scrollMarcado = false;
+window.addEventListener("scroll", () => {
+  if (scrollMarcado) return;
+  scrollMarcado = true;
+  requestAnimationFrame(() => { scrollMarcado = false; marcarSecaoAtiva(); });
+}, { passive: true });
+
 /* ══ Navegação entre abas ════════════════════════════════════════════ */
 function switchView(nome) {
   if (!$("#view-" + nome)) return;
@@ -2183,11 +2472,12 @@ function switchView(nome) {
   if (location.hash.slice(1) !== nome) history.replaceState(null, "", "#" + nome);
 
   if (nome === "produtos") carregarProdutos();
-  if (nome === "config") { carregarConfig(); carregarNichos(); carregarConta(); }
-  // Os cards de plataforma só têm campo depois que /api/config responde.
-  // No boot isso já aconteceu, mas ir direto pela URL precisa funcionar.
+  if (nome === "config") { carregarConfig(); carregarNichos(); carregarConta(); marcarSecaoAtiva(); }
+  // O resumo dos cards de plataforma depende de /api/config, não só do
+  // status. No boot isso já aconteceu, mas ir direto pela URL precisa
+  // funcionar — e a gaveta só tem campo depois dessa mesma resposta.
   if (nome === "plataformas" && !CAMPOS_META.length) {
-    lerConfig().then(() => pintarCredenciaisPlataforma()).catch(() => {});
+    lerConfig().then(() => pintarResumoPlataforma()).catch(() => {});
   }
   if (nome === "dashboard") desenharGraficos();   // o canvas precisa de largura real
   if (nome === "suporte") renderDiagnostico();
@@ -2199,21 +2489,12 @@ function irPara(view) {
   if (link) link.focus({ preventScroll: true });
 }
 
-/* Entra na aba de Plataformas e destaca o card da plataforma. O foco vai
-   para o primeiro campo, não para o primeiro botão: quem clicou em
-   "Configurar" quer preencher a credencial. */
+/* Abre a gaveta de configuração de uma plataforma. É o mesmo caminho para
+   o botão "Configurar" da grade e para o do Dashboard: a gaveta é global,
+   então não faz sentido obrigar quem cliqueu no Dashboard a mudar de aba
+   antes de preencher a credencial. */
 function gerenciarPlataforma(chave) {
-  switchView("plataformas");
-  $$(".plato").forEach(b => b.classList.remove("destaque"));
-  const alvo = $("#plato-" + chave);
-  if (alvo) {
-    alvo.classList.add("destaque");
-    setTimeout(() => {
-      alvo.scrollIntoView({ behavior: "smooth", block: "center" });
-      const campo = $("input", alvo);
-      if (campo) campo.focus({ preventScroll: true });
-    }, 60);
-  }
+  abrirGaveta(chave);
 }
 
 /* ══ Relógio ══════════════════════════════════════════════════════════ */
@@ -2306,15 +2587,28 @@ async function atualizarStatus() {
 /* ═══ Blocos de plataforma (gerados a partir dos dados) ═════════════ */
 /* Cada card da grade. `grupo` e o mesmo rotulo que o servidor usa em
    /api/config, e e por ele que os campos de credencial sao buscados —
-   por isso o nome precisa bater com CAMPOS no painel.py. `estado` e a
-   linha de leitura: o que o selo "Conectado" nao diz, tipo o que falta
-   para a plataforma funcionar. */
+   por isso o nome precisa bater com CAMPOS no painel.py.
+
+   `resumoDe` le a unica linha informativa do card direto do `status` que o
+   servidor mandou em /api/status. A pagina nao reescreve esse texto: se o
+   servidor trocar "Open API pronta" por outra coisa, o card mostra a coisa
+   nova sozinho, e ninguem precisa lembrar de atualizar dois lugares.
+   `acoes` sao os botoes que ficam na gaveta, nunca na grade. */
 const BLOCOS = [
   {
     chave: "mercadolivre", nome: "Mercado Livre", grupo: "Mercado Livre",
     cor: "var(--e1)", logo: "/assets/mercadolivre.png",
     sub: "Linkbuilder com sessão local",
-    estado: ["Sessão do navegador", "pbMlSessao"],
+    resumoDe: p => (p.mercadolivre || {}).status || "Não configurado",
+    // Três estados, e não dois: o servidor distingue a sessão pendente de
+    // uma credencial que existe mas nunca foi testada. Tratar os dois como
+    // "desconectado" esconde exatamente o que a pessoa precisa corrigir.
+    estadoDe: p => {
+      const m = p.mercadolivre || {};
+      if (m.conectado) return ["ok", "Conectado"];
+      if (m.sessao_ativa) return ["erro", "Sessão ativa, falta a etiqueta"];
+      return ["neutro", "Desconectado"];
+    },
     acoes: [
       ["ml-login", "Fazer login", "btn-primario", "key"],
       ["testar-ml", "Testar conexão", "btn-neutro", "search"],
@@ -2328,7 +2622,9 @@ const BLOCOS = [
     chave: "amazon", nome: "Amazon", grupo: "Amazon",
     cor: "var(--e2)", logo: "/assets/amazon.png",
     sub: "Associados e Creators API",
-    estado: ["Busca oficial", "pbAmzApi"],
+    resumoDe: p => (p.amazon || {}).status || "Não configurado",
+    estadoDe: p => (p.amazon || {}).conectado
+      ? ["ok", "Conectado"] : ["neutro", "Desconectado"],
     acoes: [
       ["testar-amazon", "Testar conexão", "btn-neutro", "search"],
     ],
@@ -2337,7 +2633,9 @@ const BLOCOS = [
     chave: "shopee", nome: "Shopee", grupo: "Shopee",
     cor: "var(--e3)", logo: "/assets/shopee.png",
     sub: "Open API oficial de afiliados",
-    estado: ["Credenciais", "pbShpCred"],
+    resumoDe: p => (p.shopee || {}).status || "Não configurado",
+    estadoDe: p => (p.shopee || {}).conectado
+      ? ["ok", "Conectado"] : ["neutro", "Desconectado"],
     acoes: [
       ["testar-shopee", "Testar conexão", "btn-neutro", "search"],
     ],
@@ -2346,151 +2644,255 @@ const BLOCOS = [
     chave: "aliexpress", nome: "AliExpress", grupo: "AliExpress",
     cor: "var(--e4)", logo: "/assets/aliexpress.png",
     sub: "Open Platform / Affiliate API",
-    estado: ["Credenciais", "pbAliCred"],
+    resumoDe: p => (p.aliexpress || {}).status || "Não configurado",
+    estadoDe: p => (p.aliexpress || {}).conectado
+      ? ["ok", "Conectado"] : ["neutro", "Desconectado"],
     acoes: [
       ["testar-aliexpress", "Testar conexão", "btn-neutro", "search"],
+    ],
+  },
+  {
+    chave: "telegram", nome: "Telegram", grupo: "Telegram",
+    cor: "var(--primaria-texto)", logo: "",
+    sub: "Bot, canal e fontes monitoradas",
+    // O /api/status nao tem entrada de Telegram em `plataformas`: ele
+    // expoe os tres campos como `preenchidos` e um `pronto` derivado.
+    // Nao ha status para copiar aqui, entao a frase traduz o booleano.
+    // "Falta o token, o seu ID e o canal", e nao "Faltam identificadores":
+    // o nome do campo e o que a pessoa procura na gaveta logo abaixo.
+    resumoDe: (p, s) => {
+      const pg = (s && s.preenchidos) || {};
+      const f = [["o token", pg.TELEGRAM_BOT_TOKEN], ["o seu ID", pg.TELEGRAM_OWNER_ID],
+                 ["o canal", pg.TELEGRAM_CHAT_ID]].filter(([, tem]) => !tem).map(([rot]) => rot);
+      if (!f.length) return "Token, ID e canal definidos";
+      // Virgula antes do último, como se escreve em português. Juntar tudo
+      // com " e " daria "o token e o seu ID e o canal" com tres campos, e
+      // com " e " sem virgula ficaria ambíguo a partir de dois.
+      return "Falta " + (f.length === 1 ? f[0]
+        : f.slice(0, -1).join(", ") + " e " + f[f.length - 1]);
+    },
+    estadoDe: (p, s) => (s && s.pronto)
+      ? ["ok", "Conectado"] : ["neutro", "Desconectado"],
+    acoes: [
+      ["ids", "Detectar IDs", "btn-neutro", "search"],
     ],
   },
 ];
 
 /* O status chega a cada poucos segundos. Recriar o HTML dos cards a cada
-   volta apagaria o que a pessoa estivesse digitando na credencial, então
-   a montagem acontece uma vez e daqui para frente so repinta o texto. */
+   volta apagaria o que a pessoa estivesse digitando no drawer, então a
+   montagem acontece uma vez e daqui para frente so repinta o texto. */
 function renderPlataformas(s) {
   const alvo = $("#blocosPlataforma");
   if (!alvo) return;
   if (!alvo.children.length) montarCardsPlataforma();
   if (s && s.plataformas) pintarEstadoPlataforma(s);
-  pintarCredenciaisPlataforma();
+  pintarResumoPlataforma();
 }
 
+/* Card compacto: logo, nome, o selo de estado, a linha de status do
+   servidor e o botao de configurar. Os campos de credencial nao entram
+   aqui — moram na gaveta. */
 function montarCardsPlataforma() {
   $("#blocosPlataforma").innerHTML = BLOCOS.map(b => `
     <section class="plato" id="plato-${b.chave}" style="--cor:${b.cor}" aria-labelledby="tit-${b.chave}">
       <div class="plato-topo">
         <span class="plato-logo">
-          <img class="plato-logo-img" src="${b.logo}" alt="Logo ${esc(b.nome)}" width="46" height="46" loading="lazy">
+          ${b.logo
+            ? `<img class="plato-logo-img" src="${b.logo}" alt="Logo ${esc(b.nome)}" width="40" height="40" loading="lazy">`
+            : icone("send", "plato-logo-img plato-logo-glyph")}
         </span>
         <div class="plato-id">
           <h3 id="tit-${b.chave}">${esc(b.nome)}</h3>
           <small>${esc(b.sub)}</small>
         </div>
-        <span class="selo selo-espera" id="seloPb-${b.chave}"><span class="ponto" aria-hidden="true"></span>Verificando</span>
+        <span class="selo selo-neutro" id="seloPb-${b.chave}"><span class="ponto" aria-hidden="true"></span>Verificando</span>
       </div>
 
       <div class="plato-estado">
-        <div class="plato-linha">
-          <span>${esc(b.estado[0])}</span>
-          <span class="val" id="${b.estado[1]}">—</span>
-        </div>
-      </div>
-
-      <form class="plato-credenciais" id="form-${b.chave}" novalidate></form>
-
-      <div class="plato-salvar">
-        <button type="button" class="btn btn-primario btn-save-${b.chave}"
-                onclick="salvarPlataforma('${b.chave}')">
-          ${icone("check")} Salvar credenciais
-        </button>
-        <span class="plato-dica" id="dica-${b.chave}" role="status"></span>
+        <p class="plato-linha"><span id="res-${b.chave}">—</span></p>
       </div>
 
       <div class="plato-rodape">
-        ${b.acoes.map(([acao, rot, cls, ic]) => `<button type="button" class="btn ${cls}"
-            onclick="${acao === "sessao" ? "abrirModalSessao()" : `executarAcao('${acao}')`}">
-            ${icone(ic)} ${esc(rot)}</button>`).join("")}
-        ${(b.extra || []).map(([rot, cls, ic, js]) =>
-          `<button type="button" class="btn ${cls}" onclick="${js}">${icone(ic)} ${esc(rot)}</button>`).join("")}
+        <button type="button" class="btn btn-neutro" onclick="abrirGaveta('${b.chave}')">
+          ${icone("sliders")} Configurar
+        </button>
       </div>
     </section>`).join("");
 }
 
-function texto(el, txt, fraco) {
+/* Selo com três estados, e não dois. O `selo()` antigo só sabia dizer
+   conectado ou não; aqui o servidor distingue "a credencial existe mas a
+   sessão não" de "não existe nada", e achatar os dois esconde justamente o
+   que a pessoa precisa corrigir. */
+function seloDe(el, [classe, txt]) {
   if (!el) return;
-  el.textContent = txt;
-  el.className = "val" + (fraco ? " sem-valor" : "");
+  el.className = "selo selo-" + classe;
+  el.innerHTML = `<span class="ponto" aria-hidden="true"></span>${esc(txt)}`;
 }
 
-/* "Falta o App Secret", e não "Faltam App ID e Secret". A plataforma só
-   liga com as duas metades, então com uma preenchida a frase genérica
-   mente — e a pessoa vai procurar um campo que já está cheio. */
-function falta(rotulos) {
-  const porCima = rotulos.filter(([k]) => !(CFG && CFG[k + "__set"]));
-  if (!porCima.length) return [true, "Credenciais definidas"];
-  return [false, "Falta " + porCima.map(([, rot]) => rot).join(" e ")];
-}
-
+/* Uma volta do polling repinta selo e resumo de todos os cards. As duas
+   coisas saem de BLOCOS: cada bloco sabe o que é estar conectado e de
+   onde vem a linha de resumo, então acrescentar uma plataforma é uma
+   entrada nova e nada mais. */
 function pintarEstadoPlataforma(s) {
-  const p = s.plataformas;
-
-  const ml = p.mercadolivre || {};
-  selo($("#seloPb-mercadolivre"), ml.conectado, ml.conectado ? "Conectado" : ml.status || "Não configurado");
-  texto($("#pbMlSessao"), ml.sessao_ativa ? "Ativa e salva" : "Pendente — faça o login", !ml.sessao_ativa);
-
-  const amz = p.amazon || {};
-  selo($("#seloPb-amazon"), amz.conectado, amz.conectado ? "Conectado" : amz.status || "Não configurado");
-  texto($("#pbAmzApi"), amz.api_ativa ? "Creators API ativa" : "Busca por scraping", !amz.api_ativa);
-
-  const shp = p.shopee || {};
-  selo($("#seloPb-shopee"), shp.conectado, shp.conectado ? "Conectado" : shp.status || "Não configurado");
-  const shpFalta = falta([["SHOPEE_APP_ID", "o App ID"], ["SHOPEE_APP_SECRET", "o App Secret"]]);
-  texto($("#pbShpCred"), shpFalta[1], !shpFalta[0]);
-
-  const ali = p.aliexpress || {};
-  selo($("#seloPb-aliexpress"), ali.conectado, ali.conectado ? "Conectado" : ali.status || "Não configurado");
-  const aliFalta = falta([["ALIEXPRESS_APP_KEY", "a App Key"], ["ALIEXPRESS_APP_SECRET", "o App Secret"]]);
-  texto($("#pbAliCred"), aliFalta[1], !aliFalta[0]);
-}
-
-/* Os inputs de credencial de cada card. Só escreve uma vez por card: o
-   polling do status passaria por cima de tudo que a pessoa digitou. Só
-   o card indicado em forcarChave é repintado — usado depois de salvar,
-   para trazer a marca "definido" sem limpar o que está em outro card. */
-function pintarCredenciaisPlataforma(forcarChave) {
-  if (!CAMPOS_META.length) return;
+  const p = s.plataformas || {};
   for (const b of BLOCOS) {
-    const form = $("#form-" + b.chave);
-    if (!form) continue;
-    if (form.dataset.pronto === "1" && b.chave !== forcarChave) continue;
-    const campos = camposDaPlataforma(b.grupo);
-    form.dataset.pronto = "1";
-    if (!campos.length) {
-      form.innerHTML = `<p class="plato-dica">Esta fonte não usa credencial.</p>`;
-      continue;
-    }
-    form.innerHTML = campos.map(c => {
-      const definido = !!CFG[c.chave + "__set"];
-      const marca = definido ? `<span class="marca-ok">${icone("check")} definido</span>` : "";
-      const valor = c.segredo ? "" : esc(CFG[c.chave] || "");
-      const ph = c.segredo && definido ? "Já preenchido — deixe em branco para manter" : "";
-      return `
-        <div class="campo">
-          <label for="pbc_${esc(c.chave)}">${esc(c.rotulo)} ${marca}</label>
-          <input id="pbc_${esc(c.chave)}" name="${esc(c.chave)}" type="${c.segredo ? "password" : "text"}"
-                 value="${valor}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false"
-                 aria-describedby="pba_${esc(c.chave)}">
-          <p class="ajuda" id="pba_${esc(c.chave)}">${esc(c.ajuda)}</p>
-        </div>`;
-    }).join("");
+    seloDe($("#seloPb-" + b.chave), b.estadoDe(p, s));
   }
-  // A linha de estado diz o que falta, e isso depende de quais campos já
-  // estão salvos — ou seja, do CFG que acabou de chegar. O status costuma
-  // pintar antes dele, e sem este repinto um card já configurado ficaria
-  // anunciando "falta tudo" até a próxima volta do polling.
-  if (statusAtual.plataformas) pintarEstadoPlataforma(statusAtual);
+  pintarResumoPlataforma();
+  // A gaveta aberta mostra o mesmo par selo + status, logo entra na mesma
+  // volta. Só o texto que muda — os inputs são de `pintarCamposGaveta`, que
+  // tem o guard de digitação e não pode ser atropelado por aqui.
+  pintarSituacaoGaveta();
 }
 
-/* Salva só os campos deste card. O servidor ignora o que não veio no
-   corpo, então tocar num cartao não mexe na credencial dos outros. */
+/* O resumo e o status do servidor, sem rótulo: "Status | Link Builder
+   pronto" repete a mesma palavra duas vezes, e o valor sozinho ja diz do
+   que se trata. Chega em duas respostas separadas — o status primeiro, o
+   /api/config depois — entao e repintado de qualquer uma delas. */
+function pintarResumoPlataforma() {
+  const s = statusAtual;
+  if (!s || !s.plataformas) return;
+  for (const b of BLOCOS) {
+    const el = $("#res-" + b.chave);
+    if (el) el.textContent = b.resumoDe(s.plataformas, s);
+  }
+}
+
+/* ══ Gaveta de configuração ═════════════════════════════════════════════
+   Um container só, montado no momento de abrir. Cinco formulários
+   permanentes pareceriam mais baratos, mas cada resposta de /api/config
+   repassaria por cima do que estivesse sendo digitado em qualquer gaveta
+   fechada. Aqui o form existe só enquanto a gaveta está aberta — e fechar
+   descarta o que não foi salvo, que é o que o botão "Descartar" do teclado
+   promete. */
+let gavetaChave = null;
+
+/* A "Situação" da gaveta é o mesmo par selo + status dos cards, e por isso
+   mora em BLOCOS igual: acrescentar uma plataforma continua sendo uma
+   entrada. Precisa ser função à parte porque o polling repinta os cards a
+   cada volta, mas a gaveta ficaria num retrato do instante em que foi
+   aberta — aberta antes do primeiro /api/status, ela continuaria anunciando
+   "Desconectado" mesmo depois de a credencial estar salva. */
+function pintarSituacaoGaveta() {
+  const alvo = $("#gavetaResumo");
+  const b = BLOCOS.find(x => x.chave === gavetaChave);
+  if (!alvo || !b) return;
+  const p = statusAtual.plataformas || {};
+  const [classe, txt] = b.estadoDe(p, statusAtual);
+  alvo.innerHTML = `
+    <div class="gaveta-secao-titulo">${icone("sliders")} Situação</div>
+    <div style="display:flex; align-items:center; gap:9px; margin-top:11px; flex-wrap:wrap">
+      <span class="selo selo-${classe}"><span class="ponto" aria-hidden="true"></span>${esc(txt)}</span>
+      <span class="gaveta-status">${esc(b.resumoDe(p, statusAtual))}</span>
+    </div>`;
+}
+
+async function abrirGaveta(chave) {
+  const b = BLOCOS.find(x => x.chave === chave);
+  if (!b) return;
+  gavetaChave = chave;
+
+  $("#gavetaTitulo").textContent = b.nome;
+  $("#gavetaSub").textContent = b.sub;
+  // O glifo do Telegram não tem PNG em /assets; entra o ícone do mesmo
+  // conjunto dos botões, com a cor da marca em vez da imagem.
+  $("#gavetaLogoCaixa").innerHTML = b.logo
+    ? `<img class="plato-logo-img" src="${esc(b.logo)}" alt="Logo ${esc(b.nome)}" width="40" height="40">`
+    : icone("send", "plato-logo-img plato-logo-glyph");
+  $("#gaveta").style.setProperty("--cor", b.cor);
+
+  // O estado e as ações são os mesmos dos cards, para a gaveta não virar
+  // uma tela separada: quem abre lê o mesmo texto e age sobre o mesmo par.
+  pintarSituacaoGaveta();
+
+  $("#gavetaAcoesBloco").innerHTML = `
+    <div class="gaveta-secao-titulo">${icone("play")} Ações</div>
+    <div class="gaveta-acoes" style="margin-top:11px">
+      ${b.acoes.map(([acao, rot, cls, ic]) => `<button type="button" class="btn ${cls}"
+          onclick="${acao === "sessao" ? "abrirModalSessao()" : acao === "ids" ? "detectarIds('#gavetaDeteccao', true)" : `executarAcao('${acao}')`}">
+          ${icone(ic)} ${esc(rot)}</button>`).join("")}
+      ${(b.extra || []).map(([rot, cls, ic, js]) =>
+        `<button type="button" class="btn ${cls}" onclick="${js}">${icone(ic)} ${esc(rot)}</button>`).join("")}
+    </div>`;
+
+  $("#gavetaCamposBloco").innerHTML = `<div class="gaveta-campos" id="gavetaCampos"></div>`;
+  $("#gavetaDica").textContent = "";
+  $("#gavetaDica").className = "plato-dica";
+  $("#gavetaSalvar").disabled = false;
+
+  abrirModal("gavetaPlataforma");
+
+  // Os metadados dos campos vêm de /api/config. Em geral já chegaram no
+  // boot, mas chegar pela gaveta direto (botão do Dashboard) não pode
+  // mostrar um formulário vazio enquanto a resposta está a caminho.
+  if (!CAMPOS_META.length) {
+    $("#gavetaCampos").innerHTML = vazio("Carregando campos…", "", "refresh");
+    try { await lerConfig(); } catch (e) { /* a linha abaixo mostra o erro */ }
+  }
+  pintarCamposGaveta(chave);
+}
+
+function pintarCamposGaveta(chave) {
+  const alvo = $("#gavetaCampos");
+  if (!alvo) return;
+  const b = BLOCOS.find(x => x.chave === chave);
+  const campos = b ? camposDaPlataforma(b.grupo) : [];
+  if (!CAMPOS_META.length) {
+    alvo.innerHTML = `<div class="alerta alerta-erro" role="alert">${icone("alert", "icone")}<div>Não consegui carregar os campos. Recarregue a página.</div></div>`;
+    return;
+  }
+  alvo.innerHTML = `
+    <div class="gaveta-secao-titulo">${icone("key")} Credenciais</div>
+    <div style="margin-top:13px">
+      ${campos.length ? campos.map(c => {
+        const definido = !!(CFG && CFG[c.chave + "__set"]);
+        const marca = definido ? `<span class="marca-ok">${icone("check")} definido</span>` : "";
+        const valor = c.segredo ? "" : esc((CFG && CFG[c.chave]) || "");
+        const ph = c.segredo && definido ? "Já preenchido — deixe em branco para manter" : "";
+        return `
+          <div class="campo" style="margin-bottom:15px">
+            <label for="gav_${esc(c.chave)}">${esc(c.rotulo)} ${marca}</label>
+            <input id="gav_${esc(c.chave)}" name="${esc(c.chave)}" type="${c.segredo ? "password" : "text"}"
+                   value="${valor}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false"
+                   aria-describedby="gaba_${esc(c.chave)}">
+            <p class="ajuda" id="gaba_${esc(c.chave)}">${esc(c.ajuda)}</p>
+          </div>`;
+      }).join("") : `<p class="ajuda">Esta integração não usa credencial.</p>`}
+    </div>`;
+  const primeiro = $("input", alvo);
+  if (primeiro) primeiro.focus({ preventScroll: true });
+}
+
+function fecharGaveta() {
+  const m = $("#gavetaPlataforma");
+  const g = $("#gavetaCampos");
+  if (g) g.innerHTML = "";
+  if (m && m.classList.contains("aberto")) fecharModal("gavetaPlataforma");
+  gavetaChave = null;
+}
+
+/* Há edição em curso? O polling do status passa a cada poucos segundos e
+   o /api/config pode responder no meio da digitação. Sem esta checagem, um
+   campo de senha em edição seria reescrito com o valor do servidor. */
+function gavetaDigitando() {
+  const a = document.activeElement;
+  return !!a && !!a.closest && !!a.closest("#gavetaCampos") && a.tagName === "INPUT";
+}
+
+/* Salva só os campos que estão no formulário. O servidor ignora o que não
+   veio no corpo, então mexer numa plataforma não toca na credencial das
+   outras quatro. */
 async function salvarPlataforma(chave) {
-  const form = $("#form-" + chave);
-  if (!form) return;
-  const btn = $(".btn-save-" + chave, form.closest(".plato") || document);
-  const dica = $("#dica-" + chave);
+  const form = $("#gavetaCampos");
+  if (!form || !chave) return;
+  const btn = $("#gavetaSalvar");
+  const dica = $("#gavetaDica");
   const body = {};
   $$("input", form).forEach(el => { body[el.name] = el.value.trim(); });
 
-  if (btn) btn.disabled = true;
+  btn.disabled = true;
   dica.className = "plato-dica";
   dica.textContent = "Salvando…";
   try {
@@ -2502,14 +2904,16 @@ async function salvarPlataforma(chave) {
     const d = await r.json();
     if (d.erro) { dica.textContent = d.erro; return; }
     await lerConfig(true);
-    pintarCredenciaisPlataforma(chave);
+    // Repinta os inputs para trazer a marca "definido" sem perder o que
+    // acabou de ser salvo, e o resumo dos cards com os campos já gravados.
+    pintarCamposGaveta(chave);
     dica.className = "plato-dica ok";
     dica.textContent = "Credenciais salvas";
     await atualizarStatus();
   } catch (e) {
     dica.textContent = "Não consegui salvar. O .env continua como estava.";
   } finally {
-    if (btn) btn.disabled = false;
+    btn.disabled = false;
   }
 }
 
@@ -2884,9 +3288,12 @@ async function carregarConfig(forcar = false) {
     form.innerHTML = html;
     configCarregada = true;
     configSuja = false;
-    // Os cards de Plataformas leem a mesma resposta. Pintar aqui garante
-    // que eles não fiquem com o formulário vazio se o status chegar antes.
-    pintarCredenciaisPlataforma();
+    // O resumo dos cards de Plataformas sai dos mesmos campos, então precisa
+    // de um repinto: o status costuma chegar antes e anunciaria "falta tudo"
+    // até a volta seguinte. A gaveta é repintada só quando ninguém está
+    // digitando nela — reescrever os inputs apagaria o que está em edição.
+    pintarResumoPlataforma();
+    if (gavetaChave && !gavetaDigitando()) pintarCamposGaveta(gavetaChave);
   } catch (e) {
     form.innerHTML = '<div class="alerta alerta-erro" style="grid-column:1/-1">' +
       icone("alert", "icone") + "<div>Não consegui carregar as credenciais do servidor.</div></div>";
@@ -2907,6 +3314,7 @@ async function salvarConfig(event) {
     })).json();
     if (r.erro) { toast(r.erro, "erro"); return; }
     configSuja = false;
+    marcarConfigSuja(false);
     await carregarConfig(true);
     toast("Credenciais salvas no arquivo .env.", "ok");
     await atualizarStatus();
@@ -3061,8 +3469,15 @@ async function removerConta() {
   }
 }
 
-async function detectarIds() {
-  const caixa = $("#caixaDeteccao");
+/* `alvoSel` e onde o resultado aparece e `naGaveta` diz de qual formulario os
+   ids detectados sao escritos. Sem os dois, o botao da gaveta desenhava o
+   resultado na aba Configuracoes - fora da tela - e os ids escolhidos nao
+   preenchiam campo nenhum, porque o #cfg_ sumiu do DOM quando os campos de
+   plataforma sairam do formulario generico. */
+async function detectarIds(alvoSel, naGaveta) {
+  const caixa = $(alvoSel || "#caixaDeteccao");
+  if (!caixa) return;
+  const onde = naGaveta ? "true" : "false";
   caixa.innerHTML = `<div class="alerta alerta-info">${icone("search", "icone")}<div>Consultando o Telegram…</div></div>`;
   try {
     const r = await (await fetch("/api/detectar-ids", {
@@ -3090,13 +3505,13 @@ async function detectarIds() {
     let h = '<div class="escolhas">';
     (r.pessoas || []).forEach(p => {
       h += `<div class="escolha-rot">Quem é você</div>
-        <button type="button" class="escolha" onclick="setCampoId('TELEGRAM_OWNER_ID', ${esc(JSON.stringify(String(p.id)))})">
+        <button type="button" class="escolha" onclick="setCampoId('TELEGRAM_OWNER_ID', ${esc(JSON.stringify(String(p.id)))}, ${onde})">
           ${icone("user", "icone")} <b>${esc(p.nome)}</b> <code>${esc(p.id)}</code>
         </button>`;
     });
     (r.canais || []).forEach(c => {
       h += `<div class="escolha-rot">Canais e grupos</div>
-        <button type="button" class="escolha" onclick="setCampoId('TELEGRAM_CHAT_ID', ${esc(JSON.stringify(String(c.id)))})">
+        <button type="button" class="escolha" onclick="setCampoId('TELEGRAM_CHAT_ID', ${esc(JSON.stringify(String(c.id)))}, ${onde})">
           ${icone("megaphone", "icone")} <b>${esc(c.nome)}</b> <code>${esc(c.id)}</code>
         </button>`;
     });
@@ -3106,14 +3521,27 @@ async function detectarIds() {
   }
 }
 
-function setCampoId(campo, valor) {
-  const el = $("#cfg_" + campo);
-  if (!el) return;
+function setCampoId(campo, valor, naGaveta) {
+  /* Os ids da gaveta vivem em #gav_ e os do formulario de Configuracoes em
+     #cfg_. Antes these dois caminhos eram o mesmo elemento; quando os campos
+     de plataforma foram para a gaveta, o #cfg_ deixou de existir para eles e
+     esta funcao passou a sair em silencio, sem preencher nada. */
+  const el = naGaveta ? $("#gav_" + campo) : $("#cfg_" + campo);
+  if (!el) {
+    toast("Campo " + campo + " não está na tela para preencher.", "erro");
+    return;
+  }
   el.value = valor;
   el.dispatchEvent(new Event("input", { bubbles: true }));
-  const aviso = $("#configAviso");
-  aviso.textContent = "Campo preenchido — não esqueça de salvar.";
-  toast("Campo preenchido. Salve para gravar no .env.", "ok");
+  if (naGaveta) {
+    // A gaveta nao tem aviso proprio: #gavetaDica e reescrito pelo polling a
+    // cada 2,5s. O toast e global, entao e ele quem avisa.
+    toast("Campo preenchido. Clique em Salvar para gravar.", "ok");
+  } else {
+    const aviso = $("#configAviso");
+    aviso.textContent = "Campo preenchido - não esqueça de salvar.";
+    toast("Campo preenchido. Salve para gravar no .env.", "ok");
+  }
   el.focus();
 }
 
@@ -3422,7 +3850,7 @@ function ligarEventos() {
   $("#formLink").addEventListener("submit", gerarLink);
 
   // Marca o formulário como editado para não perder o que foi digitado
-  $("#formConfig").addEventListener("input", () => { configSuja = true; });
+  $("#formConfig").addEventListener("input", () => { configSuja = true; marcarConfigSuja(true); });
 
   // Digitar Enter no link builder já gera
   $("#entradaUrl").addEventListener("keydown", ev => {
@@ -3633,6 +4061,59 @@ async function salvarFiltros() {
 const SEG_POR_MIN = 60;
 const segParaMin = (s, padrao) => (s == null ? padrao : Math.round(Number(s) / SEG_POR_MIN));
 const minParaSeg = (m, padrao) => (m == null ? padrao : Math.max(0, Math.round(Number(m) * SEG_POR_MIN)));
+
+/* ══ Cadência das publicações ═══════════════════════════════════════════
+   O bloco `geral` do config.yaml — o que o bot realmente segue.
+
+   Diferente do card ao lado, este NÃO é recarregado a cada 5s: repintar o
+   formulário enquanto a pessoa digita apagaria o que ela estava escrevendo.
+   Carrega uma vez na abertura e depois de salvar. */
+async function carregarCadencia() {
+  try {
+    const r = await fetch("/api/cadencia", { cache: "no-store" });
+    if (!r.ok) return;
+    const c = await r.json();
+    if ($("#cadIntervalo")) $("#cadIntervalo").value = c.intervalo_minutos ?? 45;
+    if ($("#cadMaxPosts")) $("#cadMaxPosts").value = c.max_posts_por_ciclo ?? 3;
+    if ($("#cadEspacamento")) $("#cadEspacamento").value = c.espacamento_segundos ?? 120;
+    if ($("#cadNaoRepetir")) $("#cadNaoRepetir").value = c.nao_repetir_dias ?? 7;
+    if ($("#cadHorario")) $("#cadHorario").value = c.horario_ativo ?? "";
+  } catch (e) {
+    console.error("Erro ao carregar cadência:", e);
+  }
+}
+
+async function salvarCadencia() {
+  const body = {
+    intervalo_minutos: parseInt($("#cadIntervalo")?.value || 0, 10),
+    max_posts_por_ciclo: parseInt($("#cadMaxPosts")?.value || 0, 10),
+    espacamento_segundos: parseInt($("#cadEspacamento")?.value || 0, 10),
+    nao_repetir_dias: parseInt($("#cadNaoRepetir")?.value || 0, 10),
+    horario_ativo: ($("#cadHorario")?.value || "").trim(),
+  };
+  const aviso = $("#cadAviso");
+  try {
+    const r = await fetch("/api/cadencia", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      // O aviso fica na tela porque o efeito é diferido: o bot em execução
+      // já tem os valores na memória e só relê no próximo start.
+      if (aviso) aviso.textContent = "Salvo. Vale para o bot no próximo start.";
+      toast("Cadência salva!", "ok");
+      await carregarCadencia();
+    } else {
+      const msg = d.erro || "Erro ao salvar a cadência.";
+      if (aviso) aviso.textContent = msg;
+      toast(msg, "erro");
+    }
+  } catch (e) {
+    toast("Erro ao comunicar com o servidor.", "erro");
+  }
+}
 
 async function carregarPublicacao() {
   try {
@@ -3918,6 +4399,7 @@ async function iniciar() {
   carregarNichos();
   carregarConta();
   carregarFiltros();
+  carregarCadencia();
   carregarPublicacao();
   carregarFontesTelegram();
 

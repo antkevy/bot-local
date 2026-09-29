@@ -14,6 +14,7 @@ import hmac
 import ipaddress
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -875,6 +876,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(corpo)))
+                # Sem isto o navegador reusa o HTML anterior depois de um
+                # deploy, e a tela nova nao aparece: foi o que fez a aba
+                # Plataformas parecer nao ter mudado. O JSON ja mandava
+                # no-store (linha 708); a pagina ficava de fora.
+                self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(corpo)
             elif rota == "/api/status":
@@ -932,6 +938,26 @@ class Handler(BaseHTTPRequestHandler):
                     "preco_minimo": config.preco_minimo,
                     "preco_maximo": config.preco_maximo,
                     "palavras_bloqueadas": config.palavras_bloqueadas,
+                })
+            elif rota == "/api/cadencia":
+                from .config import config
+                # O bloco `geral` do config.yaml e o que realmente manda no
+                # ritmo da publicacao: o intervalo do job que roda o ciclo
+                # (bot_interativo), quantas ofertas o ciclo escolhe (pipeline)
+                # e o sleep entre uma e outra. Ele era lido em todo lugar e nao
+                # era gravavel de lugar nenhum do painel — a aba so expunha o
+                # bloco `publicacao`, que esta zerado e por isso nao muda nada.
+                # A rota existe para o que roda ter na tela o mesmo controle
+                # que tem no arquivo.
+                self._json({
+                    "intervalo_minutos": config.intervalo_minutos,
+                    "max_posts_por_ciclo": config.max_posts_por_ciclo,
+                    "espacamento_segundos": config.espacamento_segundos,
+                    "nao_repetir_dias": config.nao_repetir_dias,
+                    # Vazio = 24h, que e como o config.py le. O /api/status
+                    # devolve "24h" nesse caso (leitura); aqui devolvemos o
+                    # valor cru para a tela poder mostrar o campo vazio.
+                    "horario_ativo": config.horario_ativo,
                 })
             elif rota == "/api/publicacao-controle":
                 from . import config as config_mod
@@ -1039,6 +1065,59 @@ class Handler(BaseHTTPRequestHandler):
                     "vendas_minimas": cfg.vendas_minimas,
                     "desconto_minimo": cfg.desconto_minimo,
                     "desconto_minimo_pct": cfg.desconto_minimo,
+                }})
+            elif rota == "/api/cadencia":
+                from . import config as config_mod
+                # Nenhum destes aceita negativo: o intervalo vira `sleep`, o
+                # espacamento e comparado com um timestamp e a janela de nao
+                # repetir entra em conta de dias. Negativo ali sai do controle
+                # de cadencia em silencio, entao e recusado aqui.
+                for chave, rotulo in (("intervalo_minutos",
+                                       "O intervalo do ciclo"),
+                                      ("max_posts_por_ciclo",
+                                       "O máximo de posts por ciclo"),
+                                      ("espacamento_segundos",
+                                       "O espaçamento entre posts"),
+                                      ("nao_repetir_dias",
+                                       "A janela de não repetir")):
+                    if chave in dados and int(dados[chave] or 0) < 0:
+                        return self._json({"erro": f"{rotulo} não pode ser "
+                                                   "negativo."}, 400)
+                if "horario_ativo" in dados:
+                    janela = str(dados["horario_ativo"] or "").strip()
+                    if janela in ("24h", "24", ""):
+                        # Vazio = 24h, que e como o config.py le. O
+                        # /api/status devolve "24h" nesse caso; gravar a forma
+                        # crua mantem o arquivo igual ao do projeto anterior e
+                        # evita duas grafias para o mesmo estado.
+                        janela = ""
+                    elif not re.fullmatch(
+                            r"([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d",
+                            janela):
+                        # A config.py tolera formato ruim devolvendo True, ou
+                        # seja, libera a postagem o dia inteiro. Uma digitacao
+                        # errada aqui passaria em silencio e a janela nunca
+                        # valeria — e o usuario acharia que ela funciona.
+                        return self._json({"erro": "O horário ativo precisa ser "
+                                                   "HH:MM-HH:MM, ou 24h."}, 400)
+                    dados = dict(dados)
+                    dados["horario_ativo"] = janela
+                config_mod.salvar_yaml_secao("geral", _so_presentes(dados, {
+                    "intervalo_minutos": _int,
+                    "max_posts_por_ciclo": _int,
+                    "espacamento_segundos": _int,
+                    "nao_repetir_dias": _int,
+                    "horario_ativo": str,
+                }))
+                # Le o atributo so depois do save (ver /api/scraping-config):
+                # `salvar_yaml_secao` recria o objeto de config.
+                cfg = config_mod.config
+                self._json({"ok": True, "cadencia": {
+                    "intervalo_minutos": cfg.intervalo_minutos,
+                    "max_posts_por_ciclo": cfg.max_posts_por_ciclo,
+                    "espacamento_segundos": cfg.espacamento_segundos,
+                    "nao_repetir_dias": cfg.nao_repetir_dias,
+                    "horario_ativo": cfg.horario_ativo,
                 }})
             elif rota == "/api/publicacao-controle":
                 from . import config as config_mod
