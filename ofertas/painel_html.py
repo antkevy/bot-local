@@ -977,14 +977,17 @@ PAGINA = r"""<!doctype html>
   @media (max-width: 1240px) {
     .dash-grade { grid-template-columns: 1fr; }
     .grade-4 { grid-template-columns: repeat(2, 1fr); }
+    /* Aqui, e não nos 1000px dos outros grids: com os cards em meia coluna a
+       1240px o campo já cai para 194px, e a 1001px para 134px — estreito
+       demais para um input com ajuda embaixo. Medido no Chromium, não
+       estimado. Os grids internos (.config-grade) continuam caindo nos
+       1000px: com o card já em coluna inteira, eles ganham a largura de
+       volta e 340px por campo está bom. */
+    .config-secao { grid-template-columns: 1fr; }
   }
   @media (max-width: 1000px) {
     .metricas { grid-template-columns: 1fr; }
     .config-grade { grid-template-columns: 1fr; }
-    /* As duas grades de Configurações caem juntas: meia coluna de card com
-       meia coluna de campo dentro vira um campo de 140px, e aí é melhor a
-       página inteira virar uma coluna. */
-    .config-secao { grid-template-columns: 1fr; }
     .logs-grade { grid-template-columns: 1fr; height: auto; }
     .terminal { height: 300px; }
   }
