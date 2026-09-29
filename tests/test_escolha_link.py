@@ -18,11 +18,17 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
     pass
+
+# Esta suíte chega em registrar_publicacao() pelo pipeline e, sem isto, grava
+# no data/cadencia.json de verdade. Foi ela que, sozinha, encheu o arquivo com
+# 10 registros de um teste e travou a publicação do bot.
+import isolamento  # noqa: F401,E402
 
 from ofertas.models import Oferta
 from ofertas.pipeline import MAX_LINKS_POR_MENSAGEM

@@ -33,7 +33,19 @@ except Exception:
 from ofertas import db
 from ofertas.config import DATA_DIR
 
-SUITES = ["test_grok.py", "test_ml_cascata.py", "test_telegram_scraper.py"]
+# Antes esta lista tinha três nomes. Três de treze: foi o bastante para
+# `test_escolha_link.py` e `test_preco_texto.py` passaremimpunes, e entre as
+# duas gravaram 12 vezes no `data/cadencia.json` do usuário. A lista agora é
+# descoberta, e o arquivo abaixo é a rede: uma suíte nova que esqueça de
+# redirecionar quebra aqui em vez de apagar histórico em silêncio.
+#
+# A si mesma fica de fora, claro: rodar o guard-rail a partir do guard-rail
+# seria recursão.
+AQUI = Path(__file__).name
+SUITES = sorted(
+    p.name for p in (RAIZ / "tests").glob("test_*.py")
+    if p.name != AQUI
+)
 
 # Arquivos de data/ que a execução de um teste jamais pode escrever.
 ARQUIVOS_DE_DADOS = ["ofertas.db", "grok_cache.json", "cadencia.json"]
@@ -44,6 +56,17 @@ def _dedo(arquivo: Path) -> str:
     if not arquivo.exists():
         return "ausente"
     return hashlib.sha256(arquivo.read_bytes()).hexdigest()
+
+
+def _contagens(real: Path) -> dict:
+    """Quantas linhas tem cada tabela que importa, no banco real."""
+    with sqlite3.connect(real) as c:
+        return {
+            tabela: c.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0]
+            for tabela in ("postadas", "mensagens_telegram", "ofertas_pendentes_ml")
+            if c.execute("SELECT name FROM sqlite_master WHERE name = ?",
+                         (tabela,)).fetchone()
+        }
 
 
 class TestRedirecionamentoDoBanco(unittest.TestCase):
@@ -93,79 +116,76 @@ class TestRedirecionamentoDoBanco(unittest.TestCase):
 
 
 class TestSuitesNaoEncostamNosDadosReais(unittest.TestCase):
-    """Roda as três suítes de verdade e exige que data/ saia intacto."""
+    """Roda todas as suítes de verdade e exige que data/ saia intacto."""
 
-    def test_nenhuma_suite_altera_a_pasta_data(self):
-        antes = {nome: _dedo(DATA_DIR / nome) for nome in ARQUIVOS_DE_DADOS}
-        modificacao_antes = {
-            nome: (DATA_DIR / nome).stat().st_mtime_ns
-            for nome in ARQUIVOS_DE_DADOS if (DATA_DIR / nome).exists()
-        }
-
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(RAIZ)
-        env["PYTHONIOENCODING"] = "utf-8"
-        for nome in SUITES:
-            with self.subTest(suite=nome):
-                proc = subprocess.run(
-                    [sys.executable, str(RAIZ / "tests" / nome)],
-                    cwd=str(RAIZ), env=env, capture_output=True, text=True,
-                    encoding="utf-8", errors="replace", timeout=600,
-                )
-                self.assertEqual(
-                    proc.returncode, 0,
-                    f"{nome} falhou:\n{(proc.stdout or '')[-2000:]}"
-                    f"{(proc.stderr or '')[-2000:]}",
-                )
-
-        depois = {nome: _dedo(DATA_DIR / nome) for nome in ARQUIVOS_DE_DADOS}
-        sujas = [n for n in ARQUIVOS_DE_DADOS if antes[n] != depois[n]]
-        self.assertEqual(
-            sujas, [],
-            f"as suítes alteraram arquivos reais de data/: {sujas}. "
-            "Isso apaga histórico do usuário — confira o redirecionamento de "
-            "db.DB_PATH e de ofertas.grok.CACHE_FILE nos scripts de teste.",
-        )
-
-        modificacao_depois = {
-            nome: (DATA_DIR / nome).stat().st_mtime_ns
-            for nome in ARQUIVOS_DE_DADOS if (DATA_DIR / nome).exists()
-        }
-        reescritos = [n for n in modificacao_antes
-                      if modificacao_depois.get(n) != modificacao_antes[n]]
-        self.assertEqual(
-            reescritos, [],
-            f"as suítes reescreveram arquivos reais com o mesmo conteúdo: {reescritos}",
-        )
-
-    def test_o_banco_real_continua_com_as_mesmas_linhas(self):
-        """Cintura e suspensório: contam as linhas antes e depois."""
+    @classmethod
+    def setUpClass(cls):
+        # As suítes rodam uma vez só. Antes eram dois testes rodando as
+        # mesmas três de novo cada um; com treze, isso dobrava o tempo da
+        # suíte inteira para produzir a mesma prova.
         real = DATA_DIR / "ofertas.db"
-        if not real.exists():
-            self.skipTest("banco real ainda não existe")
+        cls.antes_de = {n: _dedo(DATA_DIR / n) for n in ARQUIVOS_DE_DADOS}
+        cls.mtime_antes = {
+            n: (DATA_DIR / n).stat().st_mtime_ns
+            for n in ARQUIVOS_DE_DADOS if (DATA_DIR / n).exists()
+        }
+        cls.contagens_antes = _contagens(real) if real.exists() else None
 
-        def contagens():
-            with sqlite3.connect(real) as c:
-                return {
-                    tabela: c.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0]
-                    for tabela in ("postadas", "mensagens_telegram",
-                                   "ofertas_pendentes_ml")
-                    if c.execute(
-                        "SELECT name FROM sqlite_master WHERE name = ?",
-                        (tabela,)).fetchone()
-                }
-
-        antes = contagens()
         env = os.environ.copy()
         env["PYTHONPATH"] = str(RAIZ)
         env["PYTHONIOENCODING"] = "utf-8"
+        cls.falhas = []
         for nome in SUITES:
-            subprocess.run(
+            proc = subprocess.run(
                 [sys.executable, str(RAIZ / "tests" / nome)],
                 cwd=str(RAIZ), env=env, capture_output=True, text=True,
                 encoding="utf-8", errors="replace", timeout=600,
             )
-        self.assertEqual(contagens(), antes,
+            if proc.returncode != 0:
+                cls.falhas.append(
+                    f"\n=== {nome} terminou com código {proc.returncode} ===\n"
+                    f"{(proc.stdout or '')[-2000:]}"
+                    f"{(proc.stderr or '')[-2000:]}"
+                )
+        cls.mtime_depois = {
+            n: (DATA_DIR / n).stat().st_mtime_ns
+            for n in ARQUIVOS_DE_DADOS if (DATA_DIR / n).exists()
+        }
+        cls.depois_de = {n: _dedo(DATA_DIR / n) for n in ARQUIVOS_DE_DADOS}
+        cls.contagens_depois = _contagens(real) if real.exists() else None
+
+    def test_todas_as_suites_passam(self):
+        if self.falhas:
+            self.fail("".join(self.falhas))
+
+    def test_nenhuma_suite_altera_a_pasta_data(self):
+        sujas = [n for n in ARQUIVOS_DE_DADOS
+                 if self.antes_de[n] != self.depois_de[n]]
+        self.assertEqual(
+            sujas, [],
+            f"as suítes alteraram arquivos reais de data/: {sujas}. "
+            "Isso apaga histórico do usuário — importe `isolamento` no topo "
+            "da suíte, que ele redireciona db.DB_PATH, "
+            "ofertas.grok.CACHE_FILE e publishing_control.ARQ_ESTADO.",
+        )
+
+    def test_nenhuma_suite_reescreve_arquivo_real(self):
+        """Mesmo conteúdo, arquivo reescrito: também é estrago. Reescrever o
+        `cadencia.json` do usuário com o estado zerado faz o próximo post
+        real passar sem respeitar o intervalo."""
+        reescritos = [n for n in self.mtime_antes
+                      if self.mtime_depois.get(n) != self.mtime_antes[n]]
+        self.assertEqual(
+            reescritos, [],
+            f"as suítes reescreveram arquivos reais com o mesmo conteúdo: "
+            f"{reescritos}",
+        )
+
+    def test_o_banco_real_continua_com_as_mesmas_linhas(self):
+        """Cintura e suspensório: contam as linhas antes e depois."""
+        if self.contagens_antes is None:
+            self.skipTest("banco real ainda não existe")
+        self.assertEqual(self.contagens_depois, self.contagens_antes,
                          "rodar as suítes alterou o número de linhas do banco real")
 
 
