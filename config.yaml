@@ -5,10 +5,10 @@ geral:
   nao_repetir_dias: 7
   horario_ativo: ''
 publicacao:
-  intervalo_entre_posts_segundos: 300
-  posts_antes_pausa: 20
-  tempo_pausa_segundos: 600
-  max_posts_periodo: 80
+  intervalo_entre_posts_segundos: 0
+  posts_antes_pausa: 0
+  tempo_pausa_segundos: 0
+  max_posts_periodo: 0
   periodo_horas: 24
 filtros:
   avaliacao_minima: 4.7

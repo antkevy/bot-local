@@ -30,7 +30,7 @@ try:
 except Exception:
     pass
 
-from ofertas import db
+from ofertas import db, instancia
 from ofertas.config import DATA_DIR
 
 # Antes esta lista tinha três nomes. Três de treze: foi o bastante para
@@ -120,6 +120,19 @@ class TestSuitesNaoEncostamNosDadosReais(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # O guard-rail compara o `data/` antes e depois. Se o bot ou o painel
+        # estiverem rodando, eles reescrevem o `cadencia.json` de verdade —
+        # `_salvar` roda a cada `pode_publicar` mesmo sem mudar nada — e a
+        # comparação acusa uma escrita que foi o bot fazendo o trabalho dele,
+        # não uma suíte. Já aconteceu nesta sessão: o mtime mudou às 21:14:41
+        # porque um `reset_cadencia` foi chamado do painel no meio da suíte.
+        # Nisso a prova é impossível de fazer, e um teste que acusa a produção
+        # treina a ignorar o próprio alarme. Melhor recusar com o motivo.
+        cls.processos_vivos = [
+            papel for papel in ("bot", "painel")
+            if instancia.titular_vivo(papel)
+        ]
+
         # As suítes rodam uma vez só. Antes eram dois testes rodando as
         # mesmas três de novo cada um; com treze, isso dobrava o tempo da
         # suíte inteira para produzir a mesma prova.
@@ -154,11 +167,20 @@ class TestSuitesNaoEncostamNosDadosReais(unittest.TestCase):
         cls.depois_de = {n: _dedo(DATA_DIR / n) for n in ARQUIVOS_DE_DADOS}
         cls.contagens_depois = _contagens(real) if real.exists() else None
 
+    def _pula_se_producao_escrevendo(self):
+        if self.processos_vivos:
+            self.skipTest(
+                f"guard-rail pulado: {', '.join(self.processos_vivos)} "
+                "rodando e reescrevendo data/ de verdade. Pare o bot e o "
+                "painel para provar que nenhuma suíte toca nos dados reais."
+            )
+
     def test_todas_as_suites_passam(self):
         if self.falhas:
             self.fail("".join(self.falhas))
 
     def test_nenhuma_suite_altera_a_pasta_data(self):
+        self._pula_se_producao_escrevendo()
         sujas = [n for n in ARQUIVOS_DE_DADOS
                  if self.antes_de[n] != self.depois_de[n]]
         self.assertEqual(
@@ -173,6 +195,7 @@ class TestSuitesNaoEncostamNosDadosReais(unittest.TestCase):
         """Mesmo conteúdo, arquivo reescrito: também é estrago. Reescrever o
         `cadencia.json` do usuário com o estado zerado faz o próximo post
         real passar sem respeitar o intervalo."""
+        self._pula_se_producao_escrevendo()
         reescritos = [n for n in self.mtime_antes
                       if self.mtime_depois.get(n) != self.mtime_antes[n]]
         self.assertEqual(
@@ -183,6 +206,7 @@ class TestSuitesNaoEncostamNosDadosReais(unittest.TestCase):
 
     def test_o_banco_real_continua_com_as_mesmas_linhas(self):
         """Cintura e suspensório: contam as linhas antes e depois."""
+        self._pula_se_producao_escrevendo()
         if self.contagens_antes is None:
             self.skipTest("banco real ainda não existe")
         self.assertEqual(self.contagens_depois, self.contagens_antes,

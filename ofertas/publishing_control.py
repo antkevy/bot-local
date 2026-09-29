@@ -197,7 +197,8 @@ class PublishingController:
             # registros fantasma contra 7 ofertas postadas. O stack sai junto
             # porque, sozinho, o número não diz quem escreveu.
             anterior = self.posts_periodo[-2] if len(self.posts_periodo) > 1 else 0.0
-            if anterior and (agora - anterior) < 60:
+            if (anterior and config.intervalo_entre_posts_segundos > 0
+                    and (agora - anterior) < 60):
                 import traceback
                 log.warning("[CADENCIA] Gap de %.1fs entre registros, mas o "
                             "intervalo minimo e de %ds. PID=%d. Chamado por:\n%s",

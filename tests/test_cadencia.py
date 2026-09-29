@@ -261,6 +261,114 @@ class TestCanario(Base):
         self.assertIn("registrar_publicacao", texto)
 
 
+# ------------------------------------------------- 0 desliga o limite
+class TestZeroDesliga(Base):
+    """`0` é o valor do projeto antigo (commit a314bc8, sem secao
+    `publicacao`) e precisa desligar cada limite de velocidade, um por um.
+
+    Sem este contrato, voltar a frequencia antiga seria so um numero no
+    yaml: ninguem provaria que o controlador parou de barrar. E o silencio
+    do canario tambem depende dele - sem `intervalo_entre_posts_segundos > 0`
+    um ciclo que posta 3 ofertas seguidas dispararia o aviso de rajada a
+    cada post, e o log viraria ruido.
+    """
+
+    ZERADO = dict(intervalo_entre_posts_segundos=0, posts_antes_pausa=0,
+                  tempo_pausa_segundos=0, max_posts_periodo=0)
+
+    def _rajada(self, over):
+        """Tenta 40 ofertas em 20s e devolve quantas passaram."""
+        c = self._ctrl()
+        t = 1_000_000.0
+        postadas = 0
+        with self._cfg(**self.ZERADO, **over):
+            for i in range(40):
+                if not c.pode_publicar(agora_ts=t + i * 0.5)[0]:
+                    break
+                c.registrar_publicacao(agora_ts=t + i * 0.5)
+                postadas += 1
+        return postadas
+
+    def test_intervalo_minimo_zero_nao_bloqueia(self):
+        # So o intervalo minimo desligado: os outros limites ainda valem,
+        # entao o bloqueio vem do periodo (40 > 80? nao -> do bloco/periodo).
+        # Aqui o que importa e que o motivo NAO e o intervalo.
+        c = self._ctrl()
+        t = 1_000_000.0
+        with self._cfg(**self.ZERADO):
+            c.registrar_publicacao(agora_ts=t)
+            pode, motivo, _ = c.pode_publicar(agora_ts=t + 1)
+        self.assertTrue(pode, f"intervalo 0 barrou: {motivo}")
+
+    def test_bloco_20_ainda_pausaria_se_o_projeto_antigo_nao_tivesse_zerado(self):
+        """Controle: com `posts_antes_pausa = 20` a rajada PARA em 20. E o que
+        faz este teste valer como prova - se um dia `0` deixar de desligar, a
+        rajada vai a 40 e a diferenca aparece."""
+        c = self._ctrl()
+        t = 1_000_000.0
+        postadas = 0
+        with self._cfg(intervalo_entre_posts_segundos=0, posts_antes_pausa=20,
+                       tempo_pausa_segundos=600, max_posts_periodo=0):
+            for i in range(40):
+                if not c.pode_publicar(agora_ts=t + i * 0.5)[0]:
+                    break
+                c.registrar_publicacao(agora_ts=t + i * 0.5)
+                postadas += 1
+        self.assertEqual(20, postadas)
+
+    def test_limite_de_periodo_20_para_em_20(self):
+        """Controle: com o periodo ligado a rajada PARA em 20. E o que faz o
+        teste de baixo valer como prova - se `0` deixar de desligar, os dois
+        testes dao o mesmo numero e a diferenca desaparece."""
+        c = self._ctrl()
+        t = 1_000_000.0
+        postadas = 0
+        with self._cfg(**dict(self.ZERADO, max_posts_periodo=20)):
+            for i in range(40):
+                pode, motivo, _ = c.pode_publicar(agora_ts=t + i * 0.5)
+                if not pode:
+                    self.assertIn("limite_periodo_atingido", motivo)
+                    break
+                c.registrar_publicacao(agora_ts=t + i * 0.5)
+                postadas += 1
+        self.assertEqual(20, postadas)
+
+    def test_limite_de_periodo_zero_nao_limita(self):
+        """Tudo zerado, as 40 passam - 20 acima do teto do controle."""
+        self.assertEqual(40, self._rajada({}))
+
+    def test_todos_os_zerados_deixam_passar_rajada_inteira(self):
+        self.assertEqual(40, self._rajada({}))
+
+    def test_zerado_ainda_persiste_os_registros(self):
+        """Desligar o limite nao pode desligar a contagem: o painel ainda
+        mostra o que foi publicado no dia."""
+        c = self._ctrl()
+        with self._cfg(**self.ZERADO):
+            for i in range(3):
+                c.registrar_publicacao(agora_ts=1_000_000.0 + i * 0.5)
+        self.assertEqual(3, len(self._ler()["posts_periodo"]))
+
+    def test_canario_cala_sem_intervalo_configurado(self):
+        c = PublishingController(persistir=False)
+        t = 1_000_000.0
+        with self._cfg(**self.ZERADO):
+            c.registrar_publicacao(agora_ts=t)
+            with self.assertLogs("ofertas.publishing", "INFO") as cm:
+                c.registrar_publicacao(agora_ts=t + 0.1)
+        self.assertFalse(any("CADENCIA" in m for m in cm.output))
+
+    def test_canario_continua_ativo_quando_ha_intervalo(self):
+        """O silencio acima nao pode ter virado silencio universal."""
+        c = PublishingController(persistir=False)
+        t = 1_000_000.0
+        with self._cfg():
+            c.registrar_publicacao(agora_ts=t)
+            with self.assertLogs("ofertas.publishing", "WARNING") as cm:
+                c.registrar_publicacao(agora_ts=t + 0.1)
+        self.assertTrue(any("CADENCIA" in m for m in cm.output))
+
+
 # ----------------------------------------------------- comportamento antigo
 class TestCadenciaNormal(Base):
     """O que já funcionava não pode ter quebrado."""

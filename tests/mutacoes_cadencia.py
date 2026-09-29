@@ -51,7 +51,8 @@ MUTACOES = [
     ),
     (
         "canario some e a mentira do intervalo passa em silencio",
-        '            if anterior and (agora - anterior) < 60:',
+        '            if (anterior and config.intervalo_entre_posts_segundos > 0\n'
+        '                    and (agora - anterior) < 60):',
         '            if False:',
     ),
     (
@@ -63,6 +64,28 @@ MUTACOES = [
         "reset deixa de limpar a trava de arquivo ilegivel",
         '            self._zera()\n            self.cadencia_ilegivel = False\n            self._salvar()',
         '            self._zera()\n            self._salvar()',
+    ),
+    # --- 0 tem de continuar desligando (frequencia do projeto antigo) ---
+    (
+        "0 no intervalo minimo volta a valer como intervalo de 1s",
+        '                if decorrido_post < config.intervalo_entre_posts_segundos:',
+        '                if decorrido_post < max(1, config.intervalo_entre_posts_segundos):',
+    ),
+    (
+        "0 no limite de periodo volta a contar como 0 (trava tudo)",
+        '            if config.max_posts_periodo > 0 and len(self.posts_periodo) >= config.max_posts_periodo:',
+        '            if len(self.posts_periodo) >= config.max_posts_periodo:',
+    ),
+    (
+        "0 em posts_antes_pausa volta a pausar no primeiro post",
+        '            if config.posts_antes_pausa > 0 and self.posts_bloco_atual >= config.posts_antes_pausa:',
+        '            if self.posts_bloco_atual >= config.posts_antes_pausa:',
+    ),
+    (
+        "canario volta a disparar em rajada mesmo sem limite configurado",
+        '            if (anterior and config.intervalo_entre_posts_segundos > 0\n'
+        '                    and (agora - anterior) < 60):',
+        '            if anterior and (agora - anterior) < 60:',
     ),
 ]
 
