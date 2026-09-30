@@ -1037,6 +1037,47 @@ class TestConfiguracoes(TestAbaPlataformas):
                            f"tem {m['meia']}px: ela espremeu na coluna")
         self.fechar()
 
+    def test_o_card_de_cadencia_e_um_card_de_verdade(self):
+        """A contagem de cards da página não pega o card de cadência
+        desaparecendo: ela só exige 6, e sem um deles ainda sobram 6. Peça
+        pelo id e pelo papel, não pelo total.
+
+        `class="card"` é o que dá o desenho, a borda e o espaçamento da grade.
+        Trocar por uma classe qualquer não remove nada do DOM — o id continua
+        lá, os cinco campos continuam preenchidos e cada teste de valor deste
+        arquivo continua passando. A página só deixa de mostrar um card."""
+        pg = self.abrir_config()
+        m = pg.evaluate("""() => {
+            const c = document.querySelector('#cardCadencia');
+            if (!c) return {existe: false};
+            const r = c.getBoundingClientRect();
+            return {existe: true,
+                    ehCard: c.classList.contains('card'),
+                    classe: c.className,
+                    naSecao: !!c.closest('.config-secao'),
+                    idSecao: (c.closest('.config-secao') || {}).id || '',
+                    largura: Math.round(r.width),
+                    altura: Math.round(r.height),
+                    visivel: getComputedStyle(c).display !== 'none'
+                             && r.width > 0 && r.height > 0};
+        }""")
+        self.assertTrue(m["existe"],
+                        "não existe #cardCadencia na página: a cadência sumiu")
+        self.assertTrue(m["ehCard"],
+                        f"o card de cadência tem class=\"{m['classe']}\", sem "
+                        "\"card\": ele existe no DOM mas não é desenhado como card")
+        self.assertTrue(m["naSecao"],
+                        f"o card de cadência está fora de qualquer seção "
+                        f"(não achei section, só {m['idSecao'] or 'nenhuma'})")
+        self.assertTrue(m["visivel"],
+                        f"o card de cadência não ocupa espaço "
+                        f"({m['largura']}x{m['altura']}px)")
+        # Um card com altura de uma linha é o sintoma do `display` perdido.
+        self.assertGreater(m["altura"], 120,
+                           f"o card de cadência tem {m['altura']}px de altura: "
+                           "tão baixo que os cinco campos não cabem dentro dele")
+        self.fechar()
+
     # ── a cadência que o bot realmente usa ──────────────────────────
     def test_a_cadencia_mostra_o_bloco_geral_e_nao_o_publicacao(self):
         """O card de cadência é o bloco `geral` do config.yaml — o intervalo do
