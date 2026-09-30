@@ -47,14 +47,3 @@ fontes:
     ativa: true
     canais: []
     dry_run: false
-  # Feed de alertas do alerta.nerdofertas.com (site próprio). Cada alerta entra
-  # pelo mesmo caminho das mensagens do Telegram: o link é reconvertido pelo
-  # conversor da plataforma (link de afiliado do dono) e cupom/preço saem do
-  # texto. `ignorar_canais` recebe o username t.me dos canais que são o próprio
-  # destino — sem isso, o bot republicaria o que o canal já publicou.
-  nerdofertas:
-    ativa: true
-    slug: nerdavisosbot
-    ignorar_canais:
-      - nerdofertas
-    dry_run: false
