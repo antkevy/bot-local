@@ -215,6 +215,31 @@ def _imagem_grande(src: str | None) -> str | None:
     return re.sub(r"\._[^./]+_\.", ".", src) if src else None
 
 
+def _nota_do_card(card) -> float | None:
+    """Nota em estrelas do card de busca, ou None se o card não trouxer.
+
+    A Amazon escreve "4,8 de 5 estrelas" dentro de `span.a-icon-alt` — vírgula
+    decimal, em português. Ler isso com float() direto levanta ValueError em
+    toda nota brasileira, e é exatamente por isso que a nota vivia como texto
+    solto em `extra` em vez de no campo `avaliacao`.
+
+    A troca de separador só acontece quando existe vírgula: um ponto em "4.8"
+    é decimal, não milhar, e tratá-lo como separador daria 48 estrelas.
+    """
+    el = card.select_one("span.a-icon-alt")
+    if not el:
+        return None
+    m = re.match(r"\s*([0-9]+(?:[.,][0-9]+)?)\s*de\s*5", el.get_text(strip=True))
+    if not m:
+        return None
+    bruto = m.group(1)
+    try:
+        nota = float(bruto.replace(".", "").replace(",", ".")) if "," in bruto else float(bruto)
+    except ValueError:
+        return None
+    return round(nota, 1) if 0 < nota <= 5 else None
+
+
 def _card_para_oferta(card) -> Oferta | None:
     asin = card.get("data-asin")
     link = card.select_one("a.a-link-normal.s-no-outline, h2 a, a.s-line-clamp-2")
@@ -232,12 +257,11 @@ def _card_para_oferta(card) -> Oferta | None:
     if preco is None or (preco_original is not None and preco_original <= preco):
         preco_original = None  # sem preço atual, ou "riscado" que não é desconto de verdade
 
+    # A nota vai no campo `avaliacao`, não em `extra`: os dois juntos fariam a
+    # legenda repetir "⭐ 4,8" — uma vez pelo selo do formatador, outra pelo
+    # texto. Os selos de Prime/Mais vendido/Cupom continuam em `extra`, que é
+    # onde eles não têm campo próprio.
     partes = []
-    el = card.select_one("span.a-icon-alt")
-    if el:
-        m = re.match(r"([\d,]+)", el.get_text(strip=True))
-        if m:
-            partes.append(f"⭐ {m.group(1)}")
     texto = card.get_text(" ", strip=True)
     if card.select_one("i.a-icon-prime"):
         partes.append("Prime")
@@ -259,6 +283,7 @@ def _card_para_oferta(card) -> Oferta | None:
         preco=preco,
         preco_original=preco_original,
         imagem=_imagem_grande(img.get("src")) if img else None,
+        avaliacao=_nota_do_card(card),
         extra=" · ".join(partes) or None,
     )
 

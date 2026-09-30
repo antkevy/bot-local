@@ -54,21 +54,48 @@ _CAMPOS = ("itemId productName priceMin priceMax priceDiscountRate imageUrl "
            "offerLink productLink sales ratingStar shopName")
 
 
+def _nota_de(n: dict) -> float | None:
+    """Nota em estrelas, ou None se a API não mandou uma nota usável.
+
+    A Open API devolve `ratingStar` como texto ('4.8') e não como número —
+    medido em cinco produtos, todos string. Aceitar o float sem faixa seria
+    aceitar o '0' que a loja manda para produto sem avaliação, e publicar
+    '⭐ 0.0' como se fosse nota.
+    """
+    bruto = n.get("ratingStar")
+    if bruto is None or isinstance(bruto, bool):
+        return None
+    try:
+        nota = float(bruto)
+    except (TypeError, ValueError):
+        return None
+    return round(nota, 1) if 0 < nota <= 5 else None
+
+
+def _vendas_de(n: dict) -> int | None:
+    """Quantidade vendida, ou None.
+
+    `sales` chega como int (medido: 14067 a 18143 em cinco produtos). Não
+    apareceu nenhum caso com sufixo tipo '1.2k', e converter isso seria
+    inventar número: o que não é inteiro legível vira None e o selo some,
+    em vez de a legenda mentir.
+    """
+    bruto = n.get("sales")
+    if bruto is None or isinstance(bruto, bool):
+        return None
+    try:
+        qtd = int(bruto)
+    except (TypeError, ValueError):
+        return None
+    return qtd if qtd > 0 else None
+
+
 def _node_para_oferta(n: dict) -> Oferta:
     preco = float(n.get("priceMin") or 0) or None
     desconto = int(n.get("priceDiscountRate") or 0) or None
     preco_original = None
     if preco and desconto and desconto < 100:
         preco_original = round(preco / (1 - desconto / 100), 2)
-
-    partes = []
-    if n.get("ratingStar"):
-        try:
-            partes.append(f"⭐ {float(n['ratingStar']):.1f}")
-        except (TypeError, ValueError):
-            pass
-    if n.get("sales"):
-        partes.append(f"{n['sales']} vendidos")
 
     return Oferta(
         plataforma="shopee",
@@ -80,7 +107,8 @@ def _node_para_oferta(n: dict) -> Oferta:
         preco_original=preco_original,
         desconto_pct=desconto,
         imagem=n.get("imageUrl"),
-        extra=" · ".join(partes) or None,
+        avaliacao=_nota_de(n),
+        vendas=_vendas_de(n),
     )
 
 

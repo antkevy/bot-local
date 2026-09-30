@@ -183,6 +183,52 @@ def _preco_do_bloco(el) -> float | None:
     return parse_preco_br(el.get_text(" ", strip=True))
 
 
+def _avaliacao_e_vendas(card) -> tuple[float | None, int | None]:
+    """(nota, vendidos) lidos do bloco de avaliação do card.
+
+    O bloco do ML traz as duas coisas no mesmo elemento, separadas por "|".
+    Medido em nove cards de uma listagem de verdade: '4.7 | +50mil vendidos',
+    '4.9 | +1000 vendidos', '4.8 | +10mil vendidos'. Quando o produto tem nota
+    e nenhuma venda, vem só a nota; quando não tem nota, o bloco não aparece.
+
+    Duas coisas que o texto real obrigou a respeitar:
+
+    - A nota vem com PONTO decimal (4.9). A Amazon usa vírgula (4,9). Ler as
+      duas com a mesma receita faria uma delas dar None sempre.
+    - As vendas vêm como "+10mil", com "mil" escrito. Isso é a unidade, não
+      ruído — 10mil são 10.000. O "+" é o que a loja está dizendo, "mais de",
+      e o formatador não tem como escrever isso; o número entra arredondado
+      do jeito que a própria loja arredondou.
+    """
+    rev = card.select_one(".poly-component__review-compacted")
+    if not rev:
+        return None, None
+    texto = rev.get_text(" ", strip=True)
+
+    nota = None
+    m = re.match(r"\s*([0-9]+(?:[.,][0-9]+)?)\b", texto)
+    if m:
+        bruto = m.group(1)
+        try:
+            v = float(bruto.replace(".", "").replace(",", ".")) if "," in bruto else float(bruto)
+        except ValueError:
+            v = 0.0
+        nota = round(v, 1) if 0 < v <= 5 else None
+
+    vendas = None
+    m = re.search(r"([0-9][0-9.]*)\s*(mil)?\s*vendidos?", texto, re.I)
+    if m:
+        try:
+            qtd = int(m.group(1).replace(".", ""))
+        except ValueError:
+            qtd = 0
+        if m.group(2):
+            qtd *= 1000
+        vendas = qtd if qtd > 0 else None
+
+    return nota, vendas
+
+
 def _parse_card(card) -> Oferta | None:
     a = card.select_one("a.poly-component__title")
     if not (a and a.get("href")):
@@ -207,10 +253,12 @@ def _parse_card(card) -> Oferta | None:
     if imagem and imagem.startswith("data:"):
         imagem = None  # placeholder de lazy-load
 
+    # Nota e vendidos vão nos campos próprios. Deixá-los também em `extra`
+    # faria a legenda repetir "⭐ 4.7 · 🛒 50.000 vendidos" duas vezes: uma
+    # pelos selos do formatador, outra pelo texto. Frete e Pix ficam em
+    # `extra`, que é onde não têm campo.
+    avaliacao, vendas = _avaliacao_e_vendas(card)
     partes = []
-    review = card.select_one(".poly-component__review-compacted")
-    if review:
-        partes.append("⭐ " + re.sub(r"\s*\|\s*", " · ", review.get_text(" ", strip=True)))
     if "Frete grátis" in card.get_text():
         partes.append("🚚 Frete grátis")
     pix = card.select_one(".poly-price__unit-description")
@@ -227,6 +275,8 @@ def _parse_card(card) -> Oferta | None:
         preco_original=preco_original,
         desconto_pct=desconto,
         imagem=imagem,
+        avaliacao=avaliacao,
+        vendas=vendas,
         extra=" · ".join(partes) or None,
     )
 
