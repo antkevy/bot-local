@@ -167,8 +167,12 @@ def _item_para_oferta(item: dict) -> Oferta:
 
     imagem = item.get("product_main_image_url") or item.get("product_small_image_urls", {}).get("string", [None])[0] if isinstance(item.get("product_small_image_urls"), dict) else item.get("product_main_image_url")
 
-    # Links
-    url_afiliado = item.get("promotion_link") or ""
+    # Links. O `promotion_link` das APIs (product.query / productdetail.get) veio
+    # CONSTANTE e genérico (ex.: best.aliexpress.com) para produtos diferentes —
+    # não aponta para o produto e não pode virar o link público. O link de
+    # afiliado certo só sai de aliexpress.affiliate.link.generate; por isso aqui
+    # fica vazio e quem monta a oferta gera o link (_garantir_link_afiliado).
+    url_afiliado = ""
     url_produto = item.get("product_detail_url") or f"https://pt.aliexpress.com/item/{pid}.html" if pid else ""
 
     # Avaliação (AliExpress retorna percentual ex: 96% -> 4.8 estrelas)
@@ -207,6 +211,20 @@ def _item_para_oferta(item: dict) -> Oferta:
         comissao_pct=comissao_pct,
         extra=None,
     )
+
+
+def _garantir_link_afiliado(oferta: Oferta) -> Oferta:
+    """Garante que a oferta carregue SEMPRE o nosso link de afiliado do produto.
+
+    As APIs de produto devolvem `promotion_link` genérico/constante (medido:
+    best.aliexpress.com para itens distintos). O link que resolve para o item
+    exato com o nosso aff_fcid só sai de aliexpress.affiliate.link.generate.
+    Levanta se a API falhar — sem link de afiliado, sem post.
+    """
+    if not oferta.url_produto:
+        raise RuntimeError("Sem URL de produto para gerar o link de afiliado")
+    oferta.url_afiliado = gerar_link_afiliado(oferta.url_produto)
+    return oferta
 
 
 def testar_conexao() -> dict:
@@ -285,8 +303,15 @@ def buscar_ofertas(limite: int = 30) -> list[Oferta]:
 
             for p in produtos_raw:
                 oferta = _item_para_oferta(p)
-                if oferta.id_produto and oferta.url_afiliado:
-                    todas_ofertas[oferta.id_produto] = oferta
+                if not (oferta.id_produto and oferta.url_produto):
+                    continue
+                try:
+                    _garantir_link_afiliado(oferta)
+                except Exception as e:
+                    log.warning("[ALIEXPRESS] Sem link de afiliado p/ %s: %s",
+                                oferta.id_produto, e)
+                    continue
+                todas_ofertas[oferta.id_produto] = oferta
         except Exception as e:
             log.warning("[ALIEXPRESS] Erro ao buscar termo '%s': %s", termo, e)
 
@@ -379,8 +404,10 @@ def converter(url: str) -> Oferta:
             produtos_raw = result.get("products", {}).get("product", []) if isinstance(result.get("products"), dict) else (result.get("products") or [])
             if produtos_raw:
                 oferta = _item_para_oferta(produtos_raw[0])
-                if not oferta.url_afiliado:
-                    oferta.url_afiliado = gerar_link_afiliado(url)
+                # promotion_link das APIs vem genérico/constante (ex.:
+                # best.aliexpress.com); o link do item exato com o nosso
+                # aff_fcid só sai do link.generate — sempre gerar.
+                _garantir_link_afiliado(oferta)
                 return oferta
         except Exception as e:
             log.warning("[ALIEXPRESS] Falha ao obter detalhes do item %s: %s", item_id, e)
