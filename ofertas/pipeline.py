@@ -293,7 +293,7 @@ def _aplicar_preco_texto(oferta: Oferta, pre: dict) -> None:
 
 async def processar_mensagem_telegram(
     texto: str,
-    imagem_url: str | None = None,
+    imagem_url: str | bytes | None = None,
     source_id: str | int = 0,
     message_id: int = 0,
     bot: Bot | None = None,
@@ -464,8 +464,16 @@ async def processar_mensagem_telegram(
 
     try:
         log.info("[PUBLISH] Publicando oferta no canal %s: %s", config.chat_id, oferta.titulo[:50])
+        foto_da_mensagem = isinstance(oferta.imagem, (bytes, bytearray))
         await postar_oferta(bot, oferta, config.chat_id)
         publishing_controller.registrar_publicacao()
+        if foto_da_mensagem:
+            # A foto veio da mensagem do grupo, em bytes — ela já foi enviada,
+            # mas não é um endereço de produto para a coluna `imagem` (que
+            # guarda URLs da plataforma). Gravar bytes ali poluiria o banco e
+            # quebraria quem relê a coluna; a coluna fica vazia de propósito.
+            # Coluna nova não, valor falso não.
+            oferta.imagem = None
         db.registrar(oferta)          # a reserva é consumida aqui
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="publicada")

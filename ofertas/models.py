@@ -11,7 +11,7 @@ class Oferta:
     preco: float | None = None
     preco_original: float | None = None
     desconto_pct: int | None = None
-    imagem: str | None = None
+    imagem: str | bytes | None = None   # URL da plataforma OU bytes da foto da mensagem
     extra: str | None = None   # avaliação, frete grátis, "no Pix" etc.
     titulo_original: str = ""
     tipo: str = "produto"      # "produto" | "cupom" | "promocao" | "frete_gratis" | "informativo" | "irrelevante"

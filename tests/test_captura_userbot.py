@@ -55,10 +55,11 @@ class Entidade:
 
 
 class Mensagem:
-    def __init__(self, id, texto="", chat_id=ID_NERD):
+    def __init__(self, id, texto="", chat_id=ID_NERD, photo=None):
         self.id = id
         self.raw_text = texto
         self.chat_id = chat_id
+        self.photo = photo
 
 
 class ClienteFalso:
@@ -79,6 +80,17 @@ class ClienteFalso:
         self.entidades_chamadas = []
         self.handlers = {}
         self.conectado = False
+        self.bytes_da_foto = b"\xf0\x9f\x93\xb7 bytes-da-foto"
+        self.erro_download = False
+        self.downloads = []
+
+    # -- Telegram -------------------------------------------------------
+    async def download_media(self, message, file=bytes):
+        """Mínimo que o userbot precisa para levar a foto ao pipeline."""
+        self.downloads.append(message)
+        if self.erro_download:
+            raise RuntimeError("a rede caiu no meio do download")
+        return self.bytes_da_foto
 
     # -- ciclo de vida -------------------------------------------------
     def is_connected(self):
@@ -122,13 +134,14 @@ class ClienteFalso:
 
 
 class EventoFalso:
-    def __init__(self, chat_id, texto, message_id, username=None, title="NERD OFERTAS"):
+    def __init__(self, chat_id, texto, message_id, username=None, title="NERD OFERTAS",
+                 photo=None):
         self.chat_id = chat_id
         self.id = message_id
         self.raw_text = texto
         self.username = username
         self.title = title
-        self.message = type("M", (), {"message": texto})()
+        self.message = type("M", (), {"message": texto, "id": message_id, "photo": photo})()
 
     async def get_chat(self):
         return Entidade(self.chat_id, username=self.username, title=self.title)
@@ -240,6 +253,56 @@ class TestHandlerCaptura(BaseUserbot):
         pipeline.assert_awaited_once()
         self.assertEqual(pipeline.await_args.kwargs["message_id"], 5001)
         self.assertEqual(pipeline.await_args.kwargs["source_id"], "@nerdofertas")
+
+    def test_mensagem_com_foto_baixa_os_bytes_e_lega_ao_pipeline(self):
+        """A foto que o grupo já tem deve atravessar a captura (hoje era descartada)."""
+        cliente = ClienteFalso()
+        self._subir(cliente)
+        with patch.object(ub.pipeline, "processar_mensagem_telegram",
+                          new=AsyncMock(return_value={"ok": True})) as pipeline:
+            evento = EventoFalso(ID_NERD, "Fone com foto\nhttps://shopee.com.br/product/123456/1",
+                                 5003, photo=object())
+            asyncio.run(cliente.handlers[list(cliente.handlers)[0]](evento))
+        pipeline.assert_awaited_once()
+        self.assertEqual(pipeline.await_args.kwargs["imagem_url"], cliente.bytes_da_foto)
+        self.assertEqual(len(cliente.downloads), 1)
+
+    def test_mensagem_sem_foto_nao_tenta_baixar_nada(self):
+        cliente = ClienteFalso()
+        self._subir(cliente)
+        with patch.object(ub.pipeline, "processar_mensagem_telegram",
+                          new=AsyncMock(return_value={"ok": True})) as pipeline:
+            evento = EventoFalso(ID_NERD, "Só texto\nhttps://shopee.com.br/product/123456/1", 5004)
+            asyncio.run(cliente.handlers[list(cliente.handlers)[0]](evento))
+        pipeline.assert_awaited_once()
+        self.assertIsNone(pipeline.await_args.kwargs["imagem_url"])
+        self.assertEqual(len(cliente.downloads), 0)
+
+    def test_falha_ao_baixar_a_foto_nao_derruba_a_captura(self):
+        """Rede caiu no download? A mensagem segue sem foto, não some do pipeline."""
+        cliente = ClienteFalso()
+        cliente.erro_download = True
+        self._subir(cliente)
+        with patch.object(ub.pipeline, "processar_mensagem_telegram",
+                          new=AsyncMock(return_value={"ok": True})) as pipeline:
+            evento = EventoFalso(ID_NERD, "Foto quebrada\nhttps://shopee.com.br/product/123456/1",
+                                 5005, photo=object())
+            asyncio.run(cliente.handlers[list(cliente.handlers)[0]](evento))
+        pipeline.assert_awaited_once()
+        self.assertIsNone(pipeline.await_args.kwargs["imagem_url"])
+        self.assertEqual(pipeline.await_args.kwargs["message_id"], 5005)
+
+    def test_recuperacao_tambem_carrega_a_foto_da_mensagem_perdida(self):
+        cliente = ClienteFalso()
+        self._subir(cliente)
+        db.marcar_ultima_mensagem_fonte("@nerdofertas", 100)
+        cliente.historico = [Mensagem(150, "Oferta\nhttps://shopee.com.br/product/9/8", photo=object())]
+        with patch.object(ub.pipeline, "processar_mensagem_telegram",
+                          new=AsyncMock(return_value={"ok": True})) as pipeline:
+            asyncio.run(ub._recuperar_perdidas(cliente, None, dry_run=True))
+        pipeline.assert_awaited_once()
+        self.assertEqual(pipeline.await_args.kwargs["imagem_url"], cliente.bytes_da_foto)
+        self.assertEqual(pipeline.await_args.kwargs["message_id"], 150)
 
     def test_mensagem_capturada_marca_ultima_mensagem_da_fonte(self):
         cliente = ClienteFalso()

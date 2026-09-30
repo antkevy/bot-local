@@ -202,8 +202,33 @@ async def _chave_do_chat(client: TelegramClient, chat_id: int, chat_str: str, us
     return _chave_cadastrada(chat_str, username_str)
 
 
+async def _baixar_foto(client: Any, message: Any) -> bytes | None:
+    """Bytes da foto da mensagem, ou None se a mensagem não tem foto.
+
+    É o único ponto de captura de imagem da mensagem. O pipeline já aceita
+    `imagem_url` e o poster já envia `send_photo` — o elo que faltava era a
+    própria captura, que só repassava texto (imagem_url=None fixo, a foto da
+    mensagem era descartada).
+
+    Os bytes são a única forma que atravessa a fronteira de contas: a captura
+    é feita pela conta pessoal (Telethon) e a postagem pelo bot (outra conta),
+    e o Telegram amarra `file_id` à conta que recebeu a foto. Um file_id da
+    sessão do userbot morre no `send_photo` do bot; bytes são re-subidos como
+    arquivo novo e funcionam.
+    """
+    if getattr(message, "photo", None) is None:
+        return None
+    try:
+        return await client.download_media(message, file=bytes)
+    except Exception as e:
+        log.warning("[USERBOT] Não consegui baixar a foto da mensagem %s: %s",
+                    getattr(message, "id", "?"), e)
+        return None
+
+
 async def _processar_mensagem_fonte(
-    chave: str, texto: str, message_id: int, bot_poster: Any, dry_run: bool
+    chave: str, texto: str, message_id: int, bot_poster: Any, dry_run: bool,
+    imagem_url: bytes | str | None = None,
 ) -> None:
     """Marca a mensagem como vista e entrega o texto ao pipeline.
 
@@ -213,7 +238,7 @@ async def _processar_mensagem_fonte(
     db.marcar_ultima_mensagem_fonte(chave, message_id)
     resultado = await pipeline.processar_mensagem_telegram(
         texto=texto,
-        imagem_url=None,
+        imagem_url=imagem_url,
         source_id=chave,
         message_id=message_id,
         bot=bot_poster,
@@ -280,7 +305,9 @@ async def _recuperar_perdidas(
                 continue
             if e_postagem_propria(mensagem.chat_id, destination_chat_id=config.chat_id):
                 continue
-            await _processar_mensagem_fonte(chave, texto, mensagem.id, bot_poster, dry_run)
+            foto = await _baixar_foto(client, mensagem)
+            await _processar_mensagem_fonte(chave, texto, mensagem.id, bot_poster, dry_run,
+                                            imagem_url=foto)
             total += 1
     return total
 
@@ -342,7 +369,9 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
 
             log.info("[USERBOT] Nova mensagem capturada do canal/grupo %s (ID: %s, Msg: %s)", getattr(chat, "title", username), chat_id, event.id)
 
-            await _processar_mensagem_fonte(chave, texto, event.id, bot_poster, dry_run)
+            foto = await _baixar_foto(client, event.message)
+            await _processar_mensagem_fonte(chave, texto, event.id, bot_poster, dry_run,
+                                            imagem_url=foto)
 
         except Exception as e:
             log.error("[USERBOT] Erro ao processar mensagem do evento Telethon: %s", e)

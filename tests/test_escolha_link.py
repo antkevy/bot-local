@@ -145,6 +145,46 @@ class TestEscolhaDoLink(unittest.TestCase):
         self.assertEqual(res["oferta"].uid, "shopee:58255664210")
         self.assertEqual(res["oferta"].preco, 1358.0)
 
+    def test_foto_da_mensagem_vai_a_postagem_e_nao_a_coluna_do_banco(self):
+        """Os bytes da foto do grupo atravessam a postagem, mas a coluna
+        `imagem` guarda URL de produto, não bytes: a oferta é registrada sem a
+        foto (postou com a foto, o banco fica limpo)."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from ofertas import db, pipeline
+        from ofertas.grok import GrokResult
+
+        grok = GrokResult(tipo="produto",
+                          titulo_otimizado="Lava Loucas Brastemp 8 Servicos",
+                          tem_cupom=False, cupom=None, beneficio_cupom=None,
+                          confianca=0.9)
+        foto = b"\xf0\x9f\x93\xb7 foto-da-mensagem"
+        enviadas = {}
+        def _captura_imagem(bot, oferta, chat_id):
+            # a oferta é mutada DEPOIS (limpeza do banco): o snapshot tem de
+            # ser feito aqui, na hora da chamada, não lendo o objeto depois.
+            enviadas["imagem"] = oferta.imagem
+            return None
+        with patch("ofertas.sources.shopee.converter", side_effect=lambda url: _produto()), \
+             patch("ofertas.grok.grok_service.analisar_texto", return_value=grok), \
+             patch("ofertas.pipeline.postar_oferta",
+                   new=AsyncMock(side_effect=_captura_imagem)) as postar, \
+             patch.object(pipeline.publishing_controller, "pode_publicar",
+                          return_value=(True, "ok", 0)):
+            res = asyncio.run(pipeline.processar_mensagem_telegram(
+                texto=MSG_DOIS_LINKS, imagem_url=foto,
+                source_id="@nerdofertas", message_id=700, bot=MagicMock()))
+
+        self.assertTrue(res["ok"], res.get("motivo"))
+        postar.assert_awaited_once()
+        self.assertEqual(enviadas["imagem"], foto)
+        with db._conn() as c:
+            linha = c.execute(
+                "SELECT imagem FROM postadas WHERE uid = ?", (res["oferta"].uid,)
+            ).fetchone()
+        self.assertIsNotNone(linha, "a oferta precisa estar registrada")
+        self.assertIsNone(linha[0], "bytes de foto não podem entrar na coluna imagem")
+
     def test_o_uid_nao_repete_entre_produtos_da_mesma_mensagem_padrao(self):
         """A regressao que motivou tudo: dois produtos, o mesmo uid."""
         res = self._roda(lambda url: _loja() if url == URL_LOJA else _produto())
