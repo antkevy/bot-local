@@ -169,7 +169,14 @@ def e_id_produto(id_produto: str | None) -> bool:
 
 
 def converter(url: str) -> Oferta:
-    """Link de produto/short link -> Oferta com link de afiliado."""
+    """Link de produto/short link -> Oferta com link de afiliado.
+
+    Só sai oferta do MESMO item pedido. O productOfferV2 usa itemId como filtro,
+    não como garantia: se a resposta trouxer outros itens na frente, pegamos o
+    node do item pedido — nunca `nodes[0]` de outro produto. URL de loja/cupom/
+    categoria não tem itemId e é descartada (sem oferta inventada em cima da
+    página errada).
+    """
     if "s.shopee." in url or "shp.ee/" in url:
         try:
             url = sessao().get(url, allow_redirects=True, timeout=20).url
@@ -179,11 +186,22 @@ def converter(url: str) -> Oferta:
     m = _RE_IDS.search(url)
     item_id = (m.group(2) or m.group(4)) if m else None
 
-    if item_id:
-        data = _chamar(f"{{productOfferV2(itemId:{item_id}){{nodes{{{_CAMPOS}}}}}}}")
-        nodes = (data.get("productOfferV2") or {}).get("nodes") or []
-        if nodes:
-            return _node_para_oferta(nodes[0])
+    if not item_id:
+        # Loja, cupom, categoria ou página desconhecida: não é produto. Gerar um
+        # short link aqui transformaria a página em "oferta" — chute, descarta.
+        raise RuntimeError("URL não é de produto Shopee (sem itemId)")
+
+    data = _chamar(f"{{productOfferV2(itemId:{item_id}){{nodes{{{_CAMPOS}}}}}}}")
+    nodes = (data.get("productOfferV2") or {}).get("nodes") or []
+
+    for node in nodes:
+        if str(node.get("itemId")) == str(item_id):
+            return _node_para_oferta(node)
+    if nodes:
+        # A API devolveu ofertas, mas nenhuma é o item pedido. Pegar nodes[0]
+        # publicaria outro produto com o nosso link de afiliado.
+        log.warning("[SHOPEE] itemId %s ausente na resposta; %d outro(s) ignorado(s)",
+                    item_id, len(nodes))
 
     # produto fora do catálogo de ofertas: gera só o short link de afiliado
     origin = json.dumps(url.split("?")[0])
@@ -194,7 +212,7 @@ def converter(url: str) -> Oferta:
         raise RuntimeError("Shopee não retornou o short link")
     return Oferta(
         plataforma="shopee",
-        id_produto=item_id or url.split("?")[0].rstrip("/").rsplit("/", 1)[-1][:60],
+        id_produto=item_id,
         titulo="Oferta Shopee",
         url_afiliado=short,
         url_produto=url,

@@ -60,6 +60,23 @@ class TestItemParaOferta(unittest.TestCase):
         self.assertEqual(oferta.url_afiliado, "")
         self.assertTrue(oferta.url_produto.startswith("https://pt.aliexpress.com/item/"))
 
+    def test_imagem_pequena_usada_quando_sem_principal(self):
+        """Sem imagem principal, a primeira miniatura (lista) vira a imagem."""
+        item = item_detalhe("1005008236561372", "https://pt.aliexpress.com/item/1005008236561372.html")
+        item["product_main_image_url"] = ""
+        item["product_small_image_urls"] = {"string": ["https://img.alicdn.com/kf/t1.jpg",
+                                                       "https://img.alicdn.com/kf/t2.jpg"]}
+        oferta = aliexpress._item_para_oferta(item)
+        self.assertEqual(oferta.imagem, "https://img.alicdn.com/kf/t1.jpg")
+
+    def test_imagem_pequena_texto_nao_vira_caractere(self):
+        """Se `string` vier como TEXTO (e não lista), o [0] não pega o 1º caractere."""
+        item = item_detalhe("1005008236561372", "https://pt.aliexpress.com/item/1005008236561372.html")
+        item["product_main_image_url"] = ""
+        item["product_small_image_urls"] = {"string": "https://img.alicdn.com/kf/thumb.jpg"}
+        oferta = aliexpress._item_para_oferta(item)
+        self.assertFalse(oferta.imagem)  # fica vazia; NUNCA "h" (1º caractere da URL)
+
 
 class TestConverter(unittest.TestCase):
     def setUp(self):
@@ -87,16 +104,29 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(chamadas, [url_item])
         gera.assert_called_once()
 
-    def test_fallback_sem_item_id_tambem_gera(self):
-        """URL sem item id (ex.: vitrine/wholesale) não chama productdetail e gera o link."""
+    def test_url_sem_item_id_e_descartada(self):
+        """URL de vitrine/wholesale (sem item id) NÃO vira oferta — nada de chute."""
         with patch.object(aliexpress, "_chamar_api") as api, \
+             patch.object(aliexpress, "gerar_link_afiliado") as gera:
+            with self.assertRaises(RuntimeError):
+                aliexpress.converter("https://pt.aliexpress.com/w/wholesale-x.html")
+
+        api.assert_not_called()
+        gera.assert_not_called()
+
+    def test_fallback_so_para_url_de_produto(self):
+        """Detalhe falhou mas a URL É de produto: link gerado do item, nunca da página."""
+        url_item = "https://pt.aliexpress.com/item/1005008236561372.html"
+        with patch.object(aliexpress, "_chamar_api",
+                          return_value=resposta("aliexpress_affiliate_productdetail_get_response",
+                                                [])), \
              patch.object(aliexpress, "gerar_link_afiliado",
                           return_value="https://s.click.aliexpress.com/e/_fallback") as gera:
-            oferta = aliexpress.converter("https://pt.aliexpress.com/w/wholesale-x.html")
+            oferta = aliexpress.converter(url_item)
 
         self.assertEqual(oferta.url_afiliado, "https://s.click.aliexpress.com/e/_fallback")
-        api.assert_not_called()
-        gera.assert_called_once()
+        self.assertEqual(oferta.id_produto, "1005008236561372")
+        gera.assert_called_once_with(url_item)
 
     def test_sem_link_de_afiliado_nao_converte(self):
         """Se o link.generate falhar, o converter não devolve oferta (nada de link cru)."""
@@ -108,6 +138,16 @@ class TestConverter(unittest.TestCase):
                           side_effect=RuntimeError("API do AliExpress falhou")):
             with self.assertRaises(RuntimeError):
                 aliexpress.converter("https://pt.aliexpress.com/item/1005008236561372.html")
+
+
+class TestEIdProduto(unittest.TestCase):
+    def test_distingue_produto_de_pagina(self):
+        """Id numérico de produto passa; slug de vitrine/wholesale/cupom não."""
+        self.assertTrue(aliexpress.e_id_produto("1005008236561372"))
+        self.assertFalse(aliexpress.e_id_produto("wholesale-x"))
+        self.assertFalse(aliexpress.e_id_produto("espaco-tecnica"))
+        self.assertFalse(aliexpress.e_id_produto(""))
+        self.assertFalse(aliexpress.e_id_produto(None))
 
 
 class TestBuscarOfertas(unittest.TestCase):

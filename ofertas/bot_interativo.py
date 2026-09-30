@@ -3,6 +3,7 @@ qualquer link colado (ML/Shopee/Amazon) em post com o seu link de afiliado.
 """
 import asyncio
 import logging
+import re
 import secrets
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -20,6 +21,21 @@ from .utils import extrair_urls
 log = logging.getLogger("ofertas.bot")
 
 _pendentes: dict[str, Oferta] = {}
+
+# Ações aceitas no callback das prévias (data="acao:token"). Qualquer outra
+# coisa é rejeitada ANTES de consumir o token — nunca vira "post" nem "drop".
+_ACOES_CALLBACK = ("post", "drop")
+
+# Formato aceito para fonte de scraping: id numérico (canal/grupo, ex.
+# -1001234567890) ou @username público. O resto (aspas, tags, espaços) é
+# rejeitado na escrita — defesa em profundidade, já que o painel interpola
+# esse valor em markup/atributos.
+_RE_FONTE_VALIDA = re.compile(r"^-?\d+$|^@[A-Za-z0-9_]{3,32}$")
+
+
+def _chat_id_valido(chat_id: str) -> bool:
+    """Diz se um chat_id (já normalizado) tem formato seguro de fonte."""
+    return bool(chat_id) and bool(_RE_FONTE_VALIDA.fullmatch(chat_id))
 
 
 async def _cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -72,7 +88,17 @@ async def _cmd_add_fonte(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not args:
         await update.message.reply_text("Uso: `/addfonte <id_do_chat> <nome_da_fonte>`", parse_mode="Markdown")
         return
-    chat_id = args[0]
+    from .sources.telegram_scraper import normalizar_username_telegram
+    # Normaliza (id/@username/t.me) e valida o formato ANTES de gravar: o valor
+    # vai parar no painel e em mensagens, então nada de aspas/tags entrando cru.
+    chat_id = normalizar_username_telegram(args[0])
+    if not _chat_id_valido(chat_id):
+        await update.message.reply_text(
+            "❌ Formato inválido. Use o id do chat (ex.: `-1001234567890`), "
+            "`@username` ou link `t.me/...` do canal/grupo.",
+            parse_mode="Markdown",
+        )
+        return
     nome = " ".join(args[1:]) if len(args) > 1 else f"Canal {chat_id}"
     db.salvar_fonte_telegram(chat_id, nome, tipo="canal", ativa=True)
     await update.message.reply_text(f"✅ Fonte *{nome}* (`{chat_id}`) cadastrada e ativada com sucesso!", parse_mode="Markdown")
@@ -297,25 +323,53 @@ async def _receber_mensagem_canal_grupo(update: Update, ctx: ContextTypes.DEFAUL
 
 async def _callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
-    await q.answer()
-    acao, _, token = q.data.partition(":")
+    try:
+        await q.answer()
+    except Exception as e:
+        # O handler não pode cair só porque o Telegram não aceitou o answer.
+        log.warning("[CALLBACK] Erro ao responder o answer: %s", e)
+
+    acao, _, token = (q.data or "").partition(":")
+    if acao not in _ACOES_CALLBACK:
+        # Ação desconhecida (dado adulterado/fora de catálogo): NÃO consome o
+        # token — a prévia continua válida — e não responde como "descartada",
+        # que seria o mesmo que silenciar um descarte indevido.
+        log.warning("[CALLBACK] Ação não reconhecida no callback: %r", acao)
+        await _editar_previa(q, "⚠️ Ação não reconhecida.")
+        return
+
     oferta = _pendentes.pop(token, None)
 
-    async def _status(texto: str):
-        if q.message.photo:
-            await q.edit_message_caption((q.message.caption or "") + f"\n\n{texto}")
-        else:
-            await q.edit_message_text((q.message.text or "") + f"\n\n{texto}")
-
     if not oferta:
-        await _status("⚠️ Essa prévia expirou — mande o link de novo.")
+        await _editar_previa(q, "⚠️ Essa prévia expirou — mande o link de novo.")
         return
-    if acao == "post":
-        await postar_oferta(ctx.bot, oferta, config.chat_id)
-        db.registrar(oferta)
-        await _status("✅ Postada no canal!")
-    else:
-        await _status("🗑 Descartada.")
+
+    try:
+        if acao == "post":
+            await postar_oferta(ctx.bot, oferta, config.chat_id)
+            db.registrar(oferta)
+            await _editar_previa(q, "✅ Postada no canal!")
+        else:
+            await _editar_previa(q, "🗑 Descartada.")
+    except Exception as e:
+        # Falha ao publicar (rede, Telegram) não pode derrubar o handler sem
+        # deixar o dono saber o que houve com a prévia.
+        log.exception("[CALLBACK] Falha ao processar ação %s", acao)
+        await _editar_previa(q, f"❌ Erro ao processar: {e}")
+
+
+async def _editar_previa(q, texto: str):
+    """Acrescenta um status à prévia, foto ou texto, sem derrubar o handler."""
+    try:
+        msg = q.message
+        if not msg:
+            return
+        if msg.photo:
+            await q.edit_message_caption((msg.caption or "") + f"\n\n{texto}")
+        else:
+            await q.edit_message_text((msg.text or "") + f"\n\n{texto}")
+    except Exception as e:
+        log.warning("[CALLBACK] Erro ao editar a prévia: %s", e)
 
 
 async def _job_ciclo(ctx: ContextTypes.DEFAULT_TYPE):

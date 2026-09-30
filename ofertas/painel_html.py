@@ -3897,6 +3897,21 @@ function ligarEventos() {
     if (ev.target === o) fecharModal(o.id);
   }));
 
+  // Botões da tabela de fontes Telegram (delegação). O chat_id vem do banco
+  // (dado de fora): interpolado num onclick="...('${id}')" o esc() de HTML não
+  // protege nada — as aspas escapadas voltam a viver na string JS e o valor
+  // vira código. Com data-* o valor só existe como atributo escapado, e o botão
+  // se identifica por data-fonte-acao sem nunca virarem parâmetro de código.
+  $("#tabelaFontesTelegramCorpo")?.addEventListener("click", ev => {
+    const btn = ev.target.closest("button[data-fonte-acao]");
+    if (!btn) return;
+    const chat = btn.dataset.fonteChat || "";
+    if (btn.dataset.fonteAcao === "testar") testarConexaoFonteItem(chat, btn);
+    else if (btn.dataset.fonteAcao === "alternar")
+      alternarStatusFonteTelegram(chat, btn.dataset.fonteAtivo !== "true");
+    else if (btn.dataset.fonteAcao === "remover") removerFonteTelegram(chat);
+  });
+
   // Formulários
   $("#formConfig").addEventListener("submit", salvarConfig);
   $("#formLink").addEventListener("submit", gerarLink);
@@ -4281,13 +4296,13 @@ async function carregarFontesTelegram() {
               <td>${statusSelo}</td>
               <td class="quando">${esc(ultima === "—" ? ultima : ultima.replace("T", " "))}</td>
               <td style="text-align:right;">
-                <button type="button" class="btn btn-neutro btn-sm" onclick="testarConexaoFonteItem('${esc(chatId)}', this)" title="Testar acesso">
+                <button type="button" class="btn btn-neutro btn-sm" data-fonte-acao="testar" data-fonte-chat="${esc(chatId)}" title="Testar acesso">
                   ${icone("refresh")} Testar
                 </button>
-                <button type="button" class="btn btn-neutro btn-sm" onclick="alternarStatusFonteTelegram('${esc(chatId)}', ${!ativo})">
+                <button type="button" class="btn btn-neutro btn-sm" data-fonte-acao="alternar" data-fonte-chat="${esc(chatId)}" data-fonte-ativo="${ativo}">
                   ${ativo ? "Desativar" : "Ativar"}
                 </button>
-                <button type="button" class="btn btn-perigo btn-sm" onclick="removerFonteTelegram('${esc(chatId)}')">
+                <button type="button" class="btn btn-perigo btn-sm" data-fonte-acao="remover" data-fonte-chat="${esc(chatId)}">
                   ${icone("trash")}
                 </button>
               </td>

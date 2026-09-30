@@ -165,7 +165,15 @@ def _item_para_oferta(item: dict) -> Oferta:
     if preco and preco_original and preco_original > preco and not desconto_pct:
         desconto_pct = round(100 * (1 - preco / preco_original))
 
-    imagem = item.get("product_main_image_url") or item.get("product_small_image_urls", {}).get("string", [None])[0] if isinstance(item.get("product_small_image_urls"), dict) else item.get("product_main_image_url")
+    imagem = item.get("product_main_image_url")
+    if not imagem:
+        # A API manda `product_small_image_urls: {"string": [url, ...]}`. O `[0]`
+        # antigo rodava sobre o valor cru: se `string` vier como texto (e não
+        # lista), pegava o primeiro CARACTERE e o envio da foto quebrava.
+        menores = item.get("product_small_image_urls")
+        lista_pequenas = menores.get("string") if isinstance(menores, dict) else None
+        if isinstance(lista_pequenas, list) and lista_pequenas:
+            imagem = lista_pequenas[0]
 
     # Links. O `promotion_link` das APIs (product.query / productdetail.get) veio
     # CONSTANTE e genérico (ex.: best.aliexpress.com) para produtos diferentes —
@@ -336,6 +344,17 @@ def extrair_item_id(url: str) -> str | None:
     return None
 
 
+def e_id_produto(id_produto: str | None) -> bool:
+    """Diz se o id é de um produto, e não de uma página da loja.
+
+    O `converter` só devolve ids extraídos de /item/<id> (numéricos) — páginas
+    de vitrine/wholesale/cupom são descartadas na conversão. Com a função
+    explícita, o pipeline classifica qualquer slug residual como não-produto em
+    vez de assumir True (o padrão para fontes sem a função).
+    """
+    return bool(id_produto) and str(id_produto).isdigit()
+
+
 def gerar_link_afiliado(url: str) -> str:
     """Gera um link de afiliado oficial para qualquer URL de produto do AliExpress."""
     app_key, app_secret, tracking_id, _, _ = _obter_credenciais()
@@ -369,7 +388,12 @@ def gerar_link_afiliado(url: str) -> str:
 
 
 def converter(url: str) -> Oferta:
-    """Converte um link qualquer do AliExpress em um objeto Oferta completo com link de afiliado."""
+    """URL de produto do AliExpress -> Oferta completa com link de afiliado.
+
+    Só converte URL de produto (item_id presente). Página de loja, categoria,
+    cupom ou link desconhecido é descartada com RuntimeError — nunca vira oferta
+    com título genérico e link de afiliado gerado sobre a página errada.
+    """
     # Expandir links curtos caso necessário
     if any(s in url for s in ("a.aliexpress.com", "s.click.aliexpress.com", "ali.ski")):
         try:
@@ -412,11 +436,19 @@ def converter(url: str) -> Oferta:
         except Exception as e:
             log.warning("[ALIEXPRESS] Falha ao obter detalhes do item %s: %s", item_id, e)
 
-    # Fallback: gerar link de afiliado diretamente
+    # URL sem id de item (vitrine, categoria, cupom, página desconhecida). Gerar
+    # um link aqui transformaria uma página de loja em "oferta" — inventar
+    # produto onde não há. Descarta (o pipeline tenta o próximo link).
+    if not item_id:
+        raise RuntimeError("URL não é de produto AliExpress (sem itemId)")
+
+    # Fallback: o productdetail.get falhou (item fora do catálogo de afiliados,
+    # erro transitório), mas a URL É de produto. O link continua saindo do
+    # link.generate — nunca cru, nunca o de outro item.
     link_afiliado = gerar_link_afiliado(url)
     return Oferta(
         plataforma="aliexpress",
-        id_produto=item_id or url.split("?")[0].rstrip("/").rsplit("/", 1)[-1][:60],
+        id_produto=item_id,
         titulo="Oferta AliExpress",
         url_afiliado=link_afiliado,
         url_produto=url,
