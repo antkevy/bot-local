@@ -58,7 +58,7 @@ def montar_caption(o: Oferta) -> str:
         linhas.append(f"✅ Por: <b>{preco_br(preco)}</b>{selo}")
     elif preco:
         # Produto sem preço anterior / sem desconto: NÃO inventar De/Por
-        linhas.append(f"💰 <b>{preco_br(preco)}</b>")
+        linhas.append(f"✅ Por: <b>{preco_br(preco)}</b>")
 
     # Cupom de desconto
     if o.cupom:

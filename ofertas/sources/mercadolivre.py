@@ -255,15 +255,10 @@ def _parse_card(card) -> Oferta | None:
 
     # Nota e vendidos vão nos campos próprios. Deixá-los também em `extra`
     # faria a legenda repetir "⭐ 4.7 · 🛒 50.000 vendidos" duas vezes: uma
-    # pelos selos do formatador, outra pelo texto. Frete e Pix ficam em
-    # `extra`, que é onde não têm campo.
+    # pelos selos do formatador, outra pelo texto. Os selos de "Frete grátis"
+    # e "preço no Pix" do card foram tirados a pedido — a postagem de oferta
+    # não anuncia benefício de envio/pagamento, só o produto.
     avaliacao, vendas = _avaliacao_e_vendas(card)
-    partes = []
-    if "Frete grátis" in card.get_text():
-        partes.append("🚚 Frete grátis")
-    pix = card.select_one(".poly-price__unit-description")
-    if pix and "pix" in pix.get_text().lower():
-        partes.append("💠 preço no Pix")
 
     return Oferta(
         plataforma="mercadolivre",
@@ -277,7 +272,7 @@ def _parse_card(card) -> Oferta | None:
         imagem=imagem,
         avaliacao=avaliacao,
         vendas=vendas,
-        extra=" · ".join(partes) or None,
+        extra=None,
     )
 
 

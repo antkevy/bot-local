@@ -116,7 +116,7 @@ class TestAmazon(unittest.TestCase):
         self.assertIn("Prime", o.extra or "")
 
 
-def _card_ml(texto_review: str) -> BeautifulSoup:
+def _card_ml(texto_review: str, pix: str = "") -> BeautifulSoup:
     """Card de oferta do ML no formato medido: nota e vendas num bloco junto."""
     html = (
         f'<div class="poly-card">'
@@ -128,6 +128,7 @@ def _card_ml(texto_review: str) -> BeautifulSoup:
         f'    <span class="andes-money-amount__cents">45</span></div>'
         f'  <img class="poly-component__picture" src="https://http2.mlstatic.com/D_Q_NP_2X_1-AB.webp">'
         f'  <div class="poly-component__review-compacted">{texto_review}</div>'
+        f'  <div class="poly-price__unit-description">{pix}</div>'
         f"  Frete grátis"
         f"</div>"
     )
@@ -162,11 +163,28 @@ class TestMercadoLivre(unittest.TestCase):
         self.assertEqual(o.avaliacao, 4.7)
         self.assertEqual(o.vendas, 50000)
         self.assertEqual(o.preco, 123.45)
-        self.assertIn("🚚 Frete grátis", o.extra or "")
+        self.assertIsNone(o.extra, "Frete/Pix do card não entram mais na postagem")
         self.assertNotIn("⭐", o.extra or "")
         caption = montar_caption(o)
         self.assertIn("⭐ 4.7 · 🛒 50.000 vendidos", caption)
         self.assertEqual(caption.count("⭐"), 1)
+
+    def test_parse_card_nao_anuncia_frete_nem_pix(self):
+        """'Frete grátis' e 'no Pix' presentes no card não viram postagem."""
+        card = _card_ml("4.7 | +50mil vendidos", pix="no Pix")
+        o = mercadolivre._parse_card(card)
+        self.assertIsNone(o.extra)
+        caption = montar_caption(o)
+        self.assertNotIn("Frete", caption)
+        self.assertNotIn("Pix", caption)
+        self.assertNotIn("🚚", caption)
+
+    def test_preco_sem_original_diz_por_e_nao_moeda(self):
+        """Sem preço 'De', o valor aparece como '✅ Por: R$ 123,45', não '💰'."""
+        o = mercadolivre._parse_card(_card_ml("4.7 | +50mil vendidos"))
+        caption = montar_caption(o)
+        self.assertIn("✅ Por: <b>R$ 123,45</b>", caption)
+        self.assertNotIn("💰", caption)
 
 
 if __name__ == "__main__":
