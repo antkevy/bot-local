@@ -97,9 +97,12 @@ def _conn() -> sqlite3.Connection:
     # abriria brecha para o post duplicado. Não usamos WAL de propósito: ele
     # criaria arquivos .db-wal/.db-shm novos no banco do usuário.
     c.execute("PRAGMA busy_timeout=5000")
-    # Bancos criados por versões antigas não têm url_afiliado/imagem; adiciona sem perder dados.
+    # Bancos criados por versões antigas não têm url_afiliado/imagem/url_produto;
+    # adiciona sem perder dados. `url_produto` (link original) não entra em
+    # _COLUNAS de propósito: é o ALTER abaixo que garante a coluna em bancos
+    # novos E antigos, num só caminho.
     existentes = {r[1] for r in c.execute("PRAGMA table_info(postadas)")}
-    for coluna in ("url_afiliado", "imagem"):
+    for coluna in ("url_afiliado", "imagem", "url_produto"):
         if coluna not in existentes:
             try:
                 c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
@@ -140,11 +143,13 @@ def registrar(oferta: Oferta) -> None:
     with _conn() as c:
         c.execute(
             "INSERT OR REPLACE INTO postadas"
-            " (uid, plataforma, titulo, preco, url_afiliado, imagem, postada_em)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            " (uid, plataforma, titulo, preco, url_afiliado, imagem,"
+            "  postada_em, url_produto)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (oferta.uid, oferta.plataforma, oferta.titulo, oferta.preco,
              oferta.url_afiliado, oferta.imagem,
-             dt.datetime.now().isoformat(timespec="seconds")),
+             dt.datetime.now().isoformat(timespec="seconds"),
+             oferta.url_produto),
         )
         # A reserva virou postagem: some na mesma transação, senão a oferta fica
         # travada até o TTL.
@@ -241,7 +246,8 @@ def listar_postadas(limite: int = 50) -> list[dict]:
     with _conn() as c:
         c.row_factory = sqlite3.Row
         rows = c.execute(
-            "SELECT uid, plataforma, titulo, preco, url_afiliado, imagem, postada_em"
+            "SELECT uid, plataforma, titulo, preco, url_afiliado, imagem,"
+            "       postada_em, url_produto"
             " FROM postadas ORDER BY postada_em DESC LIMIT ?",
             (limite,),
         ).fetchall()

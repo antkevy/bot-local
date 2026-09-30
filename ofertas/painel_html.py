@@ -513,6 +513,30 @@ PAGINA = r"""<!doctype html>
                overflow: hidden; text-overflow: ellipsis; }
   /* 34px: a linha inteira do link é o alvo; o botão é o alvo secundário. */
   .link-item .btn-icone { width: 34px; height: 34px; min-height: 34px; }
+  /* Foto do produto + "o que foi convertido": thumb à esquerda, título,
+     link de afiliado e link original no corpo. O original só aparece quando
+     foi gravado (posts antigos não têm). */
+  .link-thumb {
+    width: 44px; height: 44px; flex: none; object-fit: cover;
+    border-radius: var(--r-md); border: 1px solid var(--borda-sutil);
+    background: var(--fundo-sub);
+  }
+  .link-thumb-vazio { display: inline-block; }
+  .link-titulo {
+    font-weight: 600; font-size: 12.5px; color: var(--texto-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .link-linha { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+  .link-rotulo {
+    flex: none; font: 600 9.5px var(--mono); letter-spacing: .05em;
+    text-transform: uppercase; color: var(--texto-3);
+  }
+  .link-original {
+    display: block; min-height: 22px; padding: 3px 0; margin: -3px 0;
+    font: 500 11.5px var(--mono); color: var(--texto-3);
+    text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .link-original:hover { text-decoration: underline; color: var(--primaria-texto); }
 
   /* == Plataformas =================================================
      Grade de cards compactos: logo, nome, uma linha de status, uma linha
@@ -3085,9 +3109,11 @@ async function atualizarMetricas() {
       : vazio("Nenhuma publicação ainda", "Ligue o bot ou rode um ciclo pela aba Plataformas.", "history");
 
     // Links — só os reais, gravados no banco
-    const html = (d.links_recentes || []).map(l => itemLink(l, false)).join("");
+    const links = d.links_recentes || [];
+    const html = links.map(l => itemLink(l, false)).join("");
+    const htmlTodos = links.map(l => itemLink(l, true)).join("");
     $("#linksRecentes").innerHTML = html || vazio("Nenhum link ainda", "Os links aparecem aqui depois do primeiro post.", "link");
-    $("#linksTodos").innerHTML = html || vazio("Nenhum link ainda", "Use o link builder para gerar o primeiro.", "link");
+    $("#linksTodos").innerHTML = htmlTodos || vazio("Nenhum link ainda", "Use o link builder para gerar o primeiro.", "link");
   } catch (e) {
     $("#linksRecentes").innerHTML = vazio("Não consegui carregar", "O servidor local não respondeu.", "alert");
   }
@@ -3096,19 +3122,42 @@ async function atualizarMetricas() {
 function itemLink(l, completo) {
   const tit = esc(l.titulo || "Produto sem título");
   const url = esc(l.url || "");
+  const original = esc(l.url_original || "");
   const quando = esc(l.data || "");
+  const img = esc(l.imagem || "");
+  const thumb = img
+    ? `<img class="link-thumb" src="${img}" alt="" loading="lazy"
+           onerror="this.style.display='none'">`
+    : `<span class="link-thumb link-thumb-vazio" aria-hidden="true"></span>`;
+  // data-url existe aqui porque o botão só aparece quando há url; sem ele o
+  // clique do "copiar" chegaria com undefined e não copiaria nada.
   const copiar = url
-    ? `<button type="button" class="btn btn-icone" title="Copiar link" aria-label="Copiar link"
+    ? `<button type="button" class="btn btn-icone" title="Copiar link de afiliado"
+         aria-label="Copiar link de afiliado" data-url="${url}"
          onclick="copiarTexto(this.dataset.url)"><svg class="icone icone-sm" aria-hidden="true"><use href="#i-copy"/></svg></button>`
     : `<span class="selo selo-neutro" title="O bot ainda não gravou o link deste produto">sem link salvo</span>`;
   const abrir = url
-    ? `<a class="link-url" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+    ? `<a class="link-url" href="${url}" target="_blank" rel="noopener noreferrer" title="${tit}">${url}</a>`
     : `<span class="link-url" style="color:var(--texto-3)">${tit}</span>`;
+  // No cartão do dashboard a linha é curta (só o link de afiliado); na aba
+  // completa aparece também o link original — o "antes" da conversão.
+  const afiliadoLinha = completo
+    ? `<div class="link-linha"><span class="link-rotulo">afiliado</span>${abrir}</div>`
+    : abrir;
+  const originalLinha = (completo && original && original !== url)
+    ? `<div class="link-linha"><span class="link-rotulo">original</span>
+         <a class="link-original" href="${original}" target="_blank" rel="noopener noreferrer"
+            title="${tit}">${original}</a>
+       </div>`
+    : "";
   return `
     <div class="link-item">
+      ${thumb}
       <div class="link-corpo">
-        ${abrir}
-        <div class="link-meta">${completo ? tit + " · " : ""}${quando}</div>
+        <div class="link-titulo" title="${tit}">${tit}</div>
+        ${afiliadoLinha}
+        ${originalLinha}
+        <div class="link-meta">${quando}</div>
       </div>
       ${copiar}
     </div>`;
