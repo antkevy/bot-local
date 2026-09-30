@@ -94,7 +94,8 @@ async def _cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fontes = [nome for nome, f in (("Mercado Livre", config.fonte_ml),
                                    ("Shopee", config.fonte_shopee),
                                    ("Amazon", config.fonte_amazon),
-                                   ("AliExpress", config.fonte_aliexpress)) if f.get("ativa")]
+                                   ("AliExpress", config.fonte_aliexpress),
+                                   ("Nerd Ofertas", config.fonte_nerdofertas)) if f.get("ativa")]
     await update.message.reply_text(
         f"📊 {db.total_postadas()} ofertas postadas até agora\n"
         f"🔎 Fontes automáticas: {', '.join(fontes) or 'nenhuma'}\n"
@@ -325,6 +326,15 @@ async def _job_ciclo(ctx: ContextTypes.DEFAULT_TYPE):
         log.exception("Ciclo automático falhou")
         await pipeline.avisar_dono(ctx.bot, f"⚠️ O ciclo automático falhou: {type(e).__name__}: {e}")
 
+    # Feed do alerta.nerdofertas.com, depois do ciclo de catálogo: cada alerta
+    # novo entra pelo pipeline de mensagens (link de afiliado do dono, cupom,
+    # IA). Falha do feed não derruba o ciclo nem avisa o dono a cada 45 min.
+    try:
+        from .sources import nerdofertas
+        await nerdofertas.processar_alertas(ctx.bot)
+    except Exception:
+        log.exception("Feed do alerta.nerdofertas.com falhou")
+
 
 async def _post_init(app: Application) -> None:
     """Hook executado após a inicialização do Application para conectar o Telethon Userbot."""
@@ -363,7 +373,7 @@ def rodar():
         _receber_mensagem_canal_grupo))
 
     tem_fonte = any(f.get("ativa") for f in
-                    (config.fonte_ml, config.fonte_shopee, config.fonte_amazon, config.fonte_aliexpress, config.fonte_telegram))
+                    (config.fonte_ml, config.fonte_shopee, config.fonte_amazon, config.fonte_aliexpress, config.fonte_telegram, config.fonte_nerdofertas))
     if tem_fonte and config.intervalo_minutos > 0 and config.chat_id:
         app.job_queue.run_repeating(_job_ciclo, interval=config.intervalo_minutos * 60, first=30)
         log.info("Ciclo automático a cada %d min", config.intervalo_minutos)

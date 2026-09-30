@@ -413,7 +413,8 @@ def status() -> dict:
     fontes = [nome for nome, f in (("Mercado Livre", config.fonte_ml),
                                    ("Shopee", config.fonte_shopee),
                                    ("Amazon", config.fonte_amazon),
-                                   ("AliExpress", config.fonte_aliexpress)) if f.get("ativa")]
+                                   ("AliExpress", config.fonte_aliexpress),
+                                   ("Nerd Ofertas", config.fonte_nerdofertas)) if f.get("ativa")]
 
     # A trava de instância diz se existe algum bot publicando, inclusive um
     # que este painel não iniciou (terminal, outro painel, execução anterior

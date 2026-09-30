@@ -103,6 +103,7 @@ class Config:
         self.fonte_amazon: dict = fontes.get("amazon") or {"ativa": False}
         self.fonte_aliexpress: dict = fontes.get("aliexpress") or {"ativa": False}
         self.fonte_telegram: dict = fontes.get("telegram") or {"ativa": True, "canais": [], "dry_run": False}
+        self.fonte_nerdofertas: dict = fontes.get("nerdofertas") or {"ativa": False}
 
         # Seleção de nichos feita no painel (data/nichos.json). Se houver, ela
         # SUBSTITUI as categorias/departamentos/buscas do config.yaml.
