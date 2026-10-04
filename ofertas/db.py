@@ -139,6 +139,20 @@ def ja_postada(uid: str, dentro_de_dias: int) -> bool:
     return (dt.datetime.now() - postada) < dt.timedelta(days=dentro_de_dias)
 
 
+def preco_ultima_postagem(uid: str) -> float | None:
+    """Preço gravado na última postagem do produto (uid); None se nunca postado."""
+    with _conn() as c:
+        row = c.execute(
+            "SELECT preco FROM postadas WHERE uid = ? LIMIT 1", (uid,),
+        ).fetchone()
+    if not row or row[0] is None:
+        return None
+    try:
+        return float(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
 def registrar(oferta: Oferta) -> None:
     with _conn() as c:
         c.execute(

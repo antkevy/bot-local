@@ -73,9 +73,22 @@ def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
     for o in ofertas:
         if not o.titulo:
             continue
-        if db.ja_postada(o.uid, config.nao_repetir_dias):
-            log.info("[FILTER] Oferta '%s' ignorada: já postada nos últimos %d dias.", o.titulo[:40], config.nao_repetir_dias)
-            continue
+        # Bloqueio permanente de repetido, salvo se o preço cair: um produto
+        # já postado só volta ao canal com preço menor do que o gravado na
+        # última postagem. (não há janela de dias — hoje o `nao_repetir_dias`
+        # do config serve de referência no painel, a regra real é esta.)
+        preco_antigo = db.preco_ultima_postagem(o.uid)
+        if preco_antigo is not None:
+            caiu = o.preco is not None and o.preco < preco_antigo
+            if not caiu:
+                atual = ("sem preço" if o.preco is None else f"{o.preco:.2f}")
+                log.info(
+                    "[FILTER] Oferta '%s' ignorada: produto já postado (R$%.2f) e preço não caiu (atual: %s) — só republica se o preço cair.",
+                    o.titulo[:40], preco_antigo, atual,
+                )
+                continue
+            log.info("[FILTER] Oferta '%s' re-aprovada: preço caiu de R$%.2f para R$%.2f.",
+                     o.titulo[:40], preco_antigo, o.preco)
         ok, motivo = passes_product_filters(o)
         if not ok:
             log.info("[FILTER] Oferta '%s' rejeitada: %s", o.titulo[:40], motivo)
@@ -150,6 +163,19 @@ async def executar_ciclo(bot: Bot) -> int:
         except Exception as e:
             log.error("Geração de afiliados ML falhou: %s", e)
 
+    # AliExpress: gerar link só das escolhidas. `link.generate` tem cota da
+    # Open Platform — gerar para os ~30 coletados de cada ciclo eram ~1.700
+    # chamadas/dia, e quase tudo era descartado pelos filtros depois. O
+    # `converter` (mensagem de canal) continua gerando na hora, por mensagem.
+    for o in escolhidas:
+        if o.plataforma == "aliexpress" and not o.url_afiliado:
+            try:
+                o.url_afiliado = await asyncio.to_thread(
+                    aliexpress.gerar_link_afiliado, o.url_produto)
+            except Exception as e:
+                log.warning("[ALIEXPRESS] Sem link de afiliado p/ %s: %s",
+                            o.id_produto, e)
+
     postadas = 0
     for o in escolhidas:
         if not o.url_afiliado:
@@ -170,8 +196,20 @@ async def executar_ciclo(bot: Bot) -> int:
         # Controle de Velocidade e Pausas
         pode_postar, motivo_ctrl, espera_s = publishing_controller.pode_publicar()
         if not pode_postar:
-            log.info("[PUBLISH-CTRL] Publicação pausada (%s). Aguardando próximo ciclo.", motivo_ctrl)
-            break
+            # Só a espera de intervalo mínimo entre posts vale ser aguardada
+            # dentro do próprio ciclo: ela é curta e tem teto conhecido (o
+            # próprio intervalo configurado). Pausa de bloco, limite de
+            # período e cadência ilegível são esperas longas e quebram o
+            # ciclo, que volta a ser tentado no próximo agendamento. Sem a
+            # espera, um ciclo nunca passava de 1 post mesmo com
+            # `max_posts_por_ciclo > 1` (intervalo de 300s > espaçamento de
+            # 90s mandava `break` na segunda oferta sempre).
+            if motivo_ctrl.startswith("aguardando_intervalo_minimo") and espera_s > 0:
+                await asyncio.sleep(min(espera_s, config.intervalo_entre_posts_segundos))
+                pode_postar, motivo_ctrl, _ = publishing_controller.pode_publicar()
+            if not pode_postar:
+                log.info("[PUBLISH-CTRL] Publicação pausada (%s). Aguardando próximo ciclo.", motivo_ctrl)
+                break
 
         try:
             await postar_oferta(bot, o, config.chat_id)
@@ -428,12 +466,16 @@ async def processar_mensagem_telegram(
     # canal e ainda encontrado na listagem de ofertas, passava duas vezes e era
     # postado duas vezes. Aqui conferimos contra `postadas` e reservamos o
     # produto, igual ao ciclo automático.
-    if db.ja_postada(oferta.uid, config.nao_repetir_dias):
-        log.info("[FILTROS] Oferta '%s' ignorada: produto já postado nos últimos %d dias.",
-                 oferta.titulo[:50], config.nao_repetir_dias)
-        if source_id and message_id:
-            db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="produto_ja_postado")
-        return {"ok": False, "motivo": "produto_ja_postado"}
+    # Mesma regra do ciclo: permanente, e só republica se o preço cair.
+    preco_antigo = db.preco_ultima_postagem(oferta.uid)
+    if preco_antigo is not None:
+        caiu = oferta.preco is not None and oferta.preco < preco_antigo
+        if not caiu:
+            log.info("[FILTROS] Oferta '%s' ignorada: produto já postado (R$%.2f) e preço não caiu — só republica se o preço cair.",
+                     oferta.titulo[:50], preco_antigo)
+            if source_id and message_id:
+                db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="produto_ja_postado")
+            return {"ok": False, "motivo": "produto_ja_postado"}
 
     if not db.reservar(oferta.uid):
         log.info("[FILTROS] Oferta '%s' ignorada: outro processo já está publicando este produto.",

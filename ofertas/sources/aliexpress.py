@@ -313,12 +313,12 @@ def buscar_ofertas(limite: int = 30) -> list[Oferta]:
                 oferta = _item_para_oferta(p)
                 if not (oferta.id_produto and oferta.url_produto):
                     continue
-                try:
-                    _garantir_link_afiliado(oferta)
-                except Exception as e:
-                    log.warning("[ALIEXPRESS] Sem link de afiliado p/ %s: %s",
-                                oferta.id_produto, e)
-                    continue
+                # O link de afiliado NUNCA vira daqui: `link.generate` é a API
+                # com cota da Open Platform, e gerar para os ~30 coletados de
+                # cada ciclo eram ~1.700 chamadas/dia (quase tudo descartado
+                # pelos filtros depois). O pipeline gera só para as escolhidas,
+                # exatamente como o Mercado Livre faz com o Link Builder. O
+                # `converter` (mensagem do canal) continua gerando o link.
                 todas_ofertas[oferta.id_produto] = oferta
         except Exception as e:
             log.warning("[ALIEXPRESS] Erro ao buscar termo '%s': %s", termo, e)

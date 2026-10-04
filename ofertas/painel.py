@@ -1147,12 +1147,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             elif rota == "/api/start":
                 from . import instancia
-                # Bot que este painel não iniciou: se existir, o novo processo
-                # vai encerrá-lo (trava de instância). Avisamos para o clique não
-                # parecer um desligamento do nada.
+                # Guarda anti-duplicata: se existe um bot vivo que este painel
+                # não iniciou (terminal, outro painel, systemd da VPS), não o
+                # substitua — em produção o systemd reiniciaria o bot e a dupla
+                # brigaria pela trava. Quem gerencia é o serviço.
+                if not bot.rodando() and instancia.status("bot").get("ocupado"):
+                    return self._json({
+                        "ok": False,
+                        "erro": "Bot já está ativo fora deste painel (systemd). Gerencie pelo serviço bot-local-bot.",
+                    })
                 anterior = instancia.titular_vivo("bot")
                 ok = bot.iniciar(["run"], "Bot")
-                self._json({
+                return self._json({
                     "ok": ok,
                     "rodando": bot.rodando(),
                     "substituiu": (anterior or {}).get("pid") if anterior else None,

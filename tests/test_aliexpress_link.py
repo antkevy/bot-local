@@ -5,10 +5,13 @@ As APIs de produto (product.query e productdetail.get) devolviam um
 diferentes — medido ao vivo com itens distintos. Por isso:
 
 - `_item_para_oferta` NUNCA confia no promotion_link (deixa vazio);
-- `converter` e `buscar_ofertas` SEMPRE geram o link do produto via
+- `converter` (mensagem de canal) SEMPRE gera o link do produto via
   aliexpress.affiliate.link.generate (gerar_link_afiliado), que resolve para o
   item exato com o aff_fcid do nosso tracking;
-- sem link de afiliado gerado, o item não sai (fail-safe, sem chute).
+- a coleta (`buscar_ofertas`) NÃO gera link: `link.generate` tem cota da Open
+  Platform e quase tudo era descartado pelos filtros — quem gera é o pipeline,
+  só para as escolhidas (mesmo padrão do Link Builder do ML);
+- sem link de afiliado gerado, o item não é publicado (fail-safe, sem chute).
 """
 from __future__ import annotations
 
@@ -160,34 +163,27 @@ class TestBuscarOfertas(unittest.TestCase):
         self.addCleanup(self.p_cfg.stop)
         self.addCleanup(self.p_cred.stop)
 
-    def test_gera_link_por_produto_e_ignora_quem_nao_conseguir(self):
+    def test_coleta_nao_gera_link_por_produto(self):
+        """F2: `buscar_ofertas` devolve os produtos com o campo de afiliado
+        vazio e SEM chamar a API de link. Gerar link é custoso e tem cota —
+        quem gera é o pipeline, só para as escolhidas."""
         itens = [
             item_detalhe("1005000000001", "https://pt.aliexpress.com/item/1005000000001.html"),
             item_detalhe("1005000000002", "https://pt.aliexpress.com/item/1005000000002.html"),
             item_detalhe("1005000000003", "https://pt.aliexpress.com/item/1005000000003.html"),
         ]
-        links = {
-            "https://pt.aliexpress.com/item/1005000000001.html": "https://s.click.aliexpress.com/e/_L1",
-            "https://pt.aliexpress.com/item/1005000000002.html": "https://s.click.aliexpress.com/e/_L2",
-        }
-
-        def _gera(url: str) -> str:
-            if url not in links:
-                raise RuntimeError("sem comissão disponível")
-            return links[url]
 
         with patch.object(aliexpress, "_chamar_api",
                           return_value=resposta("aliexpress_affiliate_product_query_response", itens)), \
-             patch.object(aliexpress, "gerar_link_afiliado", side_effect=_gera):
+             patch.object(aliexpress, "gerar_link_afiliado") as gera:
             ofertas = aliexpress.buscar_ofertas()
 
         por_id = {o.id_produto: o for o in ofertas}
-        self.assertEqual(set(por_id), {"1005000000001", "1005000000002"})
-        self.assertEqual(por_id["1005000000001"].url_afiliado, "https://s.click.aliexpress.com/e/_L1")
-        self.assertEqual(por_id["1005000000002"].url_afiliado, "https://s.click.aliexpress.com/e/_L2")
-        for oferta in ofertas:
-            self.assertNotEqual(oferta.url_afiliado, GENERICO)
-            self.assertNotEqual(oferta.url_afiliado, "")
+        self.assertEqual(set(por_id), {"1005000000001", "1005000000002", "1005000000003"})
+        self.assertTrue(all(o.url_afiliado == "" for o in ofertas),
+                        "coleta sem geração: o campo fica vazio até o pipeline decidir")
+        self.assertTrue(all(o.url_afiliado != GENERICO for o in ofertas))
+        gera.assert_not_called()
 
 
 if __name__ == "__main__":
