@@ -1,0 +1,62 @@
+================================================================
+ BACKUP DO PROJETO BOT-LOCAL — PARA RODAR LOCALMENTE
+ Gerado em 03/10/2026 (estado configurado p/ VPS, já com a
+ correção anti-duplicata do painel)
+================================================================
+
+ARQUIVO:  bot_local_vps_20261003.tar.gz  (~94 MB)
+
+CONTÉUDO (integral e funcional):
+  - Código do projeto (ofertas/, tools/, scripts)
+  - .env ................. credenciais reais (bot do Telegram, ML, painel,
+                           API ID/HASH, chave xAI/Grok) — completo
+  - config.yaml .......... config portada (intervalo 25 min, canais @nerdofertas/@pesquizei)
+  - data/ml_profile ...... sessão do Mercado Livre (login válido)
+  - data/ofertas.db ...... banco local (produtos, postagens)
+
+EXCLUÍDO do pacote (para ficar leve; se regenera sozinho):
+  - .venv .......... ambiente Python (recriado com `uv sync`)
+  - .git ........... histórico (repositório: github.com/antkevy/bot-local)
+  - data/pw-browsers (navegador Playwright — reinstala com o comando abaixo)
+  - __pycache__ / logs
+
+
+COMO RODAR NO SEU PC (Windows), SE QUISER VOLTAR A RODAR LOCAL:
+---------------------------------------------------------------
+1) Extrair o .tar.gz numa pasta (7-Zip ou `tar -xzf` / Git Bash).
+   Ex.: C:\bot-local
+   Se a pasta já existir e tiver dados antigos, use uma pasta NOVA.
+
+2) Instalar o uv (se ainda não tiver):
+   https://docs.astral.sh/uv/
+   ou: pip install uv
+
+3) Dentro da pasta extraída, instalar dependências:
+   > uv sync
+
+4) Reinstalar o navegador do Playwright (não vem no backup):
+   > uv run python -m ofertas instalar-navegador
+
+5) Rodar o painel:
+   > uv run python -m ofertas painel
+   Depois abrir no navegador: http://127.0.0.1:8481
+   (login: usuário/senha que estão no seu .env, chaves PAINEL_*)
+
+6) Ligar o bot: no painel, botão "Ligar Bot" (funciona localmente,
+   pois não há systemd no PC), ou num terminal:
+   > uv run python -m ofertas run
+
+
+OBSERVAÇÕES IMPORTANTES:
+  - Este backup contém CREDENCIAIS (token do Telegram, cookie/sessão
+    do ML). NÃO compartilhe, NÃO suba em repositório público, NÃO
+    coloque em pastas sincronizadas com terceiros.
+  - No PC, só pode haver UM bot ligado por token: ou o da VPS, ou o
+    local — nunca os dois ao mesmo tempo (senão dá "Conflict").
+  - A VPS continua sendo a operação principal e independe deste backup.
+
+CÓPIA NA VPS (caso queira restaurar lá):
+  /home/ubuntu/bot-local-backups/bot_local_vps_20261003.tar.gz
+  (restaurar = parar os serviços, substituir /home/ubuntu/bot-local,
+   recriar o .venv com `uv sync` e subir os serviços de novo)
+================================================================

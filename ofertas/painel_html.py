@@ -8,7 +8,7 @@ PAGINA = r"""<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Ofertas Pro — Painel de Afiliados</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23087BFF'/%3E%3Cpath d='M16 6l7 5v10l-7 5-7-5V11z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -1043,6 +1043,100 @@ PAGINA = r"""<!doctype html>
     .top-header { padding-top: 16px; }
     .header-acoes { width: 100%; }
     .btn-primario { width: 100%; }
+  }
+
+  /* ══ Mobile ═══════════════════════════════════════════════════════════
+     Ajuste fino pra tela pequena. Fica DEPOIS dos media queries de cima de
+     propósito: mesma especificidade, só que mais tarde no arquivo, então
+     sobrepõe os valores de tela larga sem mexer em nenhuma linha deles.   */
+
+  /* Toque: sem isto o navegador segura um double-tap em TODO elemento
+     clicável (delay de ~300ms) e pisca um destaque cinza a cada toque no
+     Android. Não muda nada com mouse. */
+  *, *::before, *::after { -webkit-tap-highlight-color: transparent; }
+  :where(a, button, input, select, textarea, [role="button"]) { touch-action: manipulation; }
+
+  @media (max-width: 860px) {
+    /* Fundo fixo é repintado a cada scroll no celular (e no Safari iOS é
+       desenhado uma vez só, deixando rastro). Em tela pequena não compensa:
+       o gradiente volta a acompanhar a rolagem. */
+    body { background-attachment: scroll; }
+
+    /* A nav sai do topo e vira barra de abas fixa no rodapé. Motivo: com
+       marca + nav + botão do bot tudo numa linha, o topo somava ~500px e o
+       #botCartao (ligar/desligar o bot) era empurrado pra fora da tela, só
+       alcançável por scroll horizontal. Separando os dois, o topo fica
+       enxuto e o botão do bot SEMPRE visível. */
+    .nav-item { min-width: 44px; min-height: 44px; justify-content: center; }
+    .nav-menu {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+      flex-direction: row; margin: 0; gap: 2px;
+      padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+      background: var(--fundo-sidebar);
+      border-top: 1px solid var(--borda-sutil);
+    }
+    .nav-item { flex: 1 1 0; min-width: 0; padding: 6px 4px; }
+
+    /* Topo = marca + botão do bot, lado a lado, sem scroll. */
+    .sidebar {
+      justify-content: space-between; gap: 8px; overflow-x: visible;
+      padding-left: calc(12px + env(safe-area-inset-left));
+      padding-right: calc(12px + env(safe-area-inset-right));
+    }
+    .sidebar-rodape { margin-left: auto; flex: none; gap: 6px; }
+    .bot-cartao { flex: none; max-width: 190px; }
+
+    /* Conteúdo e rodapé da página não ficam escondidos atrás da barra. */
+    .main-wrapper { padding-bottom: 64px; }
+
+    /* Toast sobe acima da barra de abas em vez de sumir atrás dela. */
+    .toasts { bottom: calc(72px + env(safe-area-inset-bottom)); }
+  }
+
+  @media (max-width: 560px) {
+    /* Corpo um ponto maior: dá pra ler sem dar zoom. */
+    body { font-size: 15px; }
+
+    .top-header, .view { padding-left: 14px; padding-right: 14px; }
+    .top-header {
+      padding-left: calc(14px + env(safe-area-inset-left));
+      padding-right: calc(14px + env(safe-area-inset-right));
+    }
+    .saudacao h2 { font-size: 18px; }
+    .saudacao p { font-size: 12.5px; max-width: none; }
+
+    /* Alvos de toque no padrão dos dois sistemas (44px). */
+    .btn, .btn-sm, .btn-fantasma { min-height: 44px; }
+    .btn-icone { width: 44px; height: 44px; }
+
+    /* Sem 16px o iOS dá zoom no campo ao focar e o form fica saltitando
+       entre o teclado e a página. Vale pros campos .campo (13.5px) e pro
+       link de saída (12.5px mono) — os dois eram zooms na prática. */
+    input, select, textarea { font-size: 16px; }
+    .campo input, .campo select, .saida-link input { font-size: 16px; }
+
+    /* Modal vira quase tela cheia. 100dvh acompanha a barra de URL do
+       navegador móvel; navegador antigo ignora e fica no 100vh de cima. */
+    .modal { max-height: calc(100dvh - 20px); border-radius: var(--r-md); }
+    .overlay { padding: 10px; }
+
+    /* A gaveta é lateral de 460px; em tela de 400px sobra uma faixa de
+       fundo no lado esquerdo. Vira largura total. */
+    .gaveta { max-width: 100%; }
+
+    /* Tabela mais densa: mais colunas cabem antes do scroll lateral. */
+    .tabela { font-size: 12px; }
+    .tabela th, .tabela td { padding: 9px 10px; }
+
+    /* Toast ocupa a largura com respiro. O `bottom` (acima da barra de
+       abas fixa) é decidido no bloco de 860px, que vem antes e vence. */
+    .toasts { left: 12px; right: 12px; max-width: none; }
+  }
+
+  @media (max-width: 400px) {
+    .saudacao h2 { font-size: 17px; }
+    .gaveta-topo, .gaveta-pe, .modal-topo, .modal-corpo { padding: 14px; }
+    .tabela th, .tabela td { padding: 8px 9px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
