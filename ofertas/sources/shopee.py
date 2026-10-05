@@ -12,6 +12,7 @@ import time
 
 import requests
 
+from .. import parada
 from ..config import config
 from ..models import Oferta
 from ..utils import sessao
@@ -139,6 +140,9 @@ def buscar_ofertas(limite: int = 30) -> list[Oferta]:
     por_termo = max(5, limite // len(termos))
     ofertas: dict[str, Oferta] = {}
     for termo in termos:
+        if parada.pedido():
+            log.info("Shopee: parada pedida — interrompendo em '%s'", termo)
+            break
         try:
             for o in _buscar_keyword(str(termo), por_termo):
                 ofertas[o.id_produto] = o

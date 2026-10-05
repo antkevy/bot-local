@@ -10,6 +10,7 @@ from .filters import passes_product_filters
 from .formatter import _preco_util
 from .grok import grok_service
 from .models import Oferta, tipo_principal, tokens_conteudo
+from .parada import limpar as limpar_parada, pedido as parada_pedida, pedir as pedir_parada
 from .publishing_control import publishing_controller
 from .sources import aliexpress, amazon, mercadolivre, shopee
 from .telegram_poster import postar_oferta
@@ -18,10 +19,23 @@ log = logging.getLogger("ofertas.pipeline")
 
 
 def coletar() -> list[Oferta]:
-    """Busca ofertas nas fontes automáticas ativas (sem link de afiliado ainda, no caso do ML)."""
+    """Busca ofertas nas fontes automáticas ativas (sem link de afiliado ainda, no caso do ML).
+
+    Só a fonte ativa no config entra. Roda numa thread (`executar_ciclo` usa
+    `asyncio.to_thread`), então precisa consultar `parada.pedido()` para ceder
+    rápido quando o serviço está encerrando: o `SystemExit` do PTB já soltou a
+    thread principal, e o interpretador só sai quando ESTA thread acabar.
+    """
     todas: list[Oferta] = []
 
-    if config.fonte_shopee.get("ativa"):
+    def _parou(qual: str) -> bool:
+        if parada_pedida():
+            log.info("Coleta interrompida antes de %s: o processo está encerrando. "
+                     "%d oferta(s) já coletadas.", qual, len(todas))
+            return True
+        return False
+
+    if config.fonte_shopee.get("ativa") and not _parou("Shopee"):
         if config.shopee_app_id and config.shopee_app_secret:
             try:
                 todas += shopee.buscar_ofertas(int(config.fonte_shopee.get("limite", 30)))
@@ -30,7 +44,7 @@ def coletar() -> list[Oferta]:
         else:
             log.warning("Shopee ativa no config.yaml mas sem credenciais no .env — pulando")
 
-    if config.fonte_amazon.get("ativa"):
+    if config.fonte_amazon.get("ativa") and not _parou("Amazon"):
         if config.amazon_tag:
             try:
                 todas += amazon.buscar_ofertas()
@@ -39,7 +53,7 @@ def coletar() -> list[Oferta]:
         else:
             log.warning("Amazon ativa no config.yaml mas sem AMAZON_TAG no .env — pulando")
 
-    if config.fonte_ml.get("ativa"):
+    if config.fonte_ml.get("ativa") and not _parou("Mercado Livre"):
         if mercadolivre.tem_sessao():
             try:
                 todas += mercadolivre.buscar_ofertas()
@@ -48,7 +62,7 @@ def coletar() -> list[Oferta]:
         else:
             log.warning("Mercado Livre ativo mas sem sessão de afiliado — rode: uv run python -m ofertas ml-login")
 
-    if config.fonte_aliexpress.get("ativa"):
+    if config.fonte_aliexpress.get("ativa") and not _parou("AliExpress"):
         if config.aliexpress_app_key and config.aliexpress_app_secret:
             try:
                 todas += aliexpress.buscar_ofertas(int(config.fonte_aliexpress.get("limite", 30)))
@@ -198,11 +212,21 @@ async def avisar_dono(bot: Bot, texto: str) -> None:
 
 async def executar_ciclo(bot: Bot) -> int:
     """Um ciclo completo: coletar -> filtrar -> escolher -> gerar links -> postar. Retorna nº de posts."""
+    # Janela nova: a parada de um encerramento anterior não pode contaminar
+    # este ciclo, que vai rodar horas depois.
+    limpar_parada()
     if not dentro_do_horario():
         log.info("Fora do horário ativo (%s) — ciclo pulado", config.horario_ativo)
         return 0
 
     brutas = await asyncio.to_thread(coletar)
+    if parada_pedida():
+        # Chegou o SIGTERM no meio da coleta. As ofertas ficam no cache para o
+        # próximo ciclo; o que não pode é sair postando com o processo em
+        # Riemann de desligamento.
+        log.info("Ciclo abortado a pedido de parada (%d oferta(s) coletadas). "
+                 "Nada foi postado.", len(brutas))
+        return 0
     boas = filtrar(brutas)
     escolhidas = escolher(boas, config.max_posts_por_ciclo)
 

@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 import requests
 from bs4 import BeautifulSoup
 
+from .. import parada
 from ..config import DATA_DIR, config
 from ..models import Oferta
 from ..utils import parse_preco_br, sessao
@@ -340,6 +341,9 @@ def _buscar_por_scraping(tarefas: list[dict]) -> list[Oferta]:
     ofertas: dict[str, Oferta] = {}
     for tarefa in tarefas:
         for pagina in range(1, paginas + 1):
+            if parada.pedido():
+                log.info("Amazon: parada pedida — interrompendo em %s", tarefa["rotulo"])
+                return list(ofertas.values())
             params = dict(tarefa["params"])
             if pagina > 1:
                 params["page"] = pagina

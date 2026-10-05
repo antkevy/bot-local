@@ -425,4 +425,12 @@ def rodar():
         log.info("Ciclo automático desligado (sem fonte ativa ou sem CHAT_ID)")
 
     log.info("Bot rodando — monitorando mensagens e privado do Telegram")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    # `stop_signals=None` tira os handlers do PTB: ele levantaria SystemExit
+    # sem avisar a thread da coleta, e o interpretador ficaria esperando ela
+    # em vez de sair. O nosso handler pede a parada ANTES, então o ciclo
+    # cede na primeira checagem e o processo encerra em segundos.
+    from . import parada
+    parada.instalar_handlers(parada.pedir)
+
+    app.run_polling(allowed_updates=Update.ALL_TYPES, stop_signals=None)

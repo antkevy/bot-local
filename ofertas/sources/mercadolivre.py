@@ -19,6 +19,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
+from .. import parada
 from ..config import DATA_DIR, config
 from ..models import Oferta
 from ..utils import USER_AGENT, parse_preco_br, sessao
@@ -111,6 +112,9 @@ def buscar_ofertas() -> list[Oferta]:
     ofertas: dict[str, Oferta] = {}
     for cat_id, nome in categorias.items():
         for pagina in range(1, paginas + 1):
+            if parada.pedido():
+                log.info("Mercado Livre: parada pedida — interrompendo em %s p.%d", nome, pagina)
+                break
             params = {}
             if cat_id:
                 params["category"] = cat_id

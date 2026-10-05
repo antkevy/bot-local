@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
+from .. import parada
 from ..config import config
 from ..models import Oferta
 from ..utils import sessao
@@ -287,6 +288,9 @@ def buscar_ofertas(limite: int = 30) -> list[Oferta]:
     log.info("[ALIEXPRESS] Busca de ofertas iniciada para %d termos...", len(termos))
 
     for termo in termos:
+        if parada.pedido():
+            log.info("[ALIEXPRESS] Parada pedida — interrompendo em '%s'", termo)
+            break
         params = {
             "keywords": termo,
             "page_no": 1,

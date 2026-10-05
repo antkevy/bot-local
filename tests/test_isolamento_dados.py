@@ -47,6 +47,13 @@ SUITES = sorted(
     if p.name != AQUI
 )
 
+# A suíte de UI dirige um Chromium de verdade e leva ~460s. Com o orçamento
+# geral de 600s ela passava raspando, e numa máquina mais lenta o
+# `TimeoutExpired` derrubaria o guard-rail inteiro — falseando a prova de que
+# as suítes não tocam `data/`. Só ela ganha mais tempo; as demais mantêm o
+# prazo curto, que é o que faz um suite travado aparecer rápido.
+TIMEOUT_POR_SUITE = {"test_plataformas_ui.py": 1200}
+
 # Arquivos de data/ que a execução de um teste jamais pode escrever.
 ARQUIVOS_DE_DADOS = ["ofertas.db", "grok_cache.json", "cadencia.json"]
 
@@ -152,7 +159,8 @@ class TestSuitesNaoEncostamNosDadosReais(unittest.TestCase):
             proc = subprocess.run(
                 [sys.executable, str(RAIZ / "tests" / nome)],
                 cwd=str(RAIZ), env=env, capture_output=True, text=True,
-                encoding="utf-8", errors="replace", timeout=600,
+                encoding="utf-8", errors="replace",
+                timeout=TIMEOUT_POR_SUITE.get(nome, 600),
             )
             if proc.returncode != 0:
                 cls.falhas.append(

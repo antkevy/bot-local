@@ -19,6 +19,13 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+# `ofertas.config` precisa ser importado ANTES do Playwright: ele faz
+# `setdefault("PLAYWRIGHT_BROWSERS_PATH", data/pw-browsers)` no import. Sem
+# isso o Playwright procura no cache default do usuario, onde a build
+# instalada quase nunca bate com a que a lib exige — e o resultado sao 5
+# classes inteiras puladas com "Chromium indisponivel", sem ninguem reparar.
+from ofertas.config import DATA_DIR  # noqa: F401
+
 CHAVES = [
     ("ML_ETIQUETA", "Mercado Livre", False),
     ("ML_COOKIE", "Mercado Livre", True),
