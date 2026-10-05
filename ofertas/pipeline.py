@@ -9,7 +9,7 @@ from .config import config, dentro_do_horario
 from .filters import passes_product_filters
 from .formatter import _preco_util
 from .grok import grok_service
-from .models import Oferta
+from .models import Oferta, tipo_principal, tokens_conteudo
 from .publishing_control import publishing_controller
 from .sources import aliexpress, amazon, mercadolivre, shopee
 from .telegram_poster import postar_oferta
@@ -60,6 +60,37 @@ def coletar() -> list[Oferta]:
     return todas
 
 
+def _tipo_saturado(titulo: str, contagem: dict[str, int]) -> str | None:
+    """Motivo se este tipo de produto já saiu vezes demais na janela, senão None."""
+    tipo = tipo_principal(titulo)
+    if not tipo:
+        return None
+    usados = contagem.get(tipo, 0)
+    if usados >= db.MAX_REPETICOES_POR_TIPO:
+        return (f"tipo '{tipo}' já saiu {usados}x em {config.cooldown_tipo_horas}h "
+                f"(máximo {db.MAX_REPETICOES_POR_TIPO})")
+    return None
+
+
+def _equivalente_a_postado(titulo: str, palavras: list[frozenset[str]]) -> str | None:
+    """Motivo se o título for o mesmo produto de um post recente, senão None.
+
+    Dois títulos são o mesmo produto quando dividem ao menos duas palavras
+    significativas e ao menos 1/3 delas. É o caso das variações que os
+    marketplaces publicam como produtos distintos ("Bola de rolamento
+    automática para filhotes" / "Bola inteligente automática recarregável").
+    """
+    tokens = tokens_conteudo(titulo)
+    if not tokens:
+        return None
+    for outros in palavras:
+        comum = tokens & outros
+        if (len(comum) >= db.PALAVRAS_COMUNS_MINIMO
+                and len(comum) * db.FRACAO_COMUM_MINIMA >= len(tokens)):
+            return "mesmo produto de um post recente (" + ", ".join(sorted(comum)) + ")"
+    return None
+
+
 def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
     """Aplica o sistema central de filtros de qualidade (estrelas, vendas, descontos, palavras bloqueadas).
 
@@ -70,6 +101,12 @@ def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
     mesma oferta. Quem não conseguir a reserva simplesmente não recebe a oferta.
     """
     aprovadas = []
+    # Repetição por tipo: o uid não distingue "três mochilas de fabricantes
+    # diferentes", e no canal são a mesma oferta repetida. O índice é montado
+    # uma vez por ciclo e atualizado com cada aprovação, para duas ofertas do
+    # mesmo tipo não saírem juntas.
+    palavras_postadas, contagem_tipos = db.tipos_recentes(config.cooldown_tipo_horas)
+    barradas_por_tipo: list[Oferta] = []
     for o in ofertas:
         if not o.titulo:
             continue
@@ -93,10 +130,32 @@ def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
         if not ok:
             log.info("[FILTER] Oferta '%s' rejeitada: %s", o.titulo[:40], motivo)
             continue
+        # O cooldown por tipo é a última trava antes da reserva, e as barradas
+        # ficam de lado: se o cooldown esvaziar o lote, elas voltam ao fim (o
+        # silêncio do canal é pior que uma repetição).
+        motivo_tipo = (_equivalente_a_postado(o.titulo, palavras_postadas)
+                       or _tipo_saturado(o.titulo, contagem_tipos))
+        if motivo_tipo:
+            log.info("[FILTER] Oferta '%s' ignorada: %s.", o.titulo[:40], motivo_tipo)
+            barradas_por_tipo.append(o)
+            continue
         if not db.reservar(o.uid):
             log.info("[FILTER] Oferta '%s' ignorada: outro processo já está publicando ela.", o.titulo[:40])
             continue
         aprovadas.append(o)
+        tokens = tokens_conteudo(o.titulo)
+        if tokens:
+            palavras_postadas.append(tokens)
+        tipo = tipo_principal(o.titulo)
+        if tipo:
+            contagem_tipos[tipo] = contagem_tipos.get(tipo, 0) + 1
+    if not aprovadas and barradas_por_tipo:
+        log.info("[FILTER] Lote vazio: liberando %d oferta(s) barrada(s) só por repetição de tipo "
+                 "(preferimos repetir a ficar mudo).", len(barradas_por_tipo))
+        for o in barradas_por_tipo:
+            if not db.reservar(o.uid):
+                continue
+            aprovadas.append(o)
     return aprovadas
 
 
@@ -204,8 +263,25 @@ async def executar_ciclo(bot: Bot) -> int:
             # espera, um ciclo nunca passava de 1 post mesmo com
             # `max_posts_por_ciclo > 1` (intervalo de 300s > espaçamento de
             # 90s mandava `break` na segunda oferta sempre).
-            if motivo_ctrl.startswith("aguardando_intervalo_minimo") and espera_s > 0:
+            #
+            # A espera só compensa se couber NO ciclo: segurar o ciclo por mais
+            # tempo que o intervalo entre ciclos atrasa o próximo agendamento
+            # (o JobQueue não empilha execuções do mesmo job) e faz o bot
+            # perder o ritmo. Nesse caso é melhor quebrar e deixar o próximo
+            # ciclo, que chega antes, tentar de novo.
+            cabe_no_ciclo = config.intervalo_minutos * 60
+            if (motivo_ctrl.startswith("aguardando_intervalo_minimo")
+                    and 0 < espera_s < cabe_no_ciclo):
                 await asyncio.sleep(min(espera_s, config.intervalo_entre_posts_segundos))
+                # A espera atravessa o fim da janela ativa: um post que espera
+                # 18 min começando às 22:50 sairia às 23:08, e o painel mostra
+                # "07:00-23:00". Checar de novo custa nada e faz a promessa
+                # valer; o ciclo volta a ser tentado no próximo agendamento.
+                if not dentro_do_horario():
+                    log.info("[PUBLISH-CTRL] Intervalo terminou fora do "
+                             "horário ativo (%s). Aguardando próximo ciclo.",
+                             config.horario_ativo)
+                    break
                 pode_postar, motivo_ctrl, _ = publishing_controller.pode_publicar()
             if not pode_postar:
                 log.info("[PUBLISH-CTRL] Publicação pausada (%s). Aguardando próximo ciclo.", motivo_ctrl)

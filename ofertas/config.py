@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -68,6 +68,10 @@ class Config:
         self.espacamento_segundos: int = int(geral.get("espacamento_segundos", 120))
         self.nao_repetir_dias: int = int(geral.get("nao_repetir_dias", 7))
         self.horario_ativo: str = str(geral.get("horario_ativo") or "").strip()  # "08:00-23:00"; vazio = 24h
+        # Repetição por tipo de produto: "bola de pet" não é o mesmo uid que
+        # "bola automática para gato", mas no canal é a mesma oferta. O cooldown
+        # conta as horas nas quais o mesmo tipo não pode mais sair; 0 desliga.
+        self.cooldown_tipo_horas: int = int(geral.get("cooldown_tipo_horas", 48))
 
         # Publicação e Agendamento Global (Controle de Velocidade e Pausas)
         pub = y.get("publicacao") or {}
@@ -145,8 +149,25 @@ def salvar_yaml_secao(secao: str, dados: dict) -> None:
 config = Config()
 
 
+# O Brasil não tem horário de verão desde 2019, então BRT é sempre UTC-3. A
+# janela de `horario_ativo` é escrita em BRT — é assim que o painel mostra e
+# como o usuário pensa —, mas o servidor roda em UTC. Sem esta conversão,
+# "07:00-23:00" valeria de madrugada até o meio-dia.
+DESLOCAMENTO_BRT = timedelta(hours=-3)
+
+
+def agora_brt() -> datetime:
+    """Agora como horário de parede em BRT (sem tzinfo).
+
+    Fica público porque o pipeline precisa repetir a checagem de janela ativa
+    depois de uma espera dentro do ciclo, e duplicar a conta do fuso em dois
+    lugares é o tipo de coisa que diverge na primeira mudança de horário.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None) + DESLOCAMENTO_BRT
+
+
 def dentro_do_horario(agora: datetime | None = None) -> bool:
-    """True se agora está dentro de geral.horario_ativo (aceita janela virando a noite)."""
+    """True se agora está dentro de geral.horario_ativo (BRT; aceita janela virando a noite)."""
     if not config.horario_ativo:
         return True
     try:
@@ -155,7 +176,11 @@ def dentro_do_horario(agora: datetime | None = None) -> bool:
         h2, m2 = (int(x) for x in fim.strip().split(":"))
     except ValueError:
         return True  # formato inválido: não bloqueia
-    agora = agora or datetime.now()
+    if agora is None:
+        # Sem argumento: hora do servidor (UTC) convertida para BRT. Com
+        # argumento: o valor JÁ é horário de parede em BRT (é o que os testes
+        # passam), para o teste não depender do fuso da máquina.
+        agora = agora_brt()
     t, a, b = agora.hour * 60 + agora.minute, h1 * 60 + m1, h2 * 60 + m2
     return a <= t < b if a <= b else (t >= a or t < b)
 

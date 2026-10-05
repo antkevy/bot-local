@@ -52,12 +52,18 @@ class Base(unittest.TestCase):
     def tearDown(self):
         pipeline.db.DB_PATH = self.banco_anterior
 
-    def _mundo(self, ofertas, pode, intervalo=300, max_ciclo=2):
+    def _mundo(self, ofertas, pode, intervalo=300, max_ciclo=2, ciclo_minutos=45,
+               dentro_do_horario=True):
         """Patcha o mundo do ciclo e devolve (posta, gera, dorme).
 
         `ExitStack` garante que, se um patch falhar no meio, os anteriores já
         aplicados sejam desfeitos — um leak aqui derrubava os testes seguintes
         do mesmo processo.
+
+        `dentro_do_horario` entra no patch (e não vem do config.yaml da máquina):
+        sem isto o F1 vira relógio — rodando de madrugada com `horario_ativo`
+        preenchido no config local, a espera terminaria fora da janela e o ciclo
+        quebraria sem ter nada a ver com o que está sendo testado.
         """
         from contextlib import ExitStack
 
@@ -76,6 +82,16 @@ class Base(unittest.TestCase):
         stack.enter_context(patch.object(pipeline.config, "espacamento_segundos", 1))
         stack.enter_context(patch.object(pipeline.config, "intervalo_entre_posts_segundos",
                                          intervalo))
+        stack.enter_context(patch.object(pipeline.config, "intervalo_minutos", ciclo_minutos))
+        _janela = dentro_do_horario
+        if callable(_janela) or isinstance(_janela, (list, tuple)):
+            # Respostas em sequência: o topo do ciclo e a checagem depois da
+            # espera precisam dar respostas diferentes para o teste do F3.
+            stack.enter_context(patch.object(pipeline, "dentro_do_horario",
+                                             side_effect=_janela))
+        else:
+            stack.enter_context(patch.object(pipeline, "dentro_do_horario",
+                                             return_value=_janela))
         stack.enter_context(patch.object(pipeline, "postar_oferta", new_callable=AsyncMock))
         stack.enter_context(patch.object(aliexpress, "gerar_link_afiliado",
                                          side_effect=lambda url: "https://s.click.aliexpress.com/e/_sub"))
@@ -141,6 +157,57 @@ class TestF1EsperaIntervalo(Base):
         self.assertEqual(postar.await_args_list, [])
         self.assertEqual(dorme.await_args_list, [],
                          "bloqueio longo não se espera dentro do ciclo")
+
+    def test_espera_maior_que_o_ciclo_quebra_em_vez_de_segurar(self):
+        """Esperar mais que o intervalo entre ciclos atrasa o agendamento.
+
+        O JobQueue não empilha execuções do mesmo job: um ciclo que segura o
+        evento por mais tempo que `intervalo_minutos` faz o próximo ciclo ser
+        perdido. Quebrar é melhor — o próximo ciclo chega antes de o slot abrir.
+        """
+        ofertas = [
+            _oferta_ali("1005000000001", 10.0, 20.0, "Primeiro"),
+            _oferta_ali("1005000000002", 20.0, 30.0, "Segundo"),
+        ]
+        n, _, postar, dorme = self._ciclo(
+            ofertas,
+            pode=[(False, "aguardando_intervalo_minimo (3600s restantes)", 3600.0),
+                  (True, "ok", 0.0)],
+            ciclo_minutos=25)
+
+        self.assertEqual(n, 0)
+        self.assertEqual(postar.await_args_list, [])
+        self.assertEqual(dorme.await_args_list, [],
+                         "espera maior que o ciclo não pode segurar o ciclo")
+
+    def test_espera_que_atravessa_o_fim_da_janela_nao_posta(self):
+        """A espera do intervalo não pode empurrar o post para fora da janela.
+
+        Com "07:00-23:00" e a última publicação às 22:41, o intervalo de 20 min
+        só termina às 23:01. A checagem do topo do ciclo já passou às 22:50,
+        então sem a segunda checagem o bot postaria às 23:01 — fora do horário
+        que o painel promete.
+        """
+        ofertas = [
+            _oferta_ali("1005000000001", 10.0, 20.0, "Primeiro"),
+            _oferta_ali("1005000000002", 20.0, 30.0, "Segundo"),
+        ]
+        n, _, postar, dorme = self._ciclo(
+            ofertas,
+            pode=[(False, "aguardando_intervalo_minimo (1200s restantes)", 1200.0),
+                  (True, "ok", 0.0),
+                  (True, "ok", 0.0)],
+            intervalo=1200,
+            ciclo_minutos=25,
+            dentro_do_horario=[True, False, False])
+
+        self.assertEqual(n, 0)
+        self.assertEqual(postar.await_args_list, [],
+                         "postou fora da janela ativa depois de esperar o intervalo")
+        self.assertTrue(
+            any(c.args == (1200.0,) for c in dorme.await_args_list),
+            f"a espera do intervalo foi feita; só não pode virar post; "
+            f"dormiu: {[c.args for c in dorme.await_args_list]}")
 
 
 if __name__ == "__main__":

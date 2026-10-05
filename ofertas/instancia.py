@@ -183,6 +183,22 @@ def processo_vivo(pid: int, nascido_em: float | None = None) -> bool:
 
 # ── Encerramento ────────────────────────────────────────────────────────
 
+def _pode_matar_grupo(pid: int) -> bool:
+    """True se é seguro mandar `killpg` no grupo de `pid`.
+
+    `killpg` mata o grupo INTEIRO. Quando o alvo divide o nosso grupo — quem
+    subiu com `subprocess.Popen` sem `start_new_session`, que é exatamente
+    como `painel.py` começa o bot — o sinal volta para este processo e a
+    trava derruba a si mesma, levando junto o painel. No Unix não existe
+    `taskkill /T`, então o sinal não é individual. Sem certeza sobre o grupo
+    do alvo, também não se mata o grupo: mata-se só o PID.
+    """
+    try:
+        return os.getpgid(pid) != os.getpgid(0)
+    except (ProcessLookupError, PermissionError, OSError):
+        return False
+
+
 def encerrar(pid: int, arvore: bool = True) -> bool:
     """Encerra o processo (e, por padrão, os filhos). True se morreu."""
     if pid <= 0 or pid == os.getpid():
@@ -205,7 +221,7 @@ def encerrar(pid: int, arvore: bool = True) -> bool:
             log.debug("taskkill(%s) falhou: %s", pid, e)
     else:
         try:
-            if arvore:
+            if arvore and _pode_matar_grupo(pid):
                 os.killpg(os.getpgid(pid), signal.SIGTERM)
             else:
                 os.kill(pid, signal.SIGTERM)

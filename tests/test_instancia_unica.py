@@ -288,5 +288,61 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+@unittest.skipIf(sys.platform == "win32", "grupo de processos é conceito Unix")
+class TestEncerrarNaoSeMata(unittest.TestCase):
+    """`killpg` no nosso próprio grupo manda o sinal de volta para nós.
+
+    O sintoma que estes testes existem para impedir: em Linux, derrubar uma
+    instância que dividia o grupo de processos derrubava também quem estava
+    derrubando. No Windows isso não aparecia — `os.killpg` não existe lá, o
+    código cai no `taskkill /T /F` e cada processo leva só o seu. Por isso a
+    suíte passava noindows e matava o próprio runner na VPS.
+    """
+
+    def test_alvo_no_meu_grupo_so_toma_o_pid(self):
+        filho = subprocess.Popen([PYTHON, "-c", "import time; time.sleep(300)"])
+        try:
+            self.assertEqual(os.getpgid(filho.pid), os.getpgid(0),
+                             "o teste precisa de um filho no NOSSO grupo")
+            self.assertFalse(instancia._pode_matar_grupo(filho.pid))
+            instancia.encerrar(filho.pid)
+            self.assertFalse(instancia.processo_vivo(filho.pid),
+                             "o alvo não morreu")
+        finally:
+            try:
+                filho.kill()
+                filho.wait(timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+        # Chegar aqui É a prova: com o `killpg` sem guarda, este processo
+        # recebia SIGTERM junto com o filho e o runner morria (rc 143).
+
+    def test_alvo_com_grupo_proprio_continua_mortando_a_arvore(self):
+        """A guarda não pode desligar o `killpg` de verdade.
+
+        `start_new_session=True` dá grupo próprio ao filho — o caso do bot
+        sob systemd. Ali derrubar a árvore continua sendo o certo.
+        """
+        filho = subprocess.Popen([PYTHON, "-c", "import time; time.sleep(300)"],
+                                 start_new_session=True)
+        try:
+            self.assertEqual(os.getpgid(filho.pid), filho.pid)
+            self.assertTrue(instancia._pode_matar_grupo(filho.pid))
+            instancia.encerrar(filho.pid)
+            self.assertFalse(instancia.processo_vivo(filho.pid),
+                             "o alvo com grupo próprio não morreu")
+        finally:
+            try:
+                filho.kill()
+                filho.wait(timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def test_pid_inexistente_nao_derruba_o_grupo(self):
+        """Sem grupo conhecido (o PID já sumiu), a resposta é não."""
+        self.assertFalse(instancia._pode_matar_grupo(999999))
+        self.assertFalse(instancia.encerrar(999999))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

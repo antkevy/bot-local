@@ -3,7 +3,7 @@ import os
 import sqlite3
 
 from .config import DATA_DIR
-from .models import Oferta
+from .models import Oferta, tipo_principal, tokens_conteudo
 
 # Nome público de propósito. As três suítes manuais redirecionam o banco com
 # `db.DB_PATH = <temporário>` believing que assim ficam isoladas; enquanto esta
@@ -151,6 +151,63 @@ def preco_ultima_postagem(uid: str) -> float | None:
         return float(row[0])
     except (TypeError, ValueError):
         return None
+
+
+# Quantas vezes o mesmo tipo pode sair na janela antes de ser barrado. Com 1, um
+# dia inteiro precisaria de ~35 tipos distintos e o cooldown de 48h pediria ~70
+# (35/dia x 2): o estoque não dá e o bot cairia no relaxamento o tempo todo. Com
+# 2, a repetição que o canal sente some (3a bola do dia não sai) e ainda sobra
+# oferta nova para escolher.
+MAX_REPETICOES_POR_TIPO = 2
+
+# Duas palavras significativas em comum já dizem "é o mesmo produto": "bola" +
+# "automática" é equivalência, "teclado" sozinho é coincidência. E exigir 1/3 das
+# palavras do título evita barrar produto só por repetir uma palavra genérica —
+# "Macaron Teclado Fidget" x "Teclado Gamer Semi-Mecanico RGB" (2 de 7) passa, e
+# o mesmo par sem "RGB" no título (2 de 6) cai.
+PALAVRAS_COMUNS_MINIMO = 2
+FRACAO_COMUM_MINIMA = 3  # exige (comum / total) >= 1/3, via comum * 3 >= total
+
+
+def tipos_recentes(horas: int) -> tuple[list[frozenset[str]], dict[str, int]]:
+    """Palavras e tipos das ofertas postadas nas últimas `horas` horas.
+
+    Devolve (palavras, contagem_por_tipo) para o filtro de repetição por tipo
+    checar de uma vez só: `ja_postada` e `preco_ultima_postagem` respondem sobre
+    o uid, e uid não distingue "três mochilas de fabricantes diferentes" — que
+    no canal são a mesma oferta.
+
+    `horas <= 0` devolve listas vazias: o cooldown fica desligado.
+    """
+    if horas <= 0:
+        return [], {}
+    limite = dt.datetime.now() - dt.timedelta(hours=horas)
+    palavras: list[frozenset[str]] = []
+    contagem: dict[str, int] = {}
+    with _conn() as c:
+        # `postada_em` é texto ISO de largura fixa, então comparar string ordena
+        # por data: filtra no SQLite em vez de varrer a tabela inteira (que
+        # cresce para milhares de linhas e é lida a cada ciclo). A data inválida
+        # passa o filtro do SQL ('n' > '2') e é descartada no laço abaixo.
+        linhas = c.execute(
+            "SELECT titulo, postada_em FROM postadas WHERE postada_em >= ?",
+            (limite.isoformat(timespec="seconds"),),
+        ).fetchall()
+    for titulo, postada_em in linhas:
+        try:
+            quando = dt.datetime.fromisoformat(postada_em)
+        except (TypeError, ValueError):
+            continue          # data inválida não pode virar bloqueio eterno
+        if quando < limite:
+            continue
+        tokens = tokens_conteudo(titulo)
+        if not tokens:
+            continue
+        palavras.append(tokens)
+        tipo = tipo_principal(titulo)
+        if tipo:
+            contagem[tipo] = contagem.get(tipo, 0) + 1
+    return palavras, contagem
 
 
 def registrar(oferta: Oferta) -> None:
