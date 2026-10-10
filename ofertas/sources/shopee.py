@@ -152,17 +152,21 @@ def buscar_ofertas(limite: int = 30) -> list[Oferta]:
     return list(ofertas.values())
 
 
-_RE_IDS = re.compile(r"-?i\.(\d+)\.(\d+)|/product/(\d+)/(\d+)")
+# Formatos de URL de PRODUTO da Shopee. O item é sempre o SEGUNDO número:
+#   ...-i.<shop>.<item>     -> grupos 1,2
+#   /product/<shop>/<item>  -> grupos 3,4
+#   /opaanlp/<shop>/<item>  -> grupos 5,6 (destino do short link de afiliado)
+_RE_IDS = re.compile(r"-?i\.(\d+)\.(\d+)|/product/(\d+)/(\d+)|/opaanlp/(\d+)/(\d+)")
 
 
 def e_id_produto(id_produto: str | None) -> bool:
     """Diz se o id e de um produto, e nao de uma pagina da Shopee.
 
     O `converter` monta o id de duas formas, e a diferenca importa. Quando o
-    `_RE_IDS` acha `i.<shop>.<item>` ou `/product/<shop>/<item>`, o id e o
-    itemId numerico. Quando nao acha, o fallback usa o ultimo segmento do
-    caminho, e o que sai e a slug da loja ou do voucher: "espaco-tecnica",
-    "cupom-de-desconto".
+    `_RE_IDS` acha `i.<shop>.<item>`, `/product/<shop>/<item>` ou
+    `/opaanlp/<shop>/<item>`, o id e o itemId numerico. Quando nao acha, o
+    fallback usa o ultimo segmento do caminho, e o que sai e a slug da loja ou
+    do voucher: "espaco-tecnica", "cupom-de-desconto".
 
     Os dois chegam ao pipeline com a mesma forma de Oferta e o mesmo titulo
     generico, e so o id os distingue. Confundir os dois faz o bot tratar
@@ -188,7 +192,7 @@ def converter(url: str) -> Oferta:
             log.warning("Não consegui expandir o link curto da Shopee: %s", e)
 
     m = _RE_IDS.search(url)
-    item_id = (m.group(2) or m.group(4)) if m else None
+    item_id = (m.group(2) or m.group(4) or m.group(6)) if m else None
 
     if not item_id:
         # Loja, cupom, categoria ou página desconhecida: não é produto. Gerar um

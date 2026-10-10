@@ -90,6 +90,53 @@ class TestConverterItemCerto(unittest.TestCase):
         self.assertEqual(oferta.url_afiliado, "https://s.shopee.com.br/short_456")
 
 
+class TestConverterShortLinkAfiliado(unittest.TestCase):
+    """Short link de afiliado expande para um caminho da Shopee; só produto vira oferta.
+
+    Produto aterrissa em https://shopee.com.br/opaanlp/<shop>/<item> (além de
+    "..-i.<shop>.<item>" e "/product/<shop>/<item>"); cupom/slug aterrissa em
+    /m/... e continua sendo descartado.
+    """
+
+    def _sessao_que_aterrissa_em(self, destino: str):
+        class _Resp:
+            url = destino
+
+        class _Sessao:
+            def get(self, *args, **kwargs):
+                return _Resp()
+
+        return _Sessao()
+
+    def test_short_link_de_produto_em_opaanlp_gera_oferta(self):
+        """O itemId vive na path /opaanlp/<shop>/<item>: não pode ser descartado."""
+        def _chamar(query: str):
+            if "productOfferV2" in query:
+                return resp_product([node(58259487918, "Ar Condicionado 9000")])
+            return resp_short("https://s.shopee.com.br/short_582")
+
+        with patch.object(shopee, "sessao",
+                          return_value=self._sessao_que_aterrissa_em(
+                              "https://shopee.com.br/opaanlp/1207374375/58259487918?__mobile__=1")), \
+             patch.object(shopee, "_chamar", side_effect=_chamar):
+            oferta = shopee.converter("https://s.shopee.com.br/gQKZ2IeY3")
+
+        self.assertEqual(oferta.id_produto, "58259487918")
+        self.assertEqual(oferta.titulo, "Ar Condicionado 9000")
+        self.assertEqual(oferta.url_afiliado, "https://s.shopee.com.br/ol_58259487918")
+
+    def test_short_link_de_cupom_continua_descartado(self):
+        """Cupom aterrissa em /m/cupom-de-desconto: segue sem itemId, sem oferta."""
+        with patch.object(shopee, "sessao",
+                          return_value=self._sessao_que_aterrissa_em(
+                              "https://shopee.com.br/m/cupom-de-desconto")), \
+             patch.object(shopee, "_chamar") as api:
+            with self.assertRaises(RuntimeError):
+                shopee.converter("https://s.shopee.com.br/6L560h8evB")
+
+        api.assert_not_called()
+
+
 class TestConverterSemItem(unittest.TestCase):
     def test_url_de_loja_sem_item_id_e_descartada(self):
         """Página de loja/cupom não tem itemId: NÃO vira oferta, nem chama a API."""
