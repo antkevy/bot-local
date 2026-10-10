@@ -2134,6 +2134,64 @@ PAGINA = r"""<!doctype html>
            colunas isso dava um card altissimo e meio vazio, entao virou tres:
            dois de meia linha e a tabela na linha inteira — cinco colunas de
            dados espremidas em meia tela viram um garrancho. -->
+      <!-- Conexão do userbot: é a conta pessoal que lê canais e grupos.
+           Vem ANTES do "Adicionar fonte" de propósito — sem logar, não há
+           o que adicionar. O estado vem do /api/userbot/status (um arquivo
+           que o bot escreve); o painel NUNCA abre a sessão do Telethon. -->
+      <div class="card" id="cardUserbotTelegram">
+        <div class="card-topo">
+          <div>
+            <div class="card-titulo">
+              <svg class="icone" aria-hidden="true"><use href="#i-key"/></svg>
+              <h3>Conexão do Telegram (userbot)</h3>
+            </div>
+            <p class="card-sub">Entre com a conta que vai ler os canais. O código chega no app do Telegram (ou por SMS) e a sessão fica salva — sem repetir o login a cada ciclo.</p>
+          </div>
+          <span id="userbotSelo" class="selo selo-neutro"><span class="ponto"></span>Verificando…</span>
+        </div>
+
+        <div id="userbotConectado" hidden>
+          <p class="card-sub" id="userbotConta"></p>
+        </div>
+
+        <div id="userbotLogin">
+          <form id="formUserbotTelefone" class="config-grade" novalidate onsubmit="userbotEnviarCodigo(event)">
+            <div class="campo">
+              <label for="userbotTelefone">Telefone da conta (com DDI)</label>
+              <input id="userbotTelefone" name="telefone" type="tel" placeholder="+55 11 99999-8888" autocomplete="off" spellcheck="false" required>
+              <p class="ajuda">O número da sua conta pessoal do Telegram (a que cadastrou as credenciais de API).</p>
+            </div>
+            <div class="acoes-form" style="grid-column:1/-1; margin-top:6px; padding-top:10px;">
+              <button type="submit" class="btn btn-primario btn-sm">
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-send"/></svg>
+                Enviar código
+              </button>
+              <span id="userbotAviso" class="metrica-rotulo" aria-live="polite"></span>
+            </div>
+          </form>
+
+          <form id="formUserbotCodigo" class="config-grade" novalidate hidden onsubmit="userbotConfirmar(event)">
+            <div class="campo">
+              <label for="userbotCodigo">Código recebido</label>
+              <input id="userbotCodigo" name="codigo" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" spellcheck="false">
+              <p class="ajuda">Chega no app do Telegram ou por SMS.</p>
+            </div>
+            <div class="campo">
+              <label for="userbotSenha">Senha de verificação (2FA)</label>
+              <input id="userbotSenha" name="senha" type="password" placeholder="Somente se a conta tiver 2FA" autocomplete="off" spellcheck="false">
+              <p class="ajuda">O Telegram só pede se a conta tiver verificação em duas etapas.</p>
+            </div>
+            <div class="acoes-form" style="grid-column:1/-1; margin-top:6px; padding-top:10px;">
+              <button type="submit" class="btn btn-primario btn-sm">
+                <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
+                Confirmar login
+              </button>
+              <span id="userbotAviso2" class="metrica-rotulo" aria-live="polite"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <div class="card" id="cardNovaFonteTelegram">
         <div class="card-topo">
           <div>
@@ -4519,6 +4577,107 @@ async function removerFonteTelegram(chatId) {
   }
 }
 
+/* ══ Login do userbot (Telegram) ══════════════════════════════════════ */
+/* Duas fases (telefone → código [→ 2FA]) no painel; o Telegram é contatado
+   pelo telegram_userbot, nunca aqui. O polling abaixo só lê o arquivo de
+   status e NÃO toca em nenhum input — repintar aqui apagaria a digitação. */
+
+async function carregarUserbot() {
+  try {
+    const d = await fetch("/api/userbot/status", { cache: "no-store" }).then(r => r.json());
+    const login = $("#userbotLogin");
+    const conectado = $("#userbotConectado");
+    if (d.conectado) {
+      if (login) login.hidden = true;
+      if (conectado) conectado.hidden = false;
+      const conta = [d.nome, d.username ? "@" + d.username : ""]
+        .filter(Boolean).join(" ") || ("ID " + (d.user_id || ""));
+      const contaEl = $("#userbotConta");
+      if (contaEl) {
+        contaEl.textContent =
+          (d.monitorando ? "Monitorando os canais. " : "Logado — o robô ativa em até 1 minuto. ") +
+          "Conta: " + conta;
+      }
+      setUserbotSelo(true, d.monitorando ? "Ativo" : "Conectado");
+    } else {
+      if (login) login.hidden = false;
+      if (conectado) conectado.hidden = true;
+      setUserbotSelo(false, d.motivo ? "Reconectar" : "Desconectado");
+    }
+  } catch (e) {
+    console.error("Erro ao carregar status do userbot:", e);
+  }
+}
+
+function setUserbotSelo(ok, texto) {
+  const s = $("#userbotSelo");
+  if (!s) return;
+  s.className = "selo " + (ok ? "selo-ok" : "selo-neutro");
+  s.innerHTML = `<span class="ponto"></span>${esc(texto)}`;
+}
+
+async function userbotEnviarCodigo(event) {
+  if (event) event.preventDefault();
+  const telefone = ($("#userbotTelefone")?.value || "").trim();
+  const aviso = $("#userbotAviso");
+  if (!telefone) { toast("Informe o telefone da conta.", "espera"); return; }
+  if (aviso) aviso.textContent = "Enviando…";
+  try {
+    const r = await fetch("/api/userbot/enviar-codigo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telefone }),
+    });
+    const d = await r.json();
+    if (aviso) aviso.textContent = "";
+    if (d.ok) {
+      toast(d.envio === "sms" ? "Código enviado por SMS." : "Código enviado no app do Telegram.", "ok");
+      if ($("#formUserbotCodigo")) $("#formUserbotCodigo").hidden = false;
+      $("#userbotCodigo")?.focus();
+    } else {
+      toast(d.erro || "Não foi possível enviar o código.", "erro");
+    }
+  } catch (e) {
+    if (aviso) aviso.textContent = "";
+    toast("Erro de conexão ao pedir o código.", "erro");
+  }
+}
+
+async function userbotConfirmar(event) {
+  if (event) event.preventDefault();
+  const codigo = ($("#userbotCodigo")?.value || "").trim();
+  const senha = ($("#userbotSenha")?.value || "").trim();
+  const aviso = $("#userbotAviso2");
+  if (!codigo) { toast("Informe o código recebido.", "espera"); return; }
+  if (aviso) aviso.textContent = "Confirmando…";
+  try {
+    const r = await fetch("/api/userbot/confirmar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo, senha }),
+    });
+    const d = await r.json();
+    if (aviso) aviso.textContent = "";
+    if (d.ok) {
+      toast(`Conectado${d.username ? " como @" + d.username : ""}! O robô ativa em até 1 minuto.`, "ok");
+      if ($("#userbotCodigo")) $("#userbotCodigo").value = "";
+      if ($("#userbotSenha")) $("#userbotSenha").value = "";
+      if ($("#formUserbotCodigo")) $("#formUserbotCodigo").hidden = true;
+      await carregarUserbot();
+      await carregarFontesTelegram();
+    } else if (d.precisa_2fa) {
+      /* A fase continua de pé: só falta a senha de verificação. */
+      if ($("#userbotSenha")) $("#userbotSenha").focus();
+      toast(d.erro || "Informe a senha de verificação (2FA).", "espera");
+    } else {
+      toast(d.erro || "Código inválido.", "erro");
+    }
+  } catch (e) {
+    if (aviso) aviso.textContent = "";
+    toast("Erro de conexão ao confirmar o login.", "erro");
+  }
+}
+
 async function salvarConfigScraping() {
   const body = {
     ativo: $("#scrapingAtivo")?.value === "true",
@@ -4563,11 +4722,13 @@ async function iniciar() {
   carregarCadencia();
   carregarPublicacao();
   carregarFontesTelegram();
+  carregarUserbot();
 
   setInterval(atualizarStatus, 2500);
   setInterval(atualizarMetricas, 8000);
   setInterval(puxarLogs, 1500);
   setInterval(carregarPublicacao, 5000);
+  setInterval(carregarUserbot, 5000);
 }
 
 (async () => {

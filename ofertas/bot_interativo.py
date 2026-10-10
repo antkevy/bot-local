@@ -380,17 +380,65 @@ async def _job_ciclo(ctx: ContextTypes.DEFAULT_TYPE):
         await pipeline.avisar_dono(ctx.bot, f"⚠️ O ciclo automático falhou: {type(e).__name__}: {e}")
 
 
-async def _post_init(app: Application) -> None:
-    """Hook executado após a inicialização do Application para conectar o Telethon Userbot."""
+# ── Ativação automática do userbot ───────────────────────────────────
+# O login acontece pelo painel (sem SSH). Entre o login e o monitor subir
+# não pode haver comando de terminal: o job abaixo checa a sessão a cada 60s,
+# sobe o monitor quando ela aparece (≤ 60s depois do login) e se cancela
+# sozinho. Sem ele, um login bem-sucedido ficaria órfão até um restart.
+JOB_USERBOT_NOME = "userbot_ativacao"
+JOB_USERBOT_INTERVALO = 60   # segundos
+JOB_USERBOT_PRIMEIRO = 10    # primeira checagem, segundos após o boot
+
+
+def _parar_job_userbot(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     try:
-        from .sources import telegram_userbot
-        if telegram_userbot.tem_credenciais() and telegram_userbot.tem_sessao_salva():
-            log.info("Iniciando Telegram Userbot (Telethon) para monitorar canais de terceiros...")
-            await telegram_userbot.iniciar_userbot(app.bot)
-        else:
-            log.info("Telegram Userbot não iniciado (sem credenciais ou sem sessão logada).")
+        for job in ctx.application.job_queue.get_jobs_by_name(JOB_USERBOT_NOME):
+            job.schedule_removal()
     except Exception as e:
-        log.warning("Não foi possível iniciar o Telethon Userbot: %s", e)
+        log.warning("[USERBOT] Não consegui cancelar o job de ativação: %s", e)
+
+
+async def _job_userbot(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """De prontidão até a sessão existir; depois sobe o monitor e se cancela."""
+    from .sources import telegram_userbot as tb
+    try:
+        if tb.userbot_ativo():
+            log.info("[USERBOT] Monitor já ativo; desligando o job de ativação.")
+            _parar_job_userbot(ctx)
+            return
+        if not tb.tem_sessao_salva():
+            # Ainda sem sessão — o login pelo painel pode acontecer a qualquer
+            # momento. Sem log aqui: não é um barulho por minuto.
+            return
+        if await tb.iniciar_userbot(ctx.bot):
+            log.info("[USERBOT] Monitor iniciado pelo job de ativação; desligando o job.")
+            _parar_job_userbot(ctx)
+    except Exception as e:
+        log.warning("[USERBOT] Job de ativação falhou: %s", e)
+
+
+async def _post_init(app: Application) -> None:
+    """Agenda o job que liga o userbot assim que uma sessão existir.
+
+    A sessão é criada pelo login no painel. Se as credenciais ainda não
+    existirem, não há o que agendar (e o painel não tem com o que logar).
+    """
+    from .sources import telegram_userbot as tb
+    if not tb.tem_credenciais():
+        log.info("Telegram Userbot desligado (sem TELEGRAM_API_ID/HASH no .env).")
+        return
+    fila = getattr(app, "job_queue", None)
+    if fila is None:
+        log.warning("Telegram Userbot: sem JobQueue no Application; ativação automática desligada.")
+        return
+    fila.run_repeating(
+        _job_userbot,
+        interval=JOB_USERBOT_INTERVALO,
+        first=JOB_USERBOT_PRIMEIRO,
+        name=JOB_USERBOT_NOME,
+    )
+    log.info("Telegram Userbot: job de ativação agendado (checa a sessão a cada %d s).",
+             JOB_USERBOT_INTERVALO)
 
 
 def rodar():

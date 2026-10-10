@@ -155,6 +155,14 @@ _sessoes: dict[str, tuple[str, float]] = {}   # token -> (usuário, expira)
 _tentativas: dict[str, list[float]] = {}      # ip -> [timestamps]
 _lock = threading.Lock()
 
+# Login do userbot Telegram em duas fases (número → código [→ senha 2FA]).
+# O estado da fase fica em memória com TTL curto; o ARQUIVO_STATUS, escrito
+# pelo telegram_userbot, é a única ponte com o processo do bot. O painel NUNCA
+# abre a sessão do Telethon: dois clientes com o mesmo arquivo .session
+# brigam pelo SQLite e corrompem a conexão do bot.
+LOGIN_TG_TTL = 300          # 5 minutos
+_estado_login_tg: dict = {}  # {"telefone", "hash", "criado"}
+
 
 def _credenciais() -> tuple[str, str]:
     """(usuário, segredo) configurados. Vazio = painel sem login."""
@@ -665,6 +673,47 @@ def obter_metricas() -> dict:
     }
 
 
+# ── Login do userbot Telegram (fase 1 e 2) ──────────────────────────
+# As rotas são casca fina sobre o telegram_userbot: validam, guardam a fase,
+# delegam e repassam o resultado. Qualquer contato com o Telegram acontece lá.
+
+def _userbot_tg_status() -> dict:
+    """Estado do userbot PARA O PAINEL: o arquivo de status, sem abrir a sessão."""
+    from .sources import telegram_userbot
+    resp: dict = {"conectado": False}
+    resp.update(telegram_userbot.ler_status())
+    return resp
+
+
+def _userbot_tg_bloqueio() -> str | None:
+    """Por que um novo login não pode começar agora (None = pode)."""
+    st = _userbot_tg_status()
+    if st.get("monitorando"):
+        return "O userbot já está conectado e monitorando as fontes do Telegram."
+    if st.get("conectado"):
+        return "Já conectado ao Telegram. Se a conta foi revogada, o bot detecta e libera o login de novo."
+    return None
+
+
+def _userbot_tg_remover_fase():
+    _estado_login_tg.clear()
+
+
+def _userbot_tg_criar_fase(telefone: str, hash_: str) -> None:
+    _estado_login_tg.clear()
+    _estado_login_tg.update(telefone=telefone, hash=hash_, criado=time.time())
+
+
+def _userbot_tg_pegar_fase():
+    """A fase em andamento, ou None (ausente/expirada). Expirada sai do estado."""
+    if not _estado_login_tg:
+        return None
+    idade = time.time() - _estado_login_tg.get("criado", 0)
+    if idade > LOGIN_TG_TTL:
+        _userbot_tg_remover_fase()
+        return None
+    return _estado_login_tg
+
 
 # ── Servidor HTTP ─────────────────────────────────────────────────────
 
@@ -1004,6 +1053,8 @@ class Handler(BaseHTTPRequestHandler):
                     "intervalo_segundos": config.scraping_intervalo_segundos,
                     "limite_mensagens_por_ciclo": config.scraping_max_msgs,
                 })
+            elif rota == "/api/userbot/status":
+                self._json(_userbot_tg_status())
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:
@@ -1310,6 +1361,43 @@ class Handler(BaseHTTPRequestHandler):
                 # três failure modes (sem token, Telegram fora do ar, token
                 # recusado) e o JS sabe mostrar isso na caixa de detecção.
                 self._json(detectar_ids())
+            elif rota == "/api/userbot/enviar-codigo":
+                from .sources import telegram_userbot
+                telefone = str(dados.get("telefone", "")).strip()
+                if not telefone:
+                    return self._json({"erro": "Informe o telefone da conta Telegram."}, 400)
+                if _userbot_tg_bloqueio():
+                    return self._json({"erro": _userbot_tg_bloqueio()}, 409)
+                import asyncio
+                res = asyncio.run(telegram_userbot.enviar_codigo(telefone))
+                if not res.get("ok"):
+                    return self._json({"erro": res.get("erro", "Não foi possível enviar o código.")}, 400)
+                _userbot_tg_criar_fase(telefone, res["phone_code_hash"])
+                self._json({"ok": True, "envio": res.get("envio", "app")})
+            elif rota == "/api/userbot/confirmar":
+                from .sources import telegram_userbot
+                if _userbot_tg_bloqueio():
+                    return self._json({"erro": _userbot_tg_bloqueio()}, 409)
+                fase = _userbot_tg_pegar_fase()
+                if not fase:
+                    return self._json({"erro": "Sessão de login expirada. Peça um novo código primeiro."}, 400)
+                codigo = str(dados.get("codigo", "")).strip()
+                senha = str(dados.get("senha", "")).strip() or None
+                import asyncio
+                res = asyncio.run(telegram_userbot.confirmar_codigo(
+                    fase["telefone"], fase["hash"], codigo, senha_2fa=senha))
+                if res.get("ok"):
+                    _userbot_tg_remover_fase()
+                    return self._json({"ok": True, "nome": res.get("nome", ""),
+                                       "username": res.get("username", "")})
+                if res.get("precisa_2fa"):
+                    # A fase fica de pé: só a senha errou, o código segue válido.
+                    return self._json({"erro": res.get("erro", "Informe a senha de verificação."),
+                                       "precisa_2fa": True}, 400)
+                # Código errado ou flood: a fase continua — o usuário só repete
+                # o código, sem ter de pedir outro. Um novo enviar-codigo
+                # substitui a fase quando necessário.
+                return self._json({"erro": res.get("erro", "Código inválido.")}, 400)
             else:
                 self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:

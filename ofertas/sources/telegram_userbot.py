@@ -7,20 +7,36 @@ como administrador. As mensagens são enviadas diretamente ao pipeline central.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
+import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
 from telethon import TelegramClient, events
+from telethon.errors import (
+    FloodWaitError,
+    PasswordHashInvalidError,
+    PhoneCodeInvalidError,
+    SessionPasswordNeededError,
+)
 
 from .. import db, pipeline
-from ..config import config
+from ..config import DATA_DIR, config
 from .telegram_scraper import e_postagem_propria
 
 log = logging.getLogger("ofertas.userbot")
 
 _cliente_global: TelegramClient | None = None
 _tarefa_monitor: asyncio.Task | None = None
+_monitor_iniciado = False
+
+# O painel mostra o estado do userbot por um ARQUIVO, nunca abrindo a sessão
+# do Telethon: dois clientes com o mesmo arquivo .session brigam pelo SQLite e
+# corrompem a conexão do bot em produção. Login e o job de ativação escrevem
+# aqui; o painel só lê.
+ARQUIVO_STATUS: Path = DATA_DIR / "telegram_userbot.json"
 
 # Índice invertido id numérico do Telegram -> chave da fonte como está no
 # banco ("@nerdofertas"). Ver `_montar_indice_fontes` para por que o caminho
@@ -78,6 +94,118 @@ async def login_terminal() -> bool:
     print(f"📁 Sessão salva em: {config.telegram_session}.session\n")
     await client.disconnect()
     return True
+
+
+# ── Login em duas fases para o painel ─────────────────────────────
+# O login do Telegram tem três perguntas (número → código → talvez senha 2FA).
+# O painel faz em dois pedidos: `enviar_codigo` (fase 1) e `confirmar_codigo`
+# (fase 2). Cada um cria um cliente PRÓPRIO — nunca o `_cliente_global` do
+# monitor — porque conectar a mesma sessão de dentro do processo do bot
+# derrubaria a conexão do userbot em produção.
+
+def ler_status() -> dict:
+    """Estado atual do userbot para o painel. Lê um arquivo, NÃO a sessão."""
+    try:
+        with open(ARQUIVO_STATUS, encoding="utf-8") as f:
+            dados = json.load(f)
+        return dados if isinstance(dados, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def gravar_status(**campos) -> None:
+    dados = ler_status()
+    dados.update(campos)
+    try:
+        with open(ARQUIVO_STATUS, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        log.warning("[USERBOT] Não consegui gravar o status: %s", e)
+
+
+def userbot_ativo() -> bool:
+    """True se o monitor já está rodando neste processo (job de 60s usa)."""
+    return _monitor_iniciado
+
+
+def _telefone_aceito(telefone: str) -> bool:
+    return bool(re.fullmatch(r"\+?\d{8,15}", (telefone or "").strip()))
+
+
+async def enviar_codigo(telefone: str) -> dict:
+    """Fase 1: pede o código de login para o número informado."""
+    tel = (telefone or "").strip()
+    if not _telefone_aceito(tel):
+        return {"ok": False, "erro": "Telefone inválido. Use o formato com DDI, ex.: +5511999998888."}
+    if not tem_credenciais():
+        return {"ok": False, "erro": "Credenciais TELEGRAM_API_ID / TELEGRAM_API_HASH ausentes no .env."}
+    cliente = TelegramClient(config.telegram_session, config.telegram_api_id, config.telegram_api_hash)
+    try:
+        await cliente.connect()
+        enviado = await cliente.send_code_request(tel)
+    except FloodWaitError as e:
+        return {"ok": False, "erro": f"Código já enviado recentemente. Aguarde "
+                f"{int(getattr(e, 'seconds', None) or getattr(e, 'capture', 0))}s e tente de novo."}
+    except Exception as e:
+        log.warning("[USERBOT] Falha ao pedir o código: %s", e)
+        return {"ok": False, "erro": f"Não foi possível enviar o código: {type(e).__name__}: {e}"}
+    finally:
+        try:
+            await cliente.disconnect()
+        except Exception:
+            pass
+    tipo = str(getattr(enviado, "type", ""))
+    return {"ok": True, "phone_code_hash": enviado.phone_code_hash,
+            "envio": "sms" if "Sms" in tipo else "app"}
+
+
+async def confirmar_codigo(telefone: str, phone_code_hash: str, codigo: str,
+                           senha_2fa: str | None = None) -> dict:
+    """Fase 2: conclui o login com o código (e a senha 2FA, se exigida)."""
+    if not tem_credenciais():
+        return {"ok": False, "erro": "Credenciais TELEGRAM_API_ID / TELEGRAM_API_HASH ausentes no .env."}
+    cod = (codigo or "").strip()
+    if not cod:
+        return {"ok": False, "erro": "Informe o código que você recebeu."}
+    cliente = TelegramClient(config.telegram_session, config.telegram_api_id, config.telegram_api_hash)
+    try:
+        await cliente.connect()
+        try:
+            await cliente.sign_in(phone=telefone, code=cod, phone_code_hash=phone_code_hash)
+        except SessionPasswordNeededError:
+            if not senha_2fa:
+                return {"ok": False, "precisa_2fa": True}
+            try:
+                await cliente.sign_in(password=senha_2fa)
+            except PasswordHashInvalidError:
+                return {"ok": False, "precisa_2fa": True,
+                        "erro": "Senha de verificação incorreta."}
+        me = await cliente.get_me()
+    except PhoneCodeInvalidError:
+        return {"ok": False, "erro": "Código inválido ou expirado. Peça outro."}
+    except FloodWaitError as e:
+        return {"ok": False, "erro": f"Limite de tentativas. Aguarde "
+                f"{int(getattr(e, 'seconds', None) or getattr(e, 'capture', 0))}s e tente de novo."}
+    except Exception as e:
+        log.warning("[USERBOT] Falha ao confirmar o código: %s", e)
+        return {"ok": False, "erro": f"Não foi possível concluir o login: {type(e).__name__}: {e}"}
+    finally:
+        try:
+            await cliente.disconnect()
+        except Exception:
+            pass
+    nome = f"{me.first_name or ''} {me.last_name or ''}".strip()
+    username = me.username or ""
+    gravar_status(
+        conectado=True,
+        user_id=me.id,
+        nome=nome,
+        username=username,
+        conectado_em=dt.datetime.now().isoformat(timespec="seconds"),
+        monitorando=False,
+        motivo="",
+    )
+    return {"ok": True, "user_id": me.id, "nome": nome, "username": username}
 
 
 async def testar_conexao() -> dict[str, Any]:
@@ -313,8 +441,15 @@ async def _recuperar_perdidas(
 
 
 async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
-    """Inicia o Userbot em segundo plano para monitorar as fontes cadastradas."""
-    global _tarefa_monitor
+    """Inicia o Userbot em segundo plano para monitorar as fontes cadastradas.
+
+    Idempotente: o job de 60s do painel chama isto sem parar até uma sessão
+    aparecer; sem a guarda, cada chamada registraría um handler de mensagens
+    novo e cada oferta seria processada em dobro.
+    """
+    global _monitor_iniciado
+    if _monitor_iniciado:
+        return True
     if not tem_credenciais() or not tem_sessao_salva():
         log.info("[USERBOT] Userbot desligado (credenciais ausentes ou sessão não logada).")
         return False
@@ -327,11 +462,26 @@ async def iniciar_userbot(bot_poster: Any, dry_run: bool | None = None) -> bool:
         await client.connect()
 
     if not await client.is_user_authorized():
-        log.warning("[USERBOT] Sessão do Telethon não autorizada. Execute: uv run python -m ofertas telegram-user-login")
+        log.warning("[USERBOT] Sessão do Telethon não autorizada."
+                    " Refazer o login pelo painel.")
+        gravar_status(conectado=False, monitorando=False, motivo="expirada")
         return False
 
+    ok = await _iniciar_monitor(client, bot_poster, dry_run)
+    if ok:
+        _monitor_iniciado = True
+    return ok
+
+
+async def _iniciar_monitor(client: TelegramClient, bot_poster: Any,
+                           dry_run: bool) -> bool:
+    """Registra o monitor de mensagens no cliente já conectado e autenticado."""
     me = await client.get_me()
-    log.info("[USERBOT] Conectado como %s (@%s, ID: %s)", me.first_name, me.username, me.id)
+    nome = f"{me.first_name or ''} {me.last_name or ''}".strip()
+    username = me.username or ""
+    log.info("[USERBOT] Conectado como %s (@%s, ID: %s)", nome, username, me.id)
+    gravar_status(conectado=True, user_id=me.id, nome=nome, username=username,
+                  monitorando=True, motivo="")
 
     # Obter lista de fontes ativas
     fontes_db = db.listar_fontes_telegram(ativas_apenas=True)

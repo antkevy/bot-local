@@ -181,8 +181,8 @@ class TestStartupDoMonitor(BancoTemporario):
                 return True
 
             async def get_me(self):
-                return type("Eu", (), {"first_name": "Teste", "username": "teste",
-                                       "id": 1})()
+                return type("Eu", (), {"first_name": "Teste", "last_name": "",
+                                       "username": "teste", "id": 1})()
 
             def on(self, evento):
                 def deco(fn):

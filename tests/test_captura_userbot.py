@@ -156,6 +156,10 @@ class BaseUserbot(unittest.TestCase):
         ub._indice_por_id.clear()
         ub._ids_por_chave.clear()
         ub._chaves_ja_resolvidas.clear()
+        # A idempotência do iniciar_userbot mora num global de módulo: sem o
+        # reset, o primeiro teste registra o handler e os seguintes batem na
+        # guarda e devolvem True sem registrar nada (handlers vazios).
+        ub._monitor_iniciado = False
 
     def tearDown(self):
         db.DB_PATH = self.banco_anterior
