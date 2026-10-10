@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,12 @@ API_CREATELINK = "https://www.mercadolivre.com.br/affiliate-program/api/v2/affil
 PERFIL_DIR = DATA_DIR / "ml_profile"
 
 _RE_ID = re.compile(r"(MLB-?\d{6,})")
+
+# Duas gerações de link em paralelo abrem dois Chromes no MESMO perfil
+# persistente (data/ml_profile). O segundo trava no lock do perfil do Chrome e
+# os dois ficam pendurados indefinidamente — foi isso que acumulou dezenas de
+# chrome-headless e elevou o load da VPS a ~37. Serializar as gerações resolve.
+_LINKBUILDER_LOCK = threading.Lock()
 
 
 def e_link(url: str) -> bool:
@@ -376,6 +383,10 @@ def _abrir_contexto(pw, headless: bool):
         # conclui que o navegador "não abriu".
         kwargs["args"] = kwargs["args"] + ["--start-maximized"]
 
+    # Sem isto, um perfil travado por outra instância faz o `launch` pendurar
+    # para sempre (não levanta exceção); com o teto, ele falha e libera o lock.
+    kwargs["timeout"] = 20_000  # ms
+
     try:
         # Usa o Chromium isolado do projeto para nunca conflitar com instâncias abertas do usuário
         return pw.chromium.launch_persistent_context(str(PERFIL_DIR), **kwargs)
@@ -562,22 +573,23 @@ def _gerar_links_linkbuilder_batch(pendentes: list[Oferta], etiqueta: str) -> No
     if not etiqueta:
         raise RuntimeError("ML_ETIQUETA não configurada")
 
-    with sync_playwright() as pw:
-        ctx = _abrir_contexto(pw, headless=True)
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        try:
-            page.goto(URL_LINKBUILDER, wait_until="domcontentloaded")
-            if "login" in page.url or "registration" in page.url:
-                raise RuntimeError("Sessão do ML expirou no Linkbuilder")
-            page.wait_for_timeout(1500)
-            for i in range(0, len(pendentes), 10):
-                lote = pendentes[i:i + 10]
-                links = _criar_links_api(page, [o.url_produto for o in lote], etiqueta)
-                for o, link in zip(lote, links):
-                    o.url_afiliado = link
-            log.info("Mercado Livre: %d link(s) gerado(s) via Linkbuilder", len(pendentes))
-        finally:
-            ctx.close()
+    with _LINKBUILDER_LOCK:
+        with sync_playwright() as pw:
+            ctx = _abrir_contexto(pw, headless=True)
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            try:
+                page.goto(URL_LINKBUILDER, wait_until="domcontentloaded")
+                if "login" in page.url or "registration" in page.url:
+                    raise RuntimeError("Sessão do ML expirou no Linkbuilder")
+                page.wait_for_timeout(1500)
+                for i in range(0, len(pendentes), 10):
+                    lote = pendentes[i:i + 10]
+                    links = _criar_links_api(page, [o.url_produto for o in lote], etiqueta)
+                    for o, link in zip(lote, links):
+                        o.url_afiliado = link
+                log.info("Mercado Livre: %d link(s) gerado(s) via Linkbuilder", len(pendentes))
+            finally:
+                ctx.close()
 
 
 def gerar_links_afiliado(ofertas: list[Oferta], bot: Any = None) -> None:

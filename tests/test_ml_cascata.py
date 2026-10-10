@@ -18,6 +18,7 @@ from __future__ import annotations
 import unittest
 
 import asyncio
+import json
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -331,5 +332,40 @@ class TestCascataMl(unittest.TestCase):
             assert res["oferta"].titulo == "Smartphone Top de Linha"
             assert mock_post.called
             print("✅ TESTE 12 (Fluxo completo Scraper -> Grok -> ML Cascata -> Afiliado -> Publicação): OK")
+
+    def test_13_normaliza_cookie_json_export(self):
+        """TESTE 13: Cookie colado como JSON de extensão -> vira header nome=valor.
+
+        Era a causa do HTTP 403: o usuário cola o export da extensão (lista de
+        objetos) e o código mandava o JSON inteiro como header Cookie.
+        """
+        bruto = json.dumps([
+            {"name": "ssid", "value": "abc", "domain": ".mercadolivre.com.br"},
+            {"name": "orguserid", "value": "123", "domain": ".mercadolivre.com.br"},
+            {"name": "inválido"},
+        ])
+        self.assertEqual(ml_auth.normalizar_cookie(bruto), "ssid=abc; orguserid=123")
+        print("✅ TESTE 13 (JSON de extensão -> header normalizado): OK")
+
+    def test_14_cookie_header_intacto(self):
+        """TESTE 14: Cookie já em formato header -> devolvido sem alteração."""
+        self.assertEqual(ml_auth.normalizar_cookie("a=1; b=2"), "a=1; b=2")
+        self.assertEqual(ml_auth.normalizar_cookie(""), "")
+        print("✅ TESTE 14 (Header já correto passa intacto): OK")
+
+    def test_15_validar_salva_cookie_json_normalizado(self):
+        """TESTE 15: /setcookie com JSON -> testa com header e salva já formatado."""
+        bruto = json.dumps([{"name": "ssid", "value": "xyz"}])
+        with patch("ofertas.sources.ml_auth._gerar_via_cookie_raw", return_value=["https://meli.la/x"]) as gerar, \
+             patch("ofertas.sources.ml_auth.salvar_cookie_local") as mock_save:
+
+            res = ml_auth_service.validar_e_salvar_novo_cookie(bruto)
+
+            assert res["ok"] is True
+            # o teste de validação usou o cookie já normalizado
+            assert gerar.call_args[0][2] == "ssid=xyz"
+            # e o que foi salvo também está normalizado
+            assert mock_save.call_args[0][0] == "ssid=xyz"
+            print("✅ TESTE 15 (Cookie JSON validado/salvo já normalizado): OK")
 
 

@@ -36,6 +36,36 @@ _ultimo_aviso_ts: float = 0.0
 COOLDOWN_NOTIFICACAO_SEGUNDOS: int = 3600  # 1 hora de intervalo entre avisos automáticos
 
 
+def normalizar_cookie(bruto: str) -> str:
+    """Normaliza um cookie para o formato de header HTTP ``nome=valor; ...``.
+
+    Aceita também o JSON exportado por extensões de navegador (Cookie-Editor,
+    EditThisCookie): uma lista de objetos ``{"name": ..., "value": ...}``.
+    Sem esta conversão, colar o JSON inteiro virava um header inválido e o
+    Mercado Livre respondia HTTP 403 em toda chamada. É exatamente o formato que
+    o usuário cola ao copiar os cookies da extensão.
+    """
+    if not bruto:
+        return ""
+    texto = bruto.strip()
+    if texto[:1] not in ("[", "{"):
+        return texto
+    try:
+        dados = json.loads(texto)
+    except (ValueError, TypeError):
+        return texto
+    if isinstance(dados, dict):
+        dados = [dados]
+    if not isinstance(dados, list):
+        return texto
+    pares = [
+        f"{c['name']}={c['value']}"
+        for c in dados
+        if isinstance(c, dict) and c.get("name") and c.get("value") is not None
+    ]
+    return "; ".join(pares) if pares else texto
+
+
 def _mascarar_cookie(cookie: str) -> str:
     """Mascara o cookie para evitar vazamento em logs ou rastreamentos."""
     if not cookie:
@@ -51,15 +81,16 @@ def obter_cookie_configurado() -> str:
                 dados = json.load(f)
                 c = dados.get("cookie", "").strip()
                 if c:
-                    return c
+                    return normalizar_cookie(c)
         except Exception as e:
             log.warning("[ML-AUTH] Erro ao ler cookie do arquivo local: %s", e)
 
-    return (config.ml_cookie or "").strip()
+    return normalizar_cookie(config.ml_cookie or "")
 
 
 def salvar_cookie_local(cookie_str: str) -> None:
     """Salva o cookie validado de forma segura no diretório data/."""
+    cookie_str = normalizar_cookie(cookie_str)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(COOKIE_FILE, "w", encoding="utf-8") as f:
         json.dump({"cookie": cookie_str.strip(), "atualizado_em": time.time()}, f, indent=2)
@@ -72,9 +103,15 @@ def tem_cookie() -> bool:
 
 
 def tem_sessao_linkbuilder() -> bool:
-    """Verifica se há perfil persistente do Linkbuilder em data/ml_profile."""
+    """Verifica se há perfil persistente do Linkbuilder em data/ml_profile.
+
+    Delega para a checagem real do perfil (cookies do ML no SQLite do Chrome).
+    Antes chamava ``mercadolivre.tem_sessao()``, que devolve True só por existir
+    um cookie configurado — então, com cookie presente e sem sessão no perfil,
+    o código sempre abria o navegador (Playwright) antes de cair no cookie.
+    """
     from . import mercadolivre
-    return mercadolivre.tem_sessao()
+    return mercadolivre.tem_sessao_linkbuilder()
 
 
 def _gerar_via_cookie_raw(urls: list[str], etiqueta: str, cookie_str: str, timeout: int = 15) -> list[str]:
@@ -252,7 +289,7 @@ class MercadoLivreAuthService:
 
     def validar_e_salvar_novo_cookie(self, novo_cookie: str, bot: Any = None) -> dict[str, Any]:
         """Testa o novo cookie antes de salvar. Se for válido, atualiza e processa pendências."""
-        cookie_limpo = novo_cookie.strip()
+        cookie_limpo = normalizar_cookie(novo_cookie).strip()
         if not cookie_limpo:
             return {"ok": False, "erro": "Cookie fornecido está vazio."}
 
