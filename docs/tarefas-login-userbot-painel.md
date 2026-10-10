@@ -16,9 +16,9 @@ Aprovado pelo usuário (design bounded, TDD).
 - [x] 9. Suíte completa local (3 subprocessos) + QA
   - guard-rail `test_isolamento_dados.py` verde (30 suítes em subprocesso, 283s, `data/` intacto)
   - `test_captura_userbot`/`test_scraper_fontes` re-verdes após reset de `_monitor_iniciado`/fake `last_name`
-- [ ] 10. Deploy: scp dos 3 arquivos + remendo do `painel_html.py` (**aguardando confirmação**) — backup + SHA + restart
-- [ ] 11. Reiniciar painel + bot (bot aborta 1 ciclo, aprovado)
-- [ ] 12. Verificar endpoints, UI e log `[USERBOT]`
+- [x] 10. Deploy: backup + scp dos 4 arquivos + SHA byte-idênticos + `py_compile` OK
+- [x] 11. Reiniciar painel + bot (bot aborta 1 ciclo, aprovado) — ambos `active`, painel sem erro
+- [x] 12. Verificar: página serve cartão/forms, `/api/userbot/*` respondem guard de login, job `userbot_ativacao` roda a cada 60s no log; **login do usuário pendente**
 
 ## Restrições da produção
 
