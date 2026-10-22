@@ -21,6 +21,7 @@ import requests
 
 from .. import parada
 from ..config import config
+from ..marketplaces import url_pertence
 from ..models import Oferta
 from ..utils import sessao
 
@@ -29,16 +30,16 @@ log = logging.getLogger("ofertas.aliexpress")
 ENDPOINT_PADRAO = "https://api-sg.aliexpress.com/sync"
 
 
+_HOSTS_ALIEXPRESS = frozenset({
+    "aliexpress.com",
+    "aliexpress.us",
+    "ali.ski",
+})
+
+
 def e_link(url: str) -> bool:
-    """Verifica se a URL pertence ao AliExpress."""
-    url_lower = url.lower()
-    return any(d in url_lower for d in (
-        "aliexpress.com",
-        "pt.aliexpress.com",
-        "a.aliexpress.com",
-        "s.click.aliexpress.com",
-        "ali.ski",
-    ))
+    """Verifica se a URL pertence ao AliExpress (por host, não substring)."""
+    return url_pertence(url, _HOSTS_ALIEXPRESS)
 
 
 def _obter_credenciais() -> tuple[str, str, str, str, str]:
@@ -182,7 +183,9 @@ def _item_para_oferta(item: dict) -> Oferta:
     # afiliado certo só sai de aliexpress.affiliate.link.generate; por isso aqui
     # fica vazio e quem monta a oferta gera o link (_garantir_link_afiliado).
     url_afiliado = ""
-    url_produto = item.get("product_detail_url") or f"https://pt.aliexpress.com/item/{pid}.html" if pid else ""
+    url_produto = item.get("product_detail_url") or ""
+    if not url_produto and pid:
+        url_produto = f"https://pt.aliexpress.com/item/{pid}.html"
 
     # Avaliação (AliExpress retorna percentual ex: 96% -> 4.8 estrelas)
     avaliacao = _converter_rating_percentual(item.get("evaluate_rate"))

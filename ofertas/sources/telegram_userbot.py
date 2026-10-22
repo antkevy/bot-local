@@ -29,7 +29,6 @@ from .telegram_scraper import e_postagem_propria
 log = logging.getLogger("ofertas.userbot")
 
 _cliente_global: TelegramClient | None = None
-_tarefa_monitor: asyncio.Task | None = None
 _monitor_iniciado = False
 
 # O painel mostra o estado do userbot por um ARQUIVO, nunca abrindo a sessão

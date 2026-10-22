@@ -495,20 +495,21 @@ def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
     if not url.lower().startswith(("http://", "https://")):
         return {"erro": "O link precisa começar com http:// ou https://."}
 
-    url_lower = url.lower()
     plat = plataforma.lower().strip()
     if plat in ("", "auto"):
-        if "amazon.com" in url_lower or "amzn.to" in url_lower:
-            plat = "amazon"
-        elif "mercadolivre.com" in url_lower or "ml.com" in url_lower or "meli.la" in url_lower:
-            plat = "mercadolivre"
-        elif "shopee.com" in url_lower or "shp.ee" in url_lower:
-            plat = "shopee"
-        elif "aliexpress.com" in url_lower or "ali.ski" in url_lower:
-            plat = "aliexpress"
-        else:
+        # Delega ao mesmo `e_link` que o pipeline usa. Antes a detecção era
+        # feita por substring aqui, e "ml.com" casava com "html.com" — o
+        # painel oferecia "Mercado Livre" para um link que não era.
+        from .marketplaces import normalizar_marketplace
+        from .sources import detectar_fonte
+        fonte = detectar_fonte(url)
+        if fonte is None:
             return {"erro": ("Não reconheci o marketplace deste link. "
                              "Escolha a plataforma manualmente em 'Plataforma'.")}
+        plat = normalizar_marketplace(fonte.__name__.rsplit(".", 1)[-1])
+    else:
+        from .marketplaces import normalizar_marketplace
+        plat = normalizar_marketplace(plat)
 
     sep = "&" if "?" in url else "?"
     if plat == "amazon":
@@ -516,7 +517,10 @@ def gerar_link_afiliado(url: str, plataforma: str = "") -> dict:
         if not tag:
             return {"erro": "Configure a tag de associado do Amazon em Configurações "
                             "antes de gerar o link."}
-        link_afiliado = url if "tag=" in url else f"{url}{sep}tag={tag}"
+        # `"tag=" in url` também casava com "?mytag=". O parâmetro tem de
+        # começar em ? ou & para ser o `tag` da Amazon.
+        ja_tem_tag = bool(re.search(r"[?&]tag=", url, re.IGNORECASE))
+        link_afiliado = url if ja_tem_tag else f"{url}{sep}tag={tag}"
     elif plat == "mercadolivre":
         etiqueta = env.get("ML_ETIQUETA", "").strip()
         if not etiqueta:

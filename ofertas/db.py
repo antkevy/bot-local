@@ -1,6 +1,7 @@
 import datetime as dt
 import os
 import sqlite3
+from contextlib import contextmanager
 
 from .config import DATA_DIR
 from .models import Oferta, tipo_principal, tokens_conteudo
@@ -83,42 +84,60 @@ _COLUNAS_RESERVAS = (
 TTL_RESERVA_SEGUNDOS = 3600
 
 
-def _conn() -> sqlite3.Connection:
+@contextmanager
+def _conn():
+    """Abre uma conexão, entrega para o `with` e FECHA no fim.
+
+    `with sqlite3.connect(...) as c` commita/rollbacka, mas não fecha: o
+    arquivo só era liberado quando o objeto caía no coletor. Aqui o `finally`
+    fecha de verdade — em processos longos (bot + painel) isso evita acumular
+    descritores de arquivo e locks do SQLite.
+
+    Continua sendo um context manager, então todo `with _conn() as c:` do
+    projeto (e dos testes) segue funcionando sem mudança.
+    """
     c = sqlite3.connect(DB_PATH)
-    c.execute("CREATE TABLE IF NOT EXISTS postadas (" + _COLUNAS + ")")
-    c.execute("CREATE TABLE IF NOT EXISTS fontes_telegram (" + _COLUNAS_FONTES + ")")
-    c.execute("CREATE TABLE IF NOT EXISTS mensagens_telegram (" + _COLUNAS_MSGS + ")")
-    c.execute("CREATE TABLE IF NOT EXISTS ofertas_pendentes_ml (" + _COLUNAS_PENDENTES_ML + ")")
-    c.execute("CREATE TABLE IF NOT EXISTS reservas (" + _COLUNAS_RESERVAS + ")")
-    # O painel e o bot agora escrevem no mesmo arquivo ao mesmo tempo (a trava
-    # de instância reduz a concorrência, mas não elimina: o painel grava
-    # fontes/cadência enquanto o bot reserva ofertas). Sem espera, um deles
-    # levaria "database is locked" e a reserva se perderia — justamente o que
-    # abriria brecha para o post duplicado. Não usamos WAL de propósito: ele
-    # criaria arquivos .db-wal/.db-shm novos no banco do usuário.
-    c.execute("PRAGMA busy_timeout=5000")
-    # Bancos criados por versões antigas não têm url_afiliado/imagem/url_produto;
-    # adiciona sem perder dados. `url_produto` (link original) não entra em
-    # _COLUNAS de propósito: é o ALTER abaixo que garante a coluna em bancos
-    # novos E antigos, num só caminho.
-    existentes = {r[1] for r in c.execute("PRAGMA table_info(postadas)")}
-    for coluna in ("url_afiliado", "imagem", "url_produto"):
-        if coluna not in existentes:
-            try:
-                c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
-            except sqlite3.OperationalError:
-                pass
-    # Mesma ideia para as pendências do ML.
-    existentes = {r[1] for r in c.execute("PRAGMA table_info(ofertas_pendentes_ml)")}
-    for coluna in _COLUNAS_PENDENTES_ML_EXTRA:
-        nome = coluna.split()[0]
-        if nome not in existentes:
-            try:
-                c.execute(f"ALTER TABLE ofertas_pendentes_ml ADD COLUMN {coluna}")
-            except sqlite3.OperationalError:
-                pass
-    c.commit()
-    return c
+    try:
+        c.execute("CREATE TABLE IF NOT EXISTS postadas (" + _COLUNAS + ")")
+        c.execute("CREATE TABLE IF NOT EXISTS fontes_telegram (" + _COLUNAS_FONTES + ")")
+        c.execute("CREATE TABLE IF NOT EXISTS mensagens_telegram (" + _COLUNAS_MSGS + ")")
+        c.execute("CREATE TABLE IF NOT EXISTS ofertas_pendentes_ml (" + _COLUNAS_PENDENTES_ML + ")")
+        c.execute("CREATE TABLE IF NOT EXISTS reservas (" + _COLUNAS_RESERVAS + ")")
+        # O painel e o bot agora escrevem no mesmo arquivo ao mesmo tempo (a trava
+        # de instância reduz a concorrência, mas não elimina: o painel grava
+        # fontes/cadência enquanto o bot reserva ofertas). Sem espera, um deles
+        # levaria "database is locked" e a reserva se perderia — justamente o que
+        # abriria brecha para o post duplicado. Não usamos WAL de propósito: ele
+        # criaria arquivos .db-wal/.db-shm novos no banco do usuário.
+        c.execute("PRAGMA busy_timeout=5000")
+        # Bancos criados por versões antigas não têm url_afiliado/imagem/url_produto;
+        # adiciona sem perder dados. `url_produto` (link original) não entra em
+        # _COLUNAS de propósito: é o ALTER abaixo que garante a coluna em bancos
+        # novos E antigos, num só caminho.
+        existentes = {r[1] for r in c.execute("PRAGMA table_info(postadas)")}
+        for coluna in ("url_afiliado", "imagem", "url_produto"):
+            if coluna not in existentes:
+                try:
+                    c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
+                except sqlite3.OperationalError:
+                    pass
+        # Mesma ideia para as pendências do ML.
+        existentes = {r[1] for r in c.execute("PRAGMA table_info(ofertas_pendentes_ml)")}
+        for coluna in _COLUNAS_PENDENTES_ML_EXTRA:
+            nome = coluna.split()[0]
+            if nome not in existentes:
+                try:
+                    c.execute(f"ALTER TABLE ofertas_pendentes_ml ADD COLUMN {coluna}")
+                except sqlite3.OperationalError:
+                    pass
+        c.commit()
+        yield c
+        c.commit()
+    except BaseException:
+        c.rollback()
+        raise
+    finally:
+        c.close()
 
 
 def init_db() -> None:

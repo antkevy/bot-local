@@ -134,7 +134,9 @@ async def _cmd_status_ml(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _e_dono(update):
         return
     from .sources.ml_auth import ml_auth_service
-    res = ml_auth_service.testar_autenticacao()
+    # testar_autenticacao() usa HTTP síncrono + Playwright: roda em thread para
+    # não travar o loop de eventos do bot enquanto espera a resposta do ML.
+    res = await asyncio.to_thread(ml_auth_service.testar_autenticacao)
     if res.get("authenticated"):
         metodo = "Link Builder" if res.get("method") == "linkbuilder" else "Cookie"
         await update.message.reply_text(f"✅ Mercado Livre: *Autenticado via {metodo}*\nLink de teste gerado: `{res.get('link_teste', '')}`", parse_mode="Markdown")
@@ -166,7 +168,10 @@ async def _cmd_setcookie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Validando novo cookie do Mercado Livre com teste real...")
 
     from .sources.ml_auth import ml_auth_service
-    resultado = ml_auth_service.validar_e_salvar_novo_cookie(cookie_candidato, bot=ctx.bot)
+    # Versão async: a validação (HTTP + Playwright) e o reprocessamento das
+    # pendências rodam em thread e a publicação é aguardada de verdade.
+    resultado = await ml_auth_service.validar_e_salvar_novo_cookie_async(
+        cookie_candidato, bot=ctx.bot)
 
     if resultado.get("ok"):
         ofertas_rep = resultado.get("ofertas_reprocessadas", 0)

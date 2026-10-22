@@ -27,9 +27,13 @@ MUTACOES = [
     (ARQ,
      "_item_para_oferta volta a confiar no promotion_link da API",
      '    url_afiliado = ""\n'
-     '    url_produto = item.get("product_detail_url") or f"https://pt.aliexpress.com/item/{pid}.html" if pid else ""',
+     '    url_produto = item.get("product_detail_url") or ""\n'
+     '    if not url_produto and pid:\n'
+     '        url_produto = f"https://pt.aliexpress.com/item/{pid}.html"',
      '    url_afiliado = item.get("promotion_link") or ""\n'
-     '    url_produto = item.get("product_detail_url") or f"https://pt.aliexpress.com/item/{pid}.html" if pid else ""'),
+     '    url_produto = item.get("product_detail_url") or ""\n'
+     '    if not url_produto and pid:\n'
+     '        url_produto = f"https://pt.aliexpress.com/item/{pid}.html"'),
     (ARQ,
      "converter para de gerar o link e usa a URL do produto",
      "                oferta = _item_para_oferta(produtos_raw[0])\n"

@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 
 from .. import parada
 from ..config import DATA_DIR, config
+from ..marketplaces import url_pertence
 from ..models import Oferta
 from ..utils import USER_AGENT, parse_preco_br, sessao
 
@@ -41,8 +42,16 @@ _RE_ID = re.compile(r"(MLB-?\d{6,})")
 _LINKBUILDER_LOCK = threading.Lock()
 
 
+_HOSTS_ML = frozenset({
+    "mercadolivre.com",
+    "mercadolivre.com.br",
+    "mercadolibre.com",
+    "meli.la",
+})
+
+
 def e_link(url: str) -> bool:
-    return any(d in url for d in ("mercadolivre.com", "mercadolibre.com", "meli.la/"))
+    return url_pertence(url, _HOSTS_ML)
 
 
 def e_id_produto(id_produto: str | None) -> bool:

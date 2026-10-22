@@ -14,6 +14,7 @@ import requests
 
 from .. import parada
 from ..config import config
+from ..marketplaces import url_pertence
 from ..models import Oferta
 from ..utils import sessao
 
@@ -26,8 +27,17 @@ ENDPOINT = "https://open-api.affiliate.shopee.com.br/graphql"
 SORT_TYPE = 2
 
 
+# Hosts aceitos como Shopee. Comparação por host (e subdomínio), não por
+# substring: `notshopee.com.br` ou `shopee.com.br.evil.tld` passavam antes.
+_HOSTS_SHOPEE = frozenset({
+    "shopee.com.br",
+    "shopee.com",
+    "shp.ee",
+})
+
+
 def e_link(url: str) -> bool:
-    return any(d in url for d in ("shopee.com.br", "s.shopee.", "shp.ee/"))
+    return url_pertence(url, _HOSTS_SHOPEE)
 
 
 def _chamar(query: str) -> dict:

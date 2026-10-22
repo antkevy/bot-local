@@ -296,10 +296,16 @@ def _parse_busca(html: str, rotulo: str) -> list[Oferta]:
     if not ofertas:
         # guarda a página para diagnóstico: o que a Amazon mandou em vez dos resultados?
         arq = DATA_DIR / "debug_amazon_busca.html"
-        arq.write_text(html, encoding="utf-8")
+        try:
+            arq.write_text(html, encoding="utf-8")
+            onde = str(arq.name)
+        except OSError as e:
+            # Falha ao gravar diagnóstico (disco cheio, permissão) não pode
+            # derrubar a busca inteira: o log abaixo continua valendo.
+            onde = f"(não foi possível salvar {arq.name}: {e})"
         m = re.search(r"<title>(.*?)</title>", html, re.S)
-        log.warning("Amazon %s: %d cards, 0 ofertas (título: %s) — HTML salvo em %s",
-                    rotulo, len(cards), (m.group(1).strip()[:80] if m else "?"), arq.name)
+        log.warning("Amazon %s: %d cards, 0 ofertas (título: %s) — HTML: %s",
+                    rotulo, len(cards), (m.group(1).strip()[:80] if m else "?"), onde)
     return ofertas
 
 

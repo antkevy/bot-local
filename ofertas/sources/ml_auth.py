@@ -10,6 +10,8 @@ NUNCA utiliza a URL original como affiliate_link.
 """
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import logging
 import re
@@ -288,14 +290,36 @@ class MercadoLivreAuthService:
         }
 
     def validar_e_salvar_novo_cookie(self, novo_cookie: str, bot: Any = None) -> dict[str, Any]:
-        """Testa o novo cookie antes de salvar. Se for válido, atualiza e processa pendências."""
+        """Versão síncrona (CLI/testes). Dentro de um loop use a versão async."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.validar_e_salvar_novo_cookie_async(novo_cookie, bot=bot))
+        # Bloquear o loop com asyncio.run() aqui levantava RuntimeError e, pior,
+        # deixava o bot travado enquanto o teste real do cookie rodava. Quem
+        # está num handler async tem de usar a variante `_async`.
+        raise RuntimeError(
+            "validar_e_salvar_novo_cookie() chamado de dentro de um event loop; "
+            "use validar_e_salvar_novo_cookie_async().")
+
+    async def validar_e_salvar_novo_cookie_async(
+            self, novo_cookie: str, bot: Any = None) -> dict[str, Any]:
+        """Testa o novo cookie antes de salvar. Se for válido, atualiza e processa pendências.
+
+        A validação usa rede + Playwright (até ~12s) e por isso roda numa
+        thread: feita direto no handler, congelava o bot inteiro — nenhum outro
+        comando era atendido enquanto o teste acontecia.
+        """
         cookie_limpo = normalizar_cookie(novo_cookie).strip()
         if not cookie_limpo:
             return {"ok": False, "erro": "Cookie fornecido está vazio."}
 
         etiqueta = config.ml_etiqueta or "fastpromo"
         try:
-            links = _gerar_via_cookie_raw([URL_TESTE_DEFAULT], etiqueta, cookie_limpo, timeout=12)
+            links = await asyncio.to_thread(
+                _gerar_via_cookie_raw, [URL_TESTE_DEFAULT], etiqueta, cookie_limpo,
+                timeout=12)
             if not links or not links[0]:
                 return {"ok": False, "erro": "O novo cookie não gerou links válidos. O cookie anterior foi mantido."}
         except PermissionError:
@@ -314,7 +338,7 @@ class MercadoLivreAuthService:
         total_reprocessadas = 0
         if bot:
             try:
-                total_reprocessadas = self.processar_ofertas_pendentes(bot)
+                total_reprocessadas = await self.processar_ofertas_pendentes_async(bot)
             except Exception as e:
                 log.error("[ML-AUTH] Erro ao reprocessar pendências após salvar cookie: %s", e)
 
@@ -374,7 +398,21 @@ class MercadoLivreAuthService:
             return False
 
     def processar_ofertas_pendentes(self, bot: Any) -> int:
-        """Reprocessa ofertas do Mercado Livre que estavam aguardando autenticação."""
+        """Versão síncrona (CLI/testes). Dentro de um loop use a versão async."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.processar_ofertas_pendentes_async(bot))
+        raise RuntimeError(
+            "processar_ofertas_pendentes() chamado de dentro de um event loop; "
+            "use processar_ofertas_pendentes_async().")
+
+    async def processar_ofertas_pendentes_async(self, bot: Any) -> int:
+        """Reprocessa ofertas do Mercado Livre que estavam aguardando autenticação.
+
+        As etapas caras (reler preço, gerar link no Playwright, filtros) rodam
+        em thread para não congelar o bot; a publicação é aguardada de verdade.
+        """
         pendentes_db = db.listar_ofertas_pendentes_ml(status="aguardando_autenticacao")
         if not pendentes_db:
             return 0
@@ -388,8 +426,8 @@ class MercadoLivreAuthService:
             uid = row["uid"]
             # Deduplicação: se já foi postada nesse intervalo, a pendência
             # cumpriu o papel dela e pode sair.
-            if db.ja_postada(uid, config.nao_repetir_dias):
-                db.remover_oferta_pendente_ml(uid)
+            if await asyncio.to_thread(db.ja_postada, uid, config.nao_repetir_dias):
+                await asyncio.to_thread(db.remover_oferta_pendente_ml, uid)
                 continue
 
             oferta = Oferta(
@@ -411,43 +449,49 @@ class MercadoLivreAuthService:
             # horas ou dias atrás — foi justamente o tempo de esperar o login
             # do ML. Relemos a página agora, senão a postagem vai ao ar com um
             # preço que já não existe.
-            self._atualizar_preco(oferta)
+            await asyncio.to_thread(self._atualizar_preco, oferta)
 
             # Tenta gerar o link de afiliado
-            self.gerar_links_afiliado([oferta], bot=bot)
+            await asyncio.to_thread(self.gerar_links_afiliado, [oferta], bot)
 
             if not oferta.url_afiliado:
                 # Sem link não há postagem (regra do projeto) e a oferta
                 # continua na fila para a próxima tentativa.
-                db.marcar_tentativa_pendente_ml(uid, "sem link de afiliado")
+                await asyncio.to_thread(
+                    db.marcar_tentativa_pendente_ml, uid, "sem link de afiliado")
                 continue
 
             if not (config.chat_id and bot):
-                db.marcar_tentativa_pendente_ml(uid, "sem canal de destino ou sem bot")
+                await asyncio.to_thread(
+                    db.marcar_tentativa_pendente_ml, uid,
+                    "sem canal de destino ou sem bot")
                 continue
 
             # Passa pelos filtros existentes (reserva a oferta para este
             # processo; se outro estiver publicando, `aprovadas` vem vazio).
-            aprovadas = filtrar([oferta])
+            aprovadas = await asyncio.to_thread(filtrar, [oferta])
             if not aprovadas:
-                db.marcar_tentativa_pendente_ml(uid, "rejeitada pelos filtros")
+                await asyncio.to_thread(
+                    db.marcar_tentativa_pendente_ml, uid, "rejeitada pelos filtros")
                 continue
 
             try:
-                import asyncio
-                if asyncio.iscoroutinefunction(postar_oferta):
-                    asyncio.run(postar_oferta(bot, oferta, config.chat_id))
-                else:
-                    postar_oferta(bot, oferta, config.chat_id)
-                db.registrar(oferta)
-                db.remover_oferta_pendente_ml(uid)
+                # `postar_oferta` é async no projeto, mas os testes injetam
+                # tanto AsyncMock quanto MagicMock. Aguardar só o que for
+                # awaitable mantém os dois contratos sem `asyncio.run`.
+                resultado = postar_oferta(bot, oferta, config.chat_id)
+                if inspect.isawaitable(resultado):
+                    await resultado
+                await asyncio.to_thread(db.registrar, oferta)
+                await asyncio.to_thread(db.remover_oferta_pendente_ml, uid)
                 total_publicadas += 1
                 log.info("[ML-AUTH] ✅ Oferta pendente publicada: %s", oferta.titulo[:50])
             except Exception as e:
                 # A reserva foi pega por filtrar() e nada foi publicado: devolve
                 # ao limbo e mantém a pendência para nova tentativa.
-                db.liberar_reserva(uid)
-                db.marcar_tentativa_pendente_ml(uid, f"falha ao postar: {e}")
+                await asyncio.to_thread(db.liberar_reserva, uid)
+                await asyncio.to_thread(
+                    db.marcar_tentativa_pendente_ml, uid, f"falha ao postar: {e}")
                 log.error("[ML-AUTH] Falha ao postar oferta pendente '%s': %s", oferta.uid, e)
 
         return total_publicadas
@@ -464,18 +508,26 @@ class MercadoLivreAuthService:
         if not oferta.url_produto:
             return
         from . import mercadolivre
+        preco_antigo = oferta.preco
         atual, anterior = mercadolivre.reler_preco(oferta.url_produto)
         if atual is None:
             log.warning("[ML-AUTH] Não consegui reler o preço de '%s'; mantendo o preço guardado.",
                         oferta.titulo[:50])
             return
-        if oferta.preco is not None and abs(atual - oferta.preco) > 0.01:
+        mudou = (preco_antigo is not None and abs(atual - preco_antigo) > 0.01)
+        if mudou:
             log.info("[ML-AUTH] Preço mudou desde a coleta: %s -> %s (oferta '%s').",
-                     oferta.preco, atual, oferta.titulo[:40])
+                     preco_antigo, atual, oferta.titulo[:40])
         oferta.preco = atual
         if anterior is not None:
             oferta.preco_original = anterior
             oferta.desconto_pct = None      # recalcula a partir dos preços atuais
+        elif mudou:
+            # O preço mudou e a página não informa mais o "de". Manter o
+            # preço original/desconto antigos anunciaria um desconto que não
+            # existe mais.
+            oferta.preco_original = None
+            oferta.desconto_pct = None
 
 
 # Instância global singleton do serviço
