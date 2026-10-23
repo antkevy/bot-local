@@ -67,6 +67,9 @@ def passes_product_filters(oferta: Oferta) -> Tuple[bool, str]:
                 motivo = f"vendas_ausente (politica: rejeitar sem vendas, minimo={config.vendas_minimas})"
                 log.info("[FILTER] Produto '%s' ignorado: %s", oferta.titulo[:40], motivo)
                 return False, motivo
+        elif oferta.vendas <= 0:
+            if not config.permitir_sem_vendas:
+                return False, "vendas_zero_sem_volume_comprovado"
         else:
             if oferta.vendas < config.vendas_minimas:
                 motivo = f"vendas_insuficientes ({oferta.vendas} < minimo {config.vendas_minimas})"

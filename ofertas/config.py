@@ -84,11 +84,12 @@ class Config:
         # Filtros de Qualidade de Produtos
         raw_av = filtros.get("avaliacao_minima")
         self.avaliacao_minima: float = float(raw_av) if raw_av is not None and str(raw_av).strip() != "" else 0.0
-        self.vendas_minimas: int = int(filtros.get("vendas_minimas", 0) or 0)
+        # Mais seletivo por padrão: prioriza "mais vendidos" e boas promoções
+        self.vendas_minimas: int = int(filtros.get("vendas_minimas", 50) or 50)
         self.desconto_minimo: int = int(filtros.get("desconto_minimo", 0) or 0)
         self.permitir_sem_desconto: bool = bool(filtros.get("permitir_sem_desconto", True))
         self.permitir_sem_avaliacao: bool = bool(filtros.get("permitir_sem_avaliacao", True))
-        self.permitir_sem_vendas: bool = bool(filtros.get("permitir_sem_vendas", True))
+        self.permitir_sem_vendas: bool = bool(filtros.get("permitir_sem_vendas", False))
         self.preco_minimo: float = float(filtros.get("preco_minimo", 0))
         self.preco_maximo: float = float(filtros.get("preco_maximo", 0))
         self.palavras_bloqueadas: list[str] = [
