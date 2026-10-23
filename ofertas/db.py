@@ -121,6 +121,12 @@ def _conn():
                     c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
                 except sqlite3.OperationalError:
                     pass
+        for coluna in ("canal_origem",):
+            if coluna not in existentes:
+                try:
+                    c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
+                except sqlite3.OperationalError:
+                    pass
         # Mesma ideia para as pendências do ML.
         existentes = {r[1] for r in c.execute("PRAGMA table_info(ofertas_pendentes_ml)")}
         for coluna in _COLUNAS_PENDENTES_ML_EXTRA:
@@ -230,16 +236,17 @@ def tipos_recentes(horas: int) -> tuple[list[frozenset[str]], dict[str, int]]:
 
 
 def registrar(oferta: Oferta) -> None:
+    canal = getattr(oferta, "canal_origem", "") or ""
     with _conn() as c:
         c.execute(
             "INSERT OR REPLACE INTO postadas"
             " (uid, plataforma, titulo, preco, url_afiliado, imagem,"
-            "  postada_em, url_produto)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "  postada_em, url_produto, canal_origem)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (oferta.uid, oferta.plataforma, oferta.titulo, oferta.preco,
              oferta.url_afiliado, oferta.imagem,
              dt.datetime.now().isoformat(timespec="seconds"),
-             oferta.url_produto),
+             oferta.url_produto, canal),
         )
         # A reserva virou postagem: some na mesma transação, senão a oferta fica
         # travada até o TTL.
@@ -337,8 +344,12 @@ def listar_postadas(limite: int = 50) -> list[dict]:
         c.row_factory = sqlite3.Row
         rows = c.execute(
             "SELECT uid, plataforma, titulo, preco, url_afiliado, imagem,"
-            "       postada_em, url_produto"
-            " FROM postadas ORDER BY postada_em DESC LIMIT ?",
+            "       postada_em, url_produto,"
+            "       COALESCE(NULLIF(postadas.canal_origem, ''), m.source_id, '') AS canal_origem"
+            " FROM postadas"
+            " LEFT JOIN (SELECT uid AS m_uid, source_id FROM mensagens_telegram WHERE status = 'publicada' GROUP BY uid) AS m"
+            "   ON m.m_uid = postadas.uid"
+            " ORDER BY postada_em DESC LIMIT ?",
             (limite,),
         ).fetchall()
         return [dict(r) for r in rows]

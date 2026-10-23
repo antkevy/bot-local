@@ -73,6 +73,7 @@ class Oferta:
     vendas: int | None = None         # Quantidade de vendas/pedidos
     comissao: float | None = None     # Dado técnico interno — NUNCA enviado ao template
     comissao_pct: float | None = None # Dado técnico interno — NUNCA enviado ao template
+    canal_origem: str = ""
 
     @property
     def preco_antigo(self) -> float | None:

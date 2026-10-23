@@ -102,8 +102,29 @@ class TestAbaLinks(unittest.TestCase):
         l = obter_metricas()["links_recentes"][0]
         self.assertEqual(l["url_original"], "")
         self.assertEqual(l["imagem"], "")
+        self.assertEqual(l["canal_origem"], "")
         self.assertEqual(l["url"],
                          "https://www.amazon.com.br/dp/B09SGPQ2J7?tag=afiliado-20")
+
+    def test_registrar_guarda_canal_origem_e_listar_devolve(self):
+        o = _oferta_com_original()
+        o.canal_origem = "@nerdofertas"
+        db.registrar(o)
+        linha = db.listar_postadas(10)[0]
+        self.assertEqual(linha["canal_origem"], "@nerdofertas")
+        from ofertas.painel import obter_metricas
+        l = obter_metricas()["links_recentes"][0]
+        self.assertEqual(l["canal_origem"], "@nerdofertas")
+
+    def test_listar_postadas_recupera_canal_de_mensagens_telegram(self):
+        """Ofertas gravadas sem canal_origem recuperam de mensagens_telegram."""
+        _insere_post_antigo()
+        db.registrar_msg_telegram("@pesquizei", 1234, "amazon:B09SGPQ2J7", status="publicada")
+        linha = db.listar_postadas(10)[0]
+        self.assertEqual(linha["canal_origem"], "@pesquizei")
+        from ofertas.painel import obter_metricas
+        l = obter_metricas()["links_recentes"][0]
+        self.assertEqual(l["canal_origem"], "@pesquizei")
 
 
 if __name__ == "__main__":

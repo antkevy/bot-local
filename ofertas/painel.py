@@ -658,6 +658,7 @@ def obter_metricas() -> dict:
             "uid": p.get("uid") or "",
             "imagem": p.get("imagem") or "",
             "url_original": (p.get("url_produto") or "").strip(),
+            "canal_origem": (p.get("canal_origem") or "").strip(),
         })
         if len(links_rec) >= 12:
             break

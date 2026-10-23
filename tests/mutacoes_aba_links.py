@@ -40,6 +40,14 @@ MUTACOES = [
      "obter_metricas: aba nao expoe url_original",
      '            "url_original": (p.get("url_produto") or "").strip(),\n',
      ""),
+    (ARQ_DB,
+     "migracao: ALTER TABLE perde a coluna canal_origem",
+     '        for coluna in ("canal_origem",):',
+     '        for coluna in ():'),
+    (ARQ_PAINEL,
+     "obter_metricas: aba nao expoe canal_origem",
+     '            "canal_origem": (p.get("canal_origem") or "").strip(),\n',
+     ""),
 ]
 
 TESTE = "tests.test_aba_links"

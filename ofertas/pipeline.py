@@ -493,6 +493,8 @@ async def processar_mensagem_telegram(
 
     # Se identificou produto através do scraper
     if oferta:
+        if source_id:
+            oferta.canal_origem = str(source_id)
         if resultado_ia.titulo_otimizado:
             log.info("[AI] Título otimizado: %s", resultado_ia.titulo_otimizado)
             oferta.titulo = resultado_ia.titulo_otimizado
@@ -511,6 +513,8 @@ async def processar_mensagem_telegram(
                 try:
                     oferta = await asyncio.to_thread(fonte_det.converter, url_geral)
                     if oferta:
+                        if source_id:
+                            oferta.canal_origem = str(source_id)
                         oferta.tipo = resultado_ia.tipo
                         if resultado_ia.cupom:
                             oferta.cupom = resultado_ia.cupom

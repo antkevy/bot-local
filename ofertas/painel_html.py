@@ -537,6 +537,11 @@ PAGINA = r"""<!doctype html>
     text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .link-original:hover { text-decoration: underline; color: var(--primaria-texto); }
+  .link-canal-tag {
+    display: inline-flex; align-items: center; min-height: 22px;
+    font: 500 11.5px var(--mono); color: var(--primaria-texto);
+  }
+  .link-canal-tag svg { flex: none; }
 
   /* == Plataformas =================================================
      Grade de cards compactos: logo, nome, uma linha de status, uma linha
@@ -2699,22 +2704,27 @@ async function atualizarStatus() {
     const s = await (await fetch("/api/status", { cache: "no-store" })).json();
     statusAtual = s;
     const on = !!s.bot_rodando;
+    const ext = !!s.bot_externo; // bot rodando fora do painel (ex.: systemd da VPS)
+    const ligado = on || ext;
     const acao = s.acao_rodando || "";
 
     // Cartão da sidebar
-    $("#ladoPonto").className = "ponto" + (acao ? " ocupado" : on ? " ativo" : "");
-    $("#ladoTitulo").textContent = acao ? "Ação em curso" : on ? "Bot ativo" : "Bot parado";
+    $("#ladoPonto").className = "ponto" + (acao ? " ocupado" : ligado ? " ativo" : "");
+    $("#ladoTitulo").textContent = acao ? "Ação em curso" : on ? "Bot ativo" : ext ? "Bot da VPS ativo" : "Bot parado";
     if (acao) {
       $("#ladoSub").innerHTML = `${esc(acao)} <br><span class="link-acao" style="color:var(--perigo, #ef4444); cursor:pointer; font-weight:600; text-decoration:underline; font-size:11px;" onclick="event.stopPropagation(); cancelarAcao();">✕ Cancelar ação</span>`;
     } else {
-      $("#ladoSub").textContent = on ? "Postando normalmente" : "Clique para ligar";
+      $("#ladoSub").textContent = on ? "Postando normalmente" : ext ? "Gerenciado pelo systemd" : "Clique para ligar";
     }
-    $("#ladoIcone").setAttribute("href", on ? "#i-stop" : "#i-play");
+    $("#ladoIcone").setAttribute("href", ligado ? "#i-stop" : "#i-play");
 
     // Selo do cabeçalho
-    $("#headerPill").dataset.ligado = on ? "1" : "0";
-    $("#headerPonto").className = "ponto" + (on ? " ativo" : "");
-    $("#headerTexto").textContent = on ? "Bot rodando" : "Bot parado";
+    $("#headerPill").dataset.ligado = ligado ? "1" : "0";
+    $("#headerPonto").className = "ponto" + (ligado ? " ativo" : "");
+    $("#headerTexto").textContent = on ? "Bot rodando" : ext ? "Bot da VPS ativo" : "Bot parado";
+
+    // Na VPS o bot é gerenciado pelo systemd: bloqueia o clique do cartão.
+    $("#botCartao").disabled = !!ext;
 
     // Ações ficam travadas enquanto algo roda — evita clique repetido e erro 409.
     const ocupado = !!acao;
@@ -3275,6 +3285,7 @@ function itemLink(l, completo) {
   const tit = esc(l.titulo || "Produto sem título");
   const url = esc(l.url || "");
   const original = esc(l.url_original || "");
+  const canal = esc(l.canal_origem || "");
   const quando = esc(l.data || "");
   const img = esc(l.imagem || "");
   const thumb = img
@@ -3292,7 +3303,8 @@ function itemLink(l, completo) {
     ? `<a class="link-url" href="${url}" target="_blank" rel="noopener noreferrer" title="${tit}">${url}</a>`
     : `<span class="link-url" style="color:var(--texto-3)">${tit}</span>`;
   // No cartão do dashboard a linha é curta (só o link de afiliado); na aba
-  // completa aparece também o link original — o "antes" da conversão.
+  // completa aparece também o link original — o "antes" da conversão — e a
+  // indicação do canal/grupo de onde foi feito o scraping (se veio de fonte Telegram).
   const afiliadoLinha = completo
     ? `<div class="link-linha"><span class="link-rotulo">afiliado</span>${abrir}</div>`
     : abrir;
@@ -3302,6 +3314,16 @@ function itemLink(l, completo) {
             title="${tit}">${original}</a>
        </div>`
     : "";
+  const canalLinha = (completo && canal)
+    ? `<div class="link-linha"><span class="link-rotulo">origem</span>
+         <span class="link-canal-tag" title="Oferta obtida por scraping do canal/grupo ${canal}">
+           <svg class="icone icone-xs" style="width:11px;height:11px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"><use href="#i-send"/></svg>${canal}
+         </span>
+       </div>`
+    : "";
+  const canalBadge = canal
+    ? ` &bull; <span class="selo selo-neutro" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:1px 6px;vertical-align:middle;" title="Fonte: scraping do Telegram (${canal})"><svg class="icone icone-xs" style="width:10px;height:10px;" aria-hidden="true"><use href="#i-send"/></svg>${canal}</span>`
+    : "";
   return `
     <div class="link-item">
       ${thumb}
@@ -3309,7 +3331,8 @@ function itemLink(l, completo) {
         <div class="link-titulo" title="${tit}">${tit}</div>
         ${afiliadoLinha}
         ${originalLinha}
-        <div class="link-meta">${quando}</div>
+        ${canalLinha}
+        <div class="link-meta">${quando}${canalBadge}</div>
       </div>
       ${copiar}
     </div>`;
@@ -3324,7 +3347,7 @@ async function puxarLogs() {
     ]);
     pintarTerminal("bot", lb && lb.linhas);
     pintarTerminal("acao", la && la.linhas);
-    const rodando = !!statusAtual.bot_rodando;
+    const rodando = !!statusAtual.bot_rodando || !!statusAtual.bot_externo;
     $("#logBotPonto").className = "ponto" + (rodando ? " ativo" : "");
     $("#logAcaoPonto").className = "ponto" + (statusAtual.acao_rodando ? " ocupado" : "");
   } catch (e) { /* servidor fora do ar: tenta de novo no próximo ciclo */ }
