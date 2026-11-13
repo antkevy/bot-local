@@ -1060,8 +1060,26 @@ class Handler(BaseHTTPRequestHandler):
                 })
             elif rota == "/api/userbot/status":
                 self._json(_userbot_tg_status())
+            elif rota.startswith("/s/"):
+                # Smart link: redireciona e conta o clique. Só existe no
+                # painel local, então não vira um encurtador público.
+                from .extras_api import tratar_smartlink
+                destino = tratar_smartlink(rota[3:])
+                if not destino:
+                    self._json({"erro": "link não encontrado"}, 404)
+                    return
+                self.send_response(302)
+                self.send_header("Location", destino)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
             else:
-                self._json({"erro": "rota desconhecida"}, 404)
+                from .extras_api import tratar_get
+                tratada = tratar_get(rota, urlparse(self.path).query)
+                if tratada is None:
+                    self._json({"erro": "rota desconhecida"}, 404)
+                else:
+                    self._json(tratada[0], tratada[1])
         except Exception as e:
             try:
                 self._json({"erro": str(e)}, 500)
@@ -1404,7 +1422,12 @@ class Handler(BaseHTTPRequestHandler):
                 # substitui a fase quando necessário.
                 return self._json({"erro": res.get("erro", "Código inválido.")}, 400)
             else:
-                self._json({"erro": "rota desconhecida"}, 404)
+                from .extras_api import tratar_post
+                tratada = tratar_post(rota, dados)
+                if tratada is None:
+                    self._json({"erro": "rota desconhecida"}, 404)
+                else:
+                    self._json(tratada[0], tratada[1])
         except Exception as e:
             try:
                 self._json({"erro": str(e)}, 500)

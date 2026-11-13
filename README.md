@@ -94,6 +94,25 @@ Cole um link de produto no privado do bot para testar, ou espere o primeiro cicl
 ## Ajustes — `config.yaml`
 Intervalo entre ciclos, quantos posts por vez, desconto mínimo, horário ativo e o **escopo do canal**. Por padrão o bot pega **ofertas de todas as categorias**. Para focar num nicho (tecnologia, moda, casa, pet…), preencha as listas de `categorias`/`departamentos`/`buscas` no `config.yaml` — há exemplos comentados dentro do arquivo. Edite e **reinicie o bot** (ele só lê a configuração ao iniciar).
 
+## Recursos extras (opt-in)
+A aba **Extras** do painel liga recursos que ficam desligados por padrão. Eles usam
+tabelas novas no mesmo banco e não alteram o pipeline existente:
+
+```yaml
+extras:
+  espelhamento: false          # destinos extras, cada um com seu interruptor
+  disparos: false              # mensagens e enquetes agendadas
+  protecao: false              # varredura revisável de fontes suspeitas
+  marca_dagua: false           # assinatura aplicada ao texto
+  smart_link: false            # links curtos locais em /s/<apelido>
+  credenciais: false           # segredos write-only (nunca voltam pela API)
+  disparos_horario_silencio: "" # ex.: "22:00-08:00" (BRT)
+```
+
+Desligar um recurso esconde a tela e recusa as rotas, mas **não apaga** o que já
+foi cadastrado. O envio de disparos é manual/agendado por quem chamar
+`broadcasts.enviar_pendentes`; nada é enviado sozinho só por ligar a flag.
+
 ## Deixar rodando sozinho
 - O bot posta enquanto a janela estiver aberta e o PC ligado. O `run.bat` reinicia sozinho se cair.
 - `horario_ativo` no `config.yaml` evita posts de madrugada (padrão 08:00–23:00).
@@ -128,6 +147,7 @@ ofertas/
 ├── pipeline.py        # coleta → filtros → gera links → posta
 ├── formatter.py       # visual do post
 ├── db.py              # banco anti-repetição
+├── extra_db.py        # tabelas dos recursos extras (espelhamento, disparos...)
 ├── config.py          # lê .env + config.yaml
 └── sources/           # mercadolivre.py, shopee.py, amazon.py
 ```
