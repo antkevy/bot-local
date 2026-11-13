@@ -20,9 +20,17 @@ O padrão é `127.0.0.1:8481`. Use a porta real nos passos abaixo.
 
 ## 2. Atualizar o `painel.py` da VPS
 
-A VPS tem arquivos que divergem do repositório local (ver
-`docs/tarefas-login-userbot-painel.md`). Faça backup e compare antes de
-sobrescrever:
+Antes de sobrescrever, compare com o local — a VPS pode ter mudanças de
+produção que não estão no repositório:
+
+```bash
+scp ubuntu@<vps>:/home/ubuntu/bot-local/ofertas/painel.py /tmp/painel_vps.py
+diff -u ofertas/painel.py /tmp/painel_vps.py
+```
+
+Em 13/11/2026 os arquivos eram idênticos ao local, exceto pelas mudanças
+pendentes de deploy. Se o `diff` mostrar outra coisa, faça backup e mescle
+à mão:
 
 ```bash
 cp ofertas/painel.py ofertas/painel.py.bak-$(date +%F)
