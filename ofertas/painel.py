@@ -141,9 +141,14 @@ def salvar_env(novos: dict[str, str], acessos: dict[str, str] | None = None) -> 
 # ── Autenticação ───────────────────────────────────────────────────────
 # O painel mexe em segredos (.env), liga/desliga o bot e roda ações que
 # abrem navegador. Enquanto ele fica em 127.0.0.1 isso não é exposto a
-# ninguém — mas o dia que o HOST virar 0.0.0.0 (para acesso pela rede) o
-# painel fica aberto. Por isso há login, e a ausência de credenciais
-# NÃO significa "aberto": significa "só loopback", nunca "liberado".
+# ninguém — mas o dia que o HOST virar 0.0.0.0 (para acesso pela rede), ou
+# que alguém publicar a porta por um túnel (cloudflared, ngrok), o painel
+# fica aberto. Por isso há login, e a ausência de credenciais NÃO significa
+# "aberto": significa "só loopback", nunca "liberado".
+#
+# Cuidado com túnel: todo pedido que passa por ele chega de 127.0.0.1. Se o
+# IP do cliente fosse lido do socket, o painel se acharia local e liberaria
+# tudo sem senha. `_ip_do_pedido` resolve isso lendo o header do proxy.
 
 COOKIE_SESSAO = "painel_sessao"
 DURACAO_SESSAO = 8 * 3600          # 8 horas
@@ -184,6 +189,44 @@ def _ip_loopback(ip: str) -> bool:
         return ipaddress.ip_address(ip).is_loopback
     except ValueError:
         return ip in ("localhost", "")
+
+
+# Cabeçalhos que um proxy reverso acrescenta com o IP de quem realmente pediu.
+# O cloudflared (túnel) preenche CF-Connecting-IP e X-Forwarded-For; nginx e
+# afins usam X-Real-IP/X-Forwarded-For.
+_HEADERS_IP = ("CF-Connecting-IP", "X-Real-IP", "X-Forwarded-For")
+
+
+def _ip_do_pedido(headers, peer: str) -> str:
+    """IP do cliente para checagem de loopback e limite de tentativas.
+
+    Por que isso não é `client_address[0]` e pronto
+    -----------------------------------------------
+    Atrás de um túnel/proxy, TODA conexão chega de 127.0.0.1. Usar o peer
+    fazia o painel achar que qualquer visitante da internet era local — e
+    `_permitido` libera loopback sem senha quando PAINEL_SENHA não existe.
+    Um quick tunnel do trycloudflare expôs o painel inteiro desse jeito.
+
+    Regra: só confia nos cabeçalhos quando quem conectou é o proxy local
+    (peer loopback). Uma conexão direta nunca dita o próprio IP por header,
+    senão bastaria mandar "CF-Connecting-IP: 127.0.0.1" para virar local.
+    """
+    peer = peer or ""
+    if not _ip_loopback(peer):
+        return peer
+    for nome in _HEADERS_IP:
+        valor = str(headers.get(nome) or "").strip()
+        if not valor:
+            continue
+        # X-Forwarded-For pode ser "cliente, proxy1, proxy2": o primeiro é o
+        # cliente. IPv6 com colchetes/porta não é o formato do cloudflared,
+        # mas se vier assim é descartado em vez de virar string solta.
+        candidato = valor.split(",")[0].strip().strip("[]")
+        try:
+            return str(ipaddress.ip_address(candidato))
+        except ValueError:
+            continue
+    return peer
 
 
 def _bloqueado(ip: str) -> float | None:
@@ -734,7 +777,11 @@ class Handler(BaseHTTPRequestHandler):
         pass  # silencia o log padrão
 
     def _ip(self) -> str:
-        return self.client_address[0] if self.client_address else ""
+        # Não é o peer cru: atrás de túnel/proxy o peer é sempre 127.0.0.1.
+        # Ver _ip_do_pedido() — é o que impede o painel de se achar local
+        # quando está publicado na internet.
+        peer = self.client_address[0] if self.client_address else ""
+        return _ip_do_pedido(self.headers, peer)
 
     def _permitido(self) -> bool:
         """Libera o pedido, ou já respondeu 401/403 e retorna False."""
@@ -745,8 +792,9 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if not _autenticado():
             # Sem credenciais, o painel só funciona a partir da própria
-            # máquina. Se algum dia o HOST virar 0.0.0.0, isso vira 403
-            # em vez de exposure acidental.
+            # máquina. O IP vem de _ip()/_ip_do_pedido(), que enxerga o
+            # cliente real atrás de túnel — senão o proxy local (127.0.0.1)
+            # faria qualquer visitante da internet passar por local.
             if _ip_loopback(self._ip()):
                 return True
             self._json({
