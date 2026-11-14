@@ -138,14 +138,17 @@ async def _cmd_status_ml(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # não travar o loop de eventos do bot enquanto espera a resposta do ML.
     res = await asyncio.to_thread(ml_auth_service.testar_autenticacao)
     if res.get("authenticated"):
-        metodo = "Link Builder" if res.get("method") == "linkbuilder" else "Cookie"
-        await update.message.reply_text(f"✅ Mercado Livre: *Autenticado via {metodo}*\nLink de teste gerado: `{res.get('link_teste', '')}`", parse_mode="Markdown")
-    else:
         await update.message.reply_text(
-            "⚠️ Mercado Livre: *Autenticação Necessária*\n"
-            "Nem o Link Builder nem o Cookie estão funcionando.\n"
-            "Envie `/setcookie <seu_cookie>` para atualizar via cookie ou faça login no Link Builder.",
-            parse_mode="Markdown"
+            f"✅ Mercado Livre: *Autenticado via cookie*\nLink de teste gerado: `{res.get('link_teste', '')}`",
+            parse_mode="Markdown",
+        )
+    else:
+        detalhe = res.get("detalhe") or res.get("error") or "falha desconhecida"
+        await update.message.reply_text(
+            "⚠️ Mercado Livre: *Autenticação necessária*\n"
+            f"Motivo: {detalhe}\n"
+            "Envie `/setcookie <seu_cookie>` para atualizar o cookie.",
+            parse_mode="Markdown",
         )
 
 

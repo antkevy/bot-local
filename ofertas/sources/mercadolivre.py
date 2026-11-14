@@ -1,27 +1,28 @@
-"""Mercado Livre: scraping da página de ofertas + link de afiliado via Linkbuilder.
+"""Mercado Livre: scraping da página de ofertas + link de afiliado.
 
 O ML não tem API pública para afiliados, mas o Linkbuilder do painel usa uma API
-interna simples (createLink), autenticada só pelos cookies da sessão. O bot chama
-essa API de dentro de uma página logada (perfil persistente do Chrome em
-data/ml_profile). Faça login uma única vez com:
-
-    uv run python -m ofertas ml-login
+interna simples (createLink), autenticada só pelos cookies da sessão. A
+autenticação do bot é **exclusivamente por cookie**: o valor de ``ML_COOKIE``
+(ou o cookie salvo em ``data/ml_cookies.json`` pelo /setcookie) é injetado em um
+Chromium temporário, que coleta as ofertas e chama o createLink. Não existe mais
+login pelo navegador nem perfil persistente em ``data/ml_profile``.
 """
-import json
 import logging
 import os
 import re
-import subprocess
+import shutil
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode, urlparse
 
 from bs4 import BeautifulSoup
 
 from .. import parada
-from ..config import DATA_DIR, config
+from ..config import config
 from ..marketplaces import url_pertence
 from ..models import Oferta
 from ..utils import USER_AGENT, parse_preco_br, sessao
@@ -31,15 +32,13 @@ log = logging.getLogger("ofertas.ml")
 URL_OFERTAS = "https://www.mercadolivre.com.br/ofertas"
 URL_LINKBUILDER = "https://www.mercadolivre.com.br/afiliados/linkbuilder"
 API_CREATELINK = "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink"
-PERFIL_DIR = DATA_DIR / "ml_profile"
 
 _RE_ID = re.compile(r"(MLB-?\d{6,})")
 
-# Duas gerações de link em paralelo abrem dois Chromes no MESMO perfil
-# persistente (data/ml_profile). O segundo trava no lock do perfil do Chrome e
-# os dois ficam pendurados indefinidamente — foi isso que acumulou dezenas de
-# chrome-headless e elevou o load da VPS a ~37. Serializar as gerações resolve.
-_LINKBUILDER_LOCK = threading.Lock()
+# Um Chromium por vez: cada coleta sobe um navegador e o ML não gosta de duas
+# sessões simultâneas com o mesmo cookie. Serializar também evita que a coleta
+# e o teste de conexão abram dois navegadores ao mesmo tempo na VPS.
+_NAVEGADOR_LOCK = threading.Lock()
 
 
 _HOSTS_ML = frozenset({
@@ -64,52 +63,13 @@ def e_id_produto(id_produto: str | None) -> bool:
     return bool(id_produto) and bool(re.fullmatch(r"MLB\d{6,}", str(id_produto)))
 
 
-def tem_sessao_linkbuilder() -> bool:
-    """Verifica se há sessão autenticada real no perfil persistente do Link Builder."""
-    cookie_file = PERFIL_DIR / "Default" / "Network" / "Cookies"
-    if not cookie_file.exists():
-        cookie_file = PERFIL_DIR / "Default" / "Cookies"
-    if not cookie_file.exists():
-        return False
-    try:
-        import sqlite3
-        import tempfile
-        import shutil
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".sqlite") as tmp:
-            tmp_path = tmp.name
-        shutil.copyfile(cookie_file, tmp_path)
-        conn = sqlite3.connect(tmp_path)
-        cur = conn.cursor()
-        # Nomes que a lista observada no perfil realmente usa. Antes só olhava
-        # org_user_id/user_id/_mldataToken, que o ML não emite mais, então uma
-        # sessão válida era reportada como ausente e o painel mandava refazer
-        # o login. orguserid e _mldataSessionId são os cookies de identidade.
-        cur.execute(
-            "SELECT name FROM cookies WHERE name IN ("
-            "'org_user_id', 'ssid', 'c_user', 'user_id', '_mldataToken', 'cp', "
-            "'orguserid', 'orguseridp', '_mldataSessionId', 'c_ontg', 'p_dsid', "
-            "'p_edsid') AND host_key LIKE '%mercadolivre%'"
-        )
-        rows = cur.fetchall()
-        conn.close()
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
-        return len(rows) > 0
-    except Exception:
-        return cookie_file.stat().st_size > 50000
-
-
 def tem_sessao() -> bool:
-    """Verifica se há sessão ativa para o Mercado Livre (Link Builder ou Cookie)."""
+    """Diz se há cookie do Mercado Livre configurado (única autenticação)."""
     try:
-        from .ml_auth import ml_auth_service
-        if ml_auth_service.tem_cookie():
-            return True
+        from . import ml_auth
+        return ml_auth.tem_cookie()
     except Exception:
-        pass
-    return tem_sessao_linkbuilder()
+        return False
 
 
 # ── Busca de ofertas (scraping, sem login) ───────────────────────────
@@ -120,31 +80,240 @@ def _categorias() -> dict[str, str]:
     return dict(cats) if isinstance(cats, dict) else {str(c): str(c) for c in cats}
 
 
-def buscar_ofertas() -> list[Oferta]:
-    """Página de ofertas do ML, filtrada pelas categorias do config (ofertas?category=MLB...)."""
+# Caminhos que o Mercado Livre usa para páginas que NÃO são anúncio: perfil
+# público, listas, encurtador, feed, verificação de conta. O createLink recusa
+# todas com "URL Invalid" (error_code 100), mas a cascata de autenticação
+# interpretava isso como sessão expirada e guardava a URL na fila de pendências
+# do ML, onde ela nunca teria como funcionar.
+_CAMINHOS_NAO_PRODUTO = (
+    "/social/", "/sec/", "/scfeed", "/gz/", "/afiliados",
+    "/jms/", "/cupons", "/perfil/", "/lists",
+)
+_HOSTS_NAO_PRODUTO = ("click1.", "click.")
+
+
+def e_url_de_produto(url: str | None) -> bool:
+    """Diz se a URL é de um anúncio (e não de perfil, lista ou link de tracking).
+
+    Links de produto aparecem de duas formas: `www.mercadolivre.com.br/<slug>`
+    ou `produto.mercadolivre.com.br/MLB-...` — a primeira não traz o id MLB no
+    caminho, então não dá para exigir MLB. O critério aqui é o inverso: só
+    recusa o que comprovadamente não é produto. `meli.la` conta como válido
+    porque `converter` o expande antes de gerar o link.
+    """
+    if not url:
+        return False
+    if not e_link(url):
+        return False
+    partes = urlparse(url)
+    host = (partes.netloc or "").lower()
+    if any(host.startswith(p) for p in _HOSTS_NAO_PRODUTO):
+        return False
+    caminho = (partes.path or "/").lower()
+    if caminho.rstrip("/") in ("/ofertas", "/scfeed"):
+        return False
+    if any(caminho.startswith(p) for p in _CAMINHOS_NAO_PRODUTO):
+        return False
+    return True
+
+
+def _alvos_de_coleta() -> list[tuple[str, str]]:
+    """[(url, nome da categoria)] para todas as páginas do config."""
     paginas = max(1, int(config.fonte_ml.get("paginas", 1)))
     categorias = _categorias() or {"": "todas"}
-    s = sessao()
-    ofertas: dict[str, Oferta] = {}
+    alvos: list[tuple[str, str]] = []
     for cat_id, nome in categorias.items():
         for pagina in range(1, paginas + 1):
-            if parada.pedido():
-                log.info("Mercado Livre: parada pedida — interrompendo em %s p.%d", nome, pagina)
-                break
             params = {}
             if cat_id:
                 params["category"] = cat_id
             if pagina > 1:
                 params["page"] = pagina
-            r = s.get(URL_OFERTAS, params=params or None, timeout=30)
-            r.raise_for_status()
-            achadas = _parse_pagina(r.text)
-            for o in achadas:
-                ofertas.setdefault(o.id_produto, o)
-            log.info("Mercado Livre %s: %d ofertas", nome, len(achadas))
-            time.sleep(1)
-    log.info("Mercado Livre: %d ofertas coletadas", len(ofertas))
+            url = URL_OFERTAS + ("?" + urlencode(params) if params else "")
+            alvos.append((url, nome))
+    return alvos
+
+
+# Quantas páginas de /ofertas por ciclo. Varria TODAS (12 categorias x 2 páginas
+# a cada 25 min) e o ML respondeu com `/captcha/wall/logged`: 24 páginas em ~8
+# minutos por ciclo é ritmo de robô. Com janela rotativa o catálogo continua
+# sendo coberto em poucos ciclos, com ~1/4 das requisições.
+PAGINAS_POR_CICLO_PADRAO = 6
+_CURSOR_ROTACAO = 0
+
+# Página alternativa quando /ofertas exige captcha. Validada em 13/11/2026:
+# 196 cards, 196 ofertas parseadas, 0 sem preço. Não respeita as categorias do
+# config, então é plano B — melhor postar fora do nicho do que ficar sem ML.
+URL_MAIS_VENDIDOS = "https://www.mercadolivre.com.br/mais-vendidos"
+_BLOQUEIO_SEGUNDOS = 3600
+_BLOQUEIO_ATE = 0.0
+
+
+def _paginas_por_ciclo() -> int:
+    try:
+        valor = int(config.fonte_ml.get("paginas_por_ciclo",
+                                        PAGINAS_POR_CICLO_PADRAO))
+    except (TypeError, ValueError):
+        return PAGINAS_POR_CICLO_PADRAO
+    return valor if valor > 0 else PAGINAS_POR_CICLO_PADRAO
+
+
+def _alvos_do_ciclo() -> list[tuple[str, str]]:
+    """Janela rotativa de páginas: cobre todas as categorias sem varrer tudo."""
+    global _CURSOR_ROTACAO
+    alvos = _alvos_de_coleta()
+    limite = _paginas_por_ciclo()
+    if limite >= len(alvos):
+        _CURSOR_ROTACAO = 0
+        return alvos
+    inicio = _CURSOR_ROTACAO % len(alvos)
+    janela = [alvos[(inicio + i) % len(alvos)] for i in range(limite)]
+    _CURSOR_ROTACAO = (inicio + limite) % len(alvos)
+    return janela
+
+
+def _alvos_alternativos() -> list[tuple[str, str]]:
+    return [(URL_MAIS_VENDIDOS, "mais vendidos")]
+
+
+def _bloqueado() -> bool:
+    return time.time() < _BLOQUEIO_ATE
+
+
+def _registrar_bloqueio(motivo: str) -> None:
+    global _BLOQUEIO_ATE
+    _BLOQUEIO_ATE = time.time() + _BLOQUEIO_SEGUNDOS
+    log.warning("Mercado Livre: /ofertas em verificação/captcha (%s). "
+                "Usando a página alternativa por até %d min.",
+                motivo[:110], _BLOQUEIO_SEGUNDOS // 60)
+
+
+# Trechos da URL para onde o ML redireciona quando exige conta/verificação.
+# Acontece com requisição HTTP anônima: a página de ofertas some e chega um
+# "Olá! Para continuar, acesse sua conta" com zero cards.
+_PADROES_VERIFICACAO = ("account-verification", "captcha", "web-risk-verification")
+
+
+class _VerificacaoML(RuntimeError):
+    """/ofertas caiu em verificação de conta/captcha, com o que já foi coletado."""
+
+    def __init__(self, mensagem: str, ofertas: list[Oferta]):
+        super().__init__(mensagem)
+        self.ofertas = ofertas
+
+
+def _coletar_no_navegador(pw, alvos: list[tuple[str, str]]) -> list[Oferta]:
+    """Coleta as páginas de ofertas dentro de um Chromium autenticado por cookie.
+
+    O scraping por HTTP puro é barrado pelo ML: sem sessão ele redireciona para
+    `/gz/account-verification`, e com cookie o fingerprint do `requests` cai no
+    captcha. No navegador com os cookies de `ML_COOKIE` a página abre normal
+    (validado em 13/11/2026: 197 cards, 197 ofertas parseadas).
+    """
+    ofertas: dict[str, Oferta] = {}
+    with _NAVEGADOR_LOCK:
+        ctx = _abrir_contexto(pw, headless=True)
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        try:
+            for url, nome in alvos:
+                if parada.pedido():
+                    log.info("Mercado Livre: parada pedida — interrompendo em %s", nome)
+                    break
+                page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+                if any(p in page.url for p in _PADROES_VERIFICACAO):
+                    # Devolve o que já foi coletado: perder 40 ofertas boas
+                    # porque a 6ª página pediu captcha não faz sentido.
+                    raise _VerificacaoML(
+                        f"ML pediu verificação de conta ({page.url[:90]})",
+                        list(ofertas.values()))
+                try:
+                    page.wait_for_selector("div.poly-card", timeout=8_000)
+                except Exception:
+                    pass        # página sem cards é válida; _parse_pagina decide
+                achadas = _parse_pagina(page.content())
+                for o in achadas:
+                    ofertas.setdefault(o.id_produto, o)
+                log.info("Mercado Livre %s: %d ofertas", nome, len(achadas))
+        finally:
+            ctx.close()
     return list(ofertas.values())
+
+
+def _buscar_via_navegador(alvos: list[tuple[str, str]]) -> list[Oferta]:
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        return _coletar_no_navegador(pw, alvos)
+
+
+def _buscar_via_http(alvos: list[tuple[str, str]]) -> list[Oferta]:
+    s = sessao()
+    ofertas: dict[str, Oferta] = {}
+    for url, nome in alvos:
+        if parada.pedido():
+            log.info("Mercado Livre: parada pedida — interrompendo em %s", nome)
+            break
+        r = s.get(url, timeout=30)
+        r.raise_for_status()
+        achadas = _parse_pagina(r.text)
+        for o in achadas:
+            ofertas.setdefault(o.id_produto, o)
+        log.info("Mercado Livre %s: %d ofertas", nome, len(achadas))
+        time.sleep(1)
+    return list(ofertas.values())
+
+
+def _coletar_alternativa() -> list[Oferta]:
+    """Plano B sem categorias, para quando /ofertas está com captcha."""
+    try:
+        coletadas = _buscar_via_navegador(_alvos_alternativos())
+    except Exception as e:
+        log.warning("Mercado Livre: página alternativa também falhou (%s: %s)",
+                    type(e).__name__, e)
+        return []
+    if coletadas:
+        log.info("Mercado Livre: %d ofertas coletadas (mais vendidos)",
+                 len(coletadas))
+    return coletadas
+
+
+def buscar_ofertas() -> list[Oferta]:
+    """Ofertas do ML: /ofertas por categoria via navegador, com plano B.
+
+    Ordem: janela rotativa de `/ofertas?category=` no Chromium autenticado →
+    (se houver captcha) `/mais-vendidos` → (sem sessão) HTTP antigo, que o ML
+    quase sempre barra mas ainda serve de rede de segurança.
+    """
+    if parada.pedido():
+        log.info("Mercado Livre: parada pedida antes da coleta")
+        return []
+    alvos = _alvos_do_ciclo()
+
+    if tem_sessao():
+        if _bloqueado():
+            # Não insiste no captcha a cada ciclo: ficaria esquentando o
+            # bloqueio e gastando 30s por tentativa.
+            return _coletar_alternativa()
+
+        try:
+            coletadas = _buscar_via_navegador(alvos)
+            if coletadas:
+                log.info("Mercado Livre: %d ofertas coletadas (navegador)", len(coletadas))
+                return coletadas
+            log.warning("Mercado Livre: navegador não devolveu ofertas; tentando HTTP")
+        except _VerificacaoML as e:
+            _registrar_bloqueio(str(e))
+            if e.ofertas:
+                log.warning("Mercado Livre: bloqueio no meio da coleta; "
+                            "aproveitando %d ofertas já coletadas", len(e.ofertas))
+                return e.ofertas
+            return _coletar_alternativa()
+        except Exception as e:
+            log.warning("Mercado Livre: coleta pelo navegador falhou (%s: %s); tentando HTTP",
+                        type(e).__name__, e)
+
+    ofertas = _buscar_via_http(alvos)
+    log.info("Mercado Livre: %d ofertas coletadas", len(ofertas))
+    return ofertas
 
 
 def _preco_de(card, seletor_base: str) -> float | None:
@@ -305,67 +474,59 @@ def _parse_pagina(html: str) -> list[Oferta]:
     return ofertas
 
 
-def _limpar_locks_perfil():
-    """Remove lockfiles residuais para evitar erro de ProcessSingleton no Windows."""
-    try:
-        (PERFIL_DIR / "lockfile").unlink(missing_ok=True)
-        for lf in PERFIL_DIR.rglob("*LOCK*"):
-            try:
-                lf.unlink(missing_ok=True)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    _anular_prompt_de_recuperacao()
+def _cookies_para_playwright(cookie_str: str) -> list[dict[str, Any]]:
+    """Converte o header ``nome=valor; ...`` nos cookies que o Playwright aceita."""
+    from .ml_auth import normalizar_cookie
+    cookies: list[dict[str, Any]] = []
+    for parte in normalizar_cookie(cookie_str).split(";"):
+        parte = parte.strip()
+        if "=" not in parte:
+            continue
+        nome, valor = parte.split("=", 1)
+        if nome.strip():
+            cookies.append({
+                "name": nome.strip(),
+                "value": valor.strip(),
+                "domain": ".mercadolivre.com.br",
+                "path": "/",
+            })
+    return cookies
 
 
-def _anular_prompt_de_recuperacao():
-    """Impede que o Chromium abra a janela de login do Google por cima do app.
+class _ContextoTemporario:
+    """Contexto do Chromium + diretório temporário que ele usa como perfil.
 
-    O build do Playwright é um "Chrome for Testing", assinado pelo Google.
-    Quando o processo do navegador é encerrado à força (e o painel faz isso ao
-    cancelar uma ação, ou quando o usuário fecha o terminal), o perfil fica
-    gravado como encerramento Abortado. Na abertura seguinte o Chrome reage a
-    esse estado com a janela "Fazer login nas Contas do Google" — que abre por
-    cima da aba do Link Builder e faz o usuário achar que o login do ML quebrou.
-
-    Marcamos o perfil como encerrado normalmente e desligamos os prompts de
-    primeiro uso. Só escrevemos se o arquivo já existir, para não criar um
-    Preferences vazio que o Chromium rejeitaria.
+    O chamador continua usando ``ctx.pages``, ``ctx.new_page()`` e
+    ``ctx.close()``: fechar o contexto apaga o perfil descartável, sem deixar
+    lixo em ``data/``.
     """
-    prefs = PERFIL_DIR / "Default" / "Preferences"
-    if not prefs.exists():
-        return
-    try:
-        with open(prefs, encoding="utf-8") as f:
-            dados = json.load(f)
-        if not isinstance(dados, dict):
-            return
-        # num perfil recem-criado a chave "profile" ainda não existe, e
-        # dados["profile"] direto levantava KeyError aqui
-        perfil = dados.setdefault("profile", {})
-        perfil["exit_type"] = "Normal"
-        perfil["exited_cleanly"] = True
-        for chave in ("session.restore_apps", "session.restore_on_startup",
-                      "session.startup_urls", "browser.has_seen_welcome_page",
-                      "signin.allowed", "browser.signin_with_device_challenge",
-                      "profile.last_signin_time", "signin.last_signin_time"):
-            # remove só prompts/estado de login, nunca configuração do usuário
-            if chave in dados:
-                dados.pop(chave, None)
-        if isinstance(dados.get("signin"), dict):
-            dados["signin"] = {"allowed": False}
-        with open(prefs, "w", encoding="utf-8") as f:
-            json.dump(dados, f, ensure_ascii=False)
-    except (OSError, ValueError, TypeError) as e:
-        # Este ajuste é uma conveniência: se der erro, o login ainda funciona,
-        # só pode voltar a aparecer o aviso do Google.
-        log.debug("Não consegui neutralizar o prompt de recuperação: %s", e)
+
+    def __init__(self, ctx, caminho: str):
+        self._ctx = ctx
+        self._caminho = caminho
+
+    def __getattr__(self, nome):
+        return getattr(self._ctx, nome)
+
+    def close(self) -> None:
+        try:
+            self._ctx.close()
+        finally:
+            shutil.rmtree(self._caminho, ignore_errors=True)
 
 
-def _abrir_contexto(pw, headless: bool):
-    """Abre contexto Chromium isolado para o Mercado Livre com proteção anti-automação."""
-    _limpar_locks_perfil()
+def _abrir_contexto(pw, headless: bool) -> _ContextoTemporario:
+    """Abre um Chromium limpo e injeta os cookies do Mercado Livre.
+
+    Sem perfil persistente: cada chamada usa um diretório temporário próprio,
+    então não existe ProcessSingleton para travar entre coletas concorrentes e
+    a sessão não fica gravada em disco.
+    """
+    from . import ml_auth
+    cookie = ml_auth.obter_cookie_configurado()
+    if not cookie:
+        raise RuntimeError("ML_COOKIE não configurado — cole o cookie do Mercado Livre no painel")
+
     kwargs = dict(
         headless=headless,
         locale="pt-BR",
@@ -378,36 +539,32 @@ def _abrir_contexto(pw, headless: bool):
             # já envia a dele e, no Chrome, o último --disable-features vence.
             # Sobrescrever a lista do Playwright removeria as proteções
             # anti-detecção e o ML passaria a tratar o bot como robô.
-            # O prompt de login do Google é neutralizado em
-            # _anular_prompt_de_recuperacao(), no próprio perfil.
             "--disable-sync",
         ],
         ignore_default_args=["--enable-automation"],
+        user_agent=USER_AGENT,
+        # Sem isto, uma abertura travada faz o `launch` pendurar para sempre
+        # (não levanta exceção); com o teto, ele falha e libera o lock.
+        timeout=20_000,
     )
-    if headless:
-        kwargs["user_agent"] = USER_AGENT
-    else:
+    if not headless:
         kwargs["no_viewport"] = True
-        # Sem isto a janela nasce pequena e atrás das outras, e o usuário
-        # conclui que o navegador "não abriu".
         kwargs["args"] = kwargs["args"] + ["--start-maximized"]
 
-    # Sem isto, um perfil travado por outra instância faz o `launch` pendurar
-    # para sempre (não levanta exceção); com o teto, ele falha e libera o lock.
-    kwargs["timeout"] = 20_000  # ms
-
+    caminho = tempfile.mkdtemp(prefix="ml_navegador_")
     try:
-        # Usa o Chromium isolado do projeto para nunca conflitar com instâncias abertas do usuário
-        return pw.chromium.launch_persistent_context(str(PERFIL_DIR), **kwargs)
-    except Exception as e:
-        log.warning("Falha ao abrir Chromium isolado (%s); tentando navegador do sistema...", e)
         try:
-            chrome = _achar_chrome()
-            kwargs["executable_path"] = chrome
-            return pw.chromium.launch_persistent_context(str(PERFIL_DIR), **kwargs)
-        except Exception as e2:
-            log.error("Erro fatal ao abrir navegador: %s", e2)
-            raise
+            # Chromium isolado do projeto: nunca conflita com o navegador do usuário.
+            ctx = pw.chromium.launch_persistent_context(caminho, **kwargs)
+        except Exception as e:
+            log.warning("Falha ao abrir Chromium isolado (%s); tentando navegador do sistema...", e)
+            kwargs["executable_path"] = _achar_chrome()
+            ctx = pw.chromium.launch_persistent_context(caminho, **kwargs)
+        ctx.add_cookies(_cookies_para_playwright(cookie))
+        return _ContextoTemporario(ctx, caminho)
+    except Exception:
+        shutil.rmtree(caminho, ignore_errors=True)
+        raise
 
 
 def _achar_chrome() -> str:
@@ -465,144 +622,8 @@ def _achar_chrome() -> str:
     raise RuntimeError("Nenhum navegador baseado em Chromium (Chrome, Brave ou Edge) encontrado.")
 
 
-def _pagina_util(ctx):
-    """Devolve uma aba real do app, ignorando as páginas internas do Chromium.
-
-    `ctx.pages[0]` não é garantidamente a aba que queremos: quando o navegador
-    resolve abrir um aviso de primeira execução, a primeira aba é a dele e o
-    `goto` pode ser interceptado. Preferimos uma aba em branco e, só se não
-    houver nenhuma, reaproveitamos a que não for interna.
-    """
-    for p in list(ctx.pages):
-        if p.url.startswith(("about:blank", "data:", "chrome://", "edge://")):
-            return p
-    return ctx.new_page()
-
-
-def ml_login() -> None:
-    """Abre um navegador visível para o usuário fazer login no Mercado Livre."""
-    from playwright.sync_api import sync_playwright
-    PERFIL_DIR.mkdir(parents=True, exist_ok=True)
-    print("\n➡️ Abrindo janela do navegador para login no Mercado Livre...", flush=True)
-    print("    1. Uma janela dedicada do navegador vai se abrir na sua tela.", flush=True)
-    print("    2. Faça login na sua conta do Mercado Livre.", flush=True)
-    print("    3. Quando o Link Builder carregar logado, você pode fechar a janela.\n", flush=True)
-
-    with sync_playwright() as pw:
-        ctx = _abrir_contexto(pw, headless=False)
-        page = _pagina_util(ctx)
-        carregou = False
-        for tentativa in (1, 2):
-            try:
-                page.goto(URL_LINKBUILDER, wait_until="domcontentloaded", timeout=45000)
-                carregou = True
-                break
-            except Exception as e:
-                log.warning("Tentativa %d ao abrir o Link Builder falhou: %s", tentativa, e)
-                if tentativa < 2:
-                    time.sleep(2)
-        if carregou:
-            print(f"    ✅ Link Builder carregado: {page.url}\n", flush=True)
-        else:
-            # Antes isto era só um log.warning e a pessoa ficava olhando
-            # para uma página em branco, sem nenhuma pista do que houve.
-            print("    ⚠️  Não consegui carregar o Link Builder. Se a janela "
-                  "estiver em branco, feche-a e clique em 'Fazer login' de novo.\n",
-                  flush=True)
-        try:
-            # Traz a aba do ML para a frente de qualquer janela auxiliar que o
-            # navegador tenha aberto por cima dela.
-            page.bring_to_front()
-        except Exception:
-            pass
-
-        # Mantém aberto enquanto a janela estiver ativa. O wait_for_timeout é o
-        # que bombeia os eventos do navegador, então é ele que percebe quando
-        # a pessoa fecha a janela.
-        limite = time.monotonic() + 30 * 60
-        try:
-            while len(ctx.pages) > 0 and not page.is_closed():
-                if time.monotonic() > limite:
-                    print("    ⏱️  30 min sem interação: encerrando a janela.", flush=True)
-                    break
-                page.wait_for_timeout(1000)
-        except Exception:
-            pass
-        finally:
-            try:
-                # Encerrar o Chromium em ordem é o que grava os cookies em
-                # disco. Se o processo for morto antes, o login se perde e
-                # tem_sessao_linkbuilder() volta a dizer que não há sessão.
-                ctx.close()
-            except Exception:
-                pass
-
-    if tem_sessao_linkbuilder():
-        print(f"✅ Login concluído! Perfil salvo em {PERFIL_DIR}.", flush=True)
-    else:
-        print(f"ℹ️ Janela do navegador encerrada. Caso não tenha feito o login via navegador, você pode colar seu Cookie no painel.", flush=True)
-
-
-def _criar_links_api(page, urls: list[str], etiqueta: str) -> list[str]:
-    """Chama a API interna do Linkbuilder de dentro da página logada; retorna os short links.
-
-    Payload/resposta observados em 2026-08-21:
-    POST createLink {"urls": [...], "tag": "<etiqueta>"} ->
-    {"status": 200, "urls": [{"id", "created", "short_url": "https://meli.la/...", ...}]}
-    """
-    r = page.evaluate(
-        """async ({api, urls, tag}) => {
-            const resp = await fetch(api, {
-                method: 'POST',
-                headers: {'content-type': 'application/json'},
-                body: JSON.stringify({urls, tag}),
-            });
-            const corpo = await resp.text();
-            try { return {http: resp.status, dados: JSON.parse(corpo)}; }
-            catch (e) { return {http: resp.status, texto: corpo.slice(0, 300)}; }
-        }""",
-        {"api": API_CREATELINK, "urls": urls, "tag": etiqueta},
-    )
-    if r.get("http") != 200 or not r.get("dados"):
-        raise RuntimeError(f"createLink respondeu HTTP {r.get('http')}: {r.get('texto', '')}")
-    itens = (r["dados"].get("urls")) or []
-    links = [i.get("short_url") or "" for i in itens]
-    if len(links) != len(urls) or not all(links):
-        raise RuntimeError(f"createLink devolveu {sum(1 for l in links if l)} links "
-                           f"para {len(urls)} URLs: {r['dados']}")
-    return links
-
-
-def _gerar_links_linkbuilder_batch(pendentes: list[Oferta], etiqueta: str) -> None:
-    """Executa a geração de links via Playwright e perfil persistente do Linkbuilder."""
-    from playwright.sync_api import sync_playwright
-
-    if not tem_sessao():
-        raise RuntimeError("Sessão do ML não encontrada — faça login via Linkbuilder")
-    if not etiqueta:
-        raise RuntimeError("ML_ETIQUETA não configurada")
-
-    with _LINKBUILDER_LOCK:
-        with sync_playwright() as pw:
-            ctx = _abrir_contexto(pw, headless=True)
-            page = ctx.pages[0] if ctx.pages else ctx.new_page()
-            try:
-                page.goto(URL_LINKBUILDER, wait_until="domcontentloaded")
-                if "login" in page.url or "registration" in page.url:
-                    raise RuntimeError("Sessão do ML expirou no Linkbuilder")
-                page.wait_for_timeout(1500)
-                for i in range(0, len(pendentes), 10):
-                    lote = pendentes[i:i + 10]
-                    links = _criar_links_api(page, [o.url_produto for o in lote], etiqueta)
-                    for o, link in zip(lote, links):
-                        o.url_afiliado = link
-                log.info("Mercado Livre: %d link(s) gerado(s) via Linkbuilder", len(pendentes))
-            finally:
-                ctx.close()
-
-
 def gerar_links_afiliado(ofertas: list[Oferta], bot: Any = None) -> None:
-    """Preenche oferta.url_afiliado via serviço em cascata: Link Builder -> Cookie -> Fallback seguro."""
+    """Preenche oferta.url_afiliado via cookie do ML; sem link, não publica."""
     from .ml_auth import ml_auth_service
     ml_auth_service.gerar_links_afiliado(ofertas, bot=bot)
 
@@ -658,6 +679,12 @@ def converter(url: str) -> Oferta:
             url = sessao().get(url, allow_redirects=True, timeout=20).url.split("#")[0]
         except Exception as e:
             log.warning("Não consegui expandir o link meli.la: %s", e)
+    # Perfil público, lista, feed ou link de tracking não são anúncio: o
+    # createLink responde "URL Invalid" e a oferta ia parar na fila de
+    # pendências do ML como se o problema fosse autenticação. Melhor recusar
+    # aqui, com a causa certa.
+    if not e_url_de_produto(url):
+        raise RuntimeError(f"Link do Mercado Livre não é de produto: {url[:80]}")
     titulo = preco = preco_original = imagem = None
     try:
         r = sessao().get(url, timeout=25)
@@ -683,5 +710,5 @@ def converter(url: str) -> Oferta:
     )
     gerar_links_afiliado([oferta])
     if not oferta.url_afiliado:
-        raise RuntimeError("Linkbuilder não devolveu o link de afiliado")
+        raise RuntimeError("O Mercado Livre não devolveu o link de afiliado")
     return oferta

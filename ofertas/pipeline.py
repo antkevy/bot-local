@@ -60,7 +60,7 @@ def coletar() -> list[Oferta]:
             except Exception as e:
                 log.error("Mercado Livre: %s", e)
         else:
-            log.warning("Mercado Livre ativo mas sem sessão de afiliado — rode: uv run python -m ofertas ml-login")
+            log.warning("Mercado Livre ativo mas sem cookie — configure ML_COOKIE no painel ou com /setcookie")
 
     if config.fonte_aliexpress.get("ativa") and not _parou("AliExpress"):
         if config.aliexpress_app_key and config.aliexpress_app_secret:
@@ -238,7 +238,7 @@ async def executar_ciclo(bot: Bot) -> int:
         if o.uid not in a_liberar:
             db.liberar_reserva(o.uid)
 
-    # Mercado Livre: gerar link de afiliado só das escolhidas (linkbuilder é caro)
+    # Mercado Livre: gerar link de afiliado só das escolhidas (abre navegador)
     ml_pendentes = [o for o in escolhidas if o.plataforma == "mercadolivre" and not o.url_afiliado]
     if ml_pendentes:
         try:

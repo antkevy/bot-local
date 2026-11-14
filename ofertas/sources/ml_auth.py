@@ -1,9 +1,14 @@
-"""Serviço central de Autenticação em Cascata do Mercado Livre.
+"""Autenticação do Mercado Livre — exclusivamente por cookie.
 
-Ordem de prioridade estrita:
-1. Link Builder (Playwright / Perfil Chrome local em data/ml_profile)
-2. Cookie (Fallback direto via API createLink autenticada por cookie)
-3. Falha definitiva -> Salva em ofertas_pendentes_ml e notifica o admin (com cooldown)
+O ``ML_COOKIE`` (ou o cookie validado salvo por ``/setcookie`` em
+``data/ml_cookies.json``) autentica as duas coisas:
+
+1. a API interna ``createLink`` do Linkbuilder, que gera os links ``meli.la``;
+2. o Chromium temporário que coleta as páginas de ofertas (o HTTP puro é
+   barrado pelo ML).
+
+Não existe mais login pelo navegador nem perfil persistente. Sem cookie válido
+a oferta vai para ``ofertas_pendentes_ml`` e o admin é avisado (com cooldown).
 
 NUNCA publica ofertas do Mercado Livre sem link de afiliado válido.
 NUNCA utiliza a URL original como affiliate_link.
@@ -104,18 +109,6 @@ def tem_cookie() -> bool:
     return bool(obter_cookie_configurado())
 
 
-def tem_sessao_linkbuilder() -> bool:
-    """Verifica se há perfil persistente do Linkbuilder em data/ml_profile.
-
-    Delega para a checagem real do perfil (cookies do ML no SQLite do Chrome).
-    Antes chamava ``mercadolivre.tem_sessao()``, que devolve True só por existir
-    um cookie configurado — então, com cookie presente e sem sessão no perfil,
-    o código sempre abria o navegador (Playwright) antes de cair no cookie.
-    """
-    from . import mercadolivre
-    return mercadolivre.tem_sessao_linkbuilder()
-
-
 def _gerar_via_cookie_raw(urls: list[str], etiqueta: str, cookie_str: str, timeout: int = 15) -> list[str]:
     """Chama a API createLink diretamente com o Cookie HTTP fornecido."""
     if not cookie_str:
@@ -158,136 +151,106 @@ def _gerar_via_cookie_raw(urls: list[str], etiqueta: str, cookie_str: str, timeo
 
 
 class MercadoLivreAuthService:
-    """Gerenciador central de autenticação e geração de links de afiliado em cascata."""
+    """Gera links de afiliado do Mercado Livre usando apenas o cookie configurado."""
 
     def __init__(self):
         pass
 
     def gerar_links_afiliado(self, ofertas: list[Oferta], bot: Any = None) -> None:
-        """Gera links de afiliado para uma lista de ofertas utilizando a cascata Link Builder -> Cookie.
-        
-        Se ambos os métodos falharem, salva as ofertas pendentes no banco e notifica o admin.
-        """
+        """Gera links de afiliado via cookie. Sem link válido, não publica."""
         pendentes = [o for o in ofertas if not o.url_afiliado and o.url_produto]
         if not pendentes:
             return
 
-        etiqueta = config.ml_etiqueta or "fastpromo"
-        falha_linkbuilder = False
-        falha_cookie = False
-
-        # ── 1. Tentar primeiro via Link Builder ────────────────────────
-        if tem_sessao_linkbuilder():
-            log.info("[ML-AUTH] Tentando geração de links via Link Builder...")
-            try:
-                from . import mercadolivre
-                # Chama o gerador via Playwright
-                mercadolivre._gerar_links_linkbuilder_batch(pendentes, etiqueta)
-                # Verifica se gerou para todos
-                ainda_sem = [o for o in pendentes if not o.url_afiliado]
-                if not ainda_sem:
-                    log.info("[ML-AUTH] ✅ %d link(s) gerado(s) com sucesso via Link Builder.", len(pendentes))
-                    return
-                else:
-                    pendentes = ainda_sem
-                    falha_linkbuilder = True
-            except Exception as e:
-                log.warning("[ML-AUTH] Link Builder falhou (%s). Iniciando fallback para Cookie...", type(e).__name__)
-                falha_linkbuilder = True
-        else:
-            log.info("[ML-AUTH] Sessão do Link Builder não encontrada. Iniciando fallback para Cookie...")
-            falha_linkbuilder = True
-
-        # ── 2. Fallback automático para Cookie ─────────────────────────
-        cookie = obter_cookie_configurado()
-        if cookie:
-            log.info("[ML-AUTH] Tentando geração de links via Cookie (fallback)...")
-            try:
-                urls = [o.url_produto for o in pendentes]
-                links = _gerar_via_cookie_raw(urls, etiqueta, cookie)
-                for o, link in zip(pendentes, links):
-                    o.url_afiliado = link
-                log.info("[ML-AUTH] ✅ %d link(s) gerado(s) com sucesso via Cookie.", len(pendentes))
+        # Antes de tentar autenticação, separa o que nunca poderia funcionar:
+        # perfil público, lista, /sec/, feed, tracking. O createLink recusa
+        # essas URLs com "URL Invalid" e, sem esta checagem, a falha virava
+        # "autenticação expirada" e a URL entrava na fila de pendências.
+        from . import mercadolivre as _ml
+        invalidas = [o for o in pendentes if not _ml.e_url_de_produto(o.url_produto)]
+        if invalidas:
+            for o in invalidas:
+                o.url_afiliado = ""
+                log.warning("[ML-AUTH] Ignorando URL que não é de produto: %s",
+                            (o.url_produto or "")[:80])
+            ids = {id(o) for o in invalidas}
+            pendentes = [o for o in pendentes if id(o) not in ids]
+            if not pendentes:
                 return
-            except PermissionError as pe:
-                log.warning("[ML-AUTH] Cookie do Mercado Livre expirado/inválido: %s", pe)
-                falha_cookie = True
-            except Exception as e:
-                log.warning("[ML-AUTH] Erro ao gerar link via Cookie: %s", e)
-                falha_cookie = True
-        else:
-            log.warning("[ML-AUTH] Nenhum cookie configurado para fallback.")
-            falha_cookie = True
 
-        # ── 3. Falha definitiva: Não publicar + Salvar pendência + Avisar admin
-        if falha_linkbuilder and falha_cookie:
-            log.error("[ML-AUTH] ❌ Falha em todos os métodos de autenticação do Mercado Livre. Bloqueando publicação.")
+        etiqueta = config.ml_etiqueta or "fastpromo"
+        cookie = obter_cookie_configurado()
+        if not cookie:
+            log.error("[ML-AUTH] ML_COOKIE não configurado — não é possível gerar links de afiliado.")
             for o in pendentes:
                 o.url_afiliado = ""  # GARANTIA: Nunca usar URL original
                 db.salvar_oferta_pendente_ml(o, status="aguardando_autenticacao")
-
-            # Enviar aviso privado ao admin
             self.notificar_admin_se_necessario(bot)
+            return
+
+        try:
+            urls = [o.url_produto for o in pendentes]
+            links = _gerar_via_cookie_raw(urls, etiqueta, cookie)
+            for o, link in zip(pendentes, links):
+                o.url_afiliado = link
+            log.info("[ML-AUTH] ✅ %d link(s) gerado(s) com sucesso via cookie.", len(pendentes))
+            return
+        except PermissionError as pe:
+            log.warning("[ML-AUTH] Cookie do Mercado Livre expirado/inválido: %s", pe)
+        except Exception as e:
+            log.warning("[ML-AUTH] Erro ao gerar link via cookie: %s", e)
+
+        log.error("[ML-AUTH] ❌ Falha ao autenticar no Mercado Livre pelo cookie. Bloqueando publicação.")
+        for o in pendentes:
+            o.url_afiliado = ""  # GARANTIA: Nunca usar URL original
+            db.salvar_oferta_pendente_ml(o, status="aguardando_autenticacao")
+        self.notificar_admin_se_necessario(bot)
 
     def testar_autenticacao(self, url_teste: str = URL_TESTE_DEFAULT) -> dict[str, Any]:
-        """Testa o status de autenticação seguindo a cascata Link Builder -> Cookie."""
+        """Testa se o cookie atual consegue gerar link de afiliado."""
         etiqueta = config.ml_etiqueta or "fastpromo"
-
-        # 1. Testar Link Builder
-        if tem_sessao_linkbuilder():
-            try:
-                from . import mercadolivre
-                oferta_teste = Oferta(plataforma="mercadolivre", id_produto="TEST1", url_produto=url_teste, titulo="Teste")
-                mercadolivre._gerar_links_linkbuilder_batch([oferta_teste], etiqueta)
-                if oferta_teste.url_afiliado:
-                    return {
-                        "authenticated": True,
-                        "method": "linkbuilder",
-                        "affiliate_generation": True,
-                        "error": None,
-                        "link_teste": oferta_teste.url_afiliado,
-                    }
-            except Exception as e:
-                log.info("[ML-AUTH] Teste do Link Builder falhou: %s", e)
-
-        # 2. Testar Cookie
         cookie = obter_cookie_configurado()
-        if cookie:
-            try:
-                links = _gerar_via_cookie_raw([url_teste], etiqueta, cookie, timeout=10)
-                if links and links[0]:
-                    return {
-                        "authenticated": True,
-                        "method": "cookie",
-                        "affiliate_generation": True,
-                        "error": None,
-                        "link_teste": links[0],
-                    }
-            except PermissionError as pe:
+        if not cookie:
+            return {
+                "authenticated": False,
+                "method": None,
+                "affiliate_generation": False,
+                "error": "authentication_expired",
+                "detalhe": "ML_COOKIE não configurado",
+            }
+        try:
+            links = _gerar_via_cookie_raw([url_teste], etiqueta, cookie, timeout=10)
+            if links and links[0]:
                 return {
-                    "authenticated": False,
+                    "authenticated": True,
                     "method": "cookie",
-                    "affiliate_generation": False,
-                    "error": "cookie_expired",
-                    "detalhe": str(pe),
+                    "affiliate_generation": True,
+                    "error": None,
+                    "link_teste": links[0],
                 }
-            except Exception as e:
-                return {
-                    "authenticated": False,
-                    "method": "cookie",
-                    "affiliate_generation": False,
-                    "error": "cookie_error",
-                    "detalhe": str(e),
-                }
-
-        # 3. Nenhum método funcionando
-        return {
-            "authenticated": False,
-            "method": None,
-            "affiliate_generation": False,
-            "error": "authentication_expired",
-            "detalhe": "Link Builder e Cookie não autenticados",
-        }
+            return {
+                "authenticated": False,
+                "method": "cookie",
+                "affiliate_generation": False,
+                "error": "cookie_error",
+                "detalhe": "O cookie não gerou um link válido.",
+            }
+        except PermissionError as pe:
+            return {
+                "authenticated": False,
+                "method": "cookie",
+                "affiliate_generation": False,
+                "error": "cookie_expired",
+                "detalhe": str(pe),
+            }
+        except Exception as e:
+            return {
+                "authenticated": False,
+                "method": "cookie",
+                "affiliate_generation": False,
+                "error": "cookie_error",
+                "detalhe": str(e),
+            }
 
     def validar_e_salvar_novo_cookie(self, novo_cookie: str, bot: Any = None) -> dict[str, Any]:
         """Versão síncrona (CLI/testes). Dentro de um loop use a versão async."""
@@ -369,11 +332,10 @@ class MercadoLivreAuthService:
 
         msg = (
             "⚠️ <b>Mercado Livre precisa de autenticação</b>\n\n"
-            "Não foi possível gerar o link de afiliado de um ou mais produtos porque a "
-            "autenticação atual do Mercado Livre expirou ou está inválida.\n\n"
-            "Escolha uma opção para renovar:\n"
-            "🔐 <b>Login via Link Builder:</b> Rode <code>uv run python -m ofertas ml-login</code> no terminal ou pelo painel.\n"
-            "🍪 <b>Atualizar Cookie:</b> Envie o comando <code>/setcookie &lt;cookie&gt;</code> aqui no privado.\n\n"
+            "Não foi possível gerar o link de afiliado de um ou mais produtos porque o "
+            "cookie atual do Mercado Livre expirou ou está inválido.\n\n"
+            "Para renovar, envie aqui no privado:\n"
+            "🍪 <code>/setcookie &lt;cookie&gt;</code>\n\n"
             "<i>Os produtos afetados foram salvos e aguardam a renovação para serem publicados automaticamente.</i>"
         )
 
@@ -421,9 +383,18 @@ class MercadoLivreAuthService:
         total_publicadas = 0
 
         from ..pipeline import filtrar, postar_oferta
+        from . import mercadolivre as _ml
 
         for row in pendentes_db:
             uid = row["uid"]
+            # Pendência antiga pode ser de URL que não é de produto (perfil,
+            # lista, tracking) — essas nunca vão gerar link. Remover é o que
+            # impede a fila de crescer para sempre com lixo.
+            if not _ml.e_url_de_produto(row["url_produto"]):
+                log.info("[ML-AUTH] Removendo pendência que não é de produto: %s",
+                         (row["url_produto"] or "")[:80])
+                await asyncio.to_thread(db.remover_oferta_pendente_ml, uid)
+                continue
             # Deduplicação: se já foi postada nesse intervalo, a pendência
             # cumpriu o papel dela e pode sair.
             if await asyncio.to_thread(db.ja_postada, uid, config.nao_repetir_dias):

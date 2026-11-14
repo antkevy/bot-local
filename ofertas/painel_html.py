@@ -1282,18 +1282,6 @@ PAGINA = r"""<!doctype html>
     .tela-login { display: none !important; }
   }
 
-  /* Recursos extras: listas simples, sem tabela nova. */
-  .linha-opcao { display: flex; align-items: center; gap: 8px; font-weight: 500; }
-  .linha-opcao input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primaria-forte); }
-  .lista-extras { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-  .item-extra {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 10px 12px; border: 1px solid var(--borda);
-    border-radius: var(--r-sm); background: var(--fundo-sub);
-    font-size: 13px;
-  }
-  .item-extra .cresce { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
-  .item-extra small { color: var(--texto-3); display: block; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -1427,10 +1415,6 @@ PAGINA = r"""<!doctype html>
       <a class="nav-item" href="#plataformas" data-view="plataformas">
         <svg class="icone" aria-hidden="true"><use href="#i-layers"/></svg>
         <span class="rot">Plataformas</span>
-      </a>
-      <a class="nav-item" href="#extras" data-view="extras">
-        <svg class="icone" aria-hidden="true"><use href="#i-shield"/></svg>
-        <span class="rot">Extras</span>
       </a>
       <a class="nav-item" href="#config" data-view="config">
         <svg class="icone" aria-hidden="true"><use href="#i-sliders"/></svg>
@@ -1640,14 +1624,14 @@ PAGINA = r"""<!doctype html>
           <section class="card" aria-labelledby="t-builder">
             <div class="card-titulo">
               <svg class="icone" aria-hidden="true"><use href="#i-link"/></svg>
-              <h4 id="t-builder">Link builder</h4>
+              <h4 id="t-builder">Gerador de link</h4>
             </div>
             <p class="card-sub" style="margin:7px 0 14px;">
               Transforme qualquer link de produto em link com a sua tag de afiliado.
             </p>
             <button type="button" class="btn btn-primario btn-bloco" onclick="abrirModalLink()">
               <svg class="icone icone-sm" aria-hidden="true"><use href="#i-sparkles"/></svg>
-              Abrir link builder
+              Abrir gerador de link
             </button>
             <button type="button" class="btn btn-neutro btn-bloco" style="margin-top:8px;"
                     onclick="executarCiclo()" id="btnCiclo">
@@ -2395,13 +2379,14 @@ PAGINA = r"""<!doctype html>
           <details>
             <summary>
               <svg class="icone icone-sm" style="color:var(--primaria-forte)" aria-hidden="true"><use href="#i-lock"/></svg>
-              Como funciona o login do Mercado Livre?
+              Como funciona a autenticação do Mercado Livre?
               <svg class="icone icone-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
             </summary>
             <div class="faq-corpo">
-              Em Plataformas, use <strong>Fazer login</strong>. Abre um navegador na sua tela para você
-              entrar na conta de afiliado. A sessão fica salva em <code>data/ml_profile</code> e é usada
-              só pelo link builder — nada é enviado para fora do seu computador.
+              O Mercado Livre usa apenas <strong>cookie</strong>. Em Plataformas, cole o valor de
+              <code>ML_COOKIE</code> (os cookies da sua sessão em mercadolivre.com.br) e salve.
+              O bot injeta esse cookie no navegador que coleta ofertas e gera os links de afiliado
+              — nada é enviado para fora do seu computador.
             </div>
           </details>
           <details>
@@ -2413,219 +2398,10 @@ PAGINA = r"""<!doctype html>
             <div class="faq-corpo">
               Na ordem: o <strong>horário ativo</strong> no <code>config.yaml</code> (por padrão só posta das
               08:00 às 23:00); se o token do canal está certo; e a aba <strong>Logs</strong>, que mostra o motivo
-              de cada ciclo pulado. Se aparecer “sem link de afiliado”, refaça o login do Mercado Livre.
+              de cada ciclo pulado. Se aparecer “sem link de afiliado”, atualize o cookie do Mercado Livre (<code>ML_COOKIE</code>).
             </div>
           </details>
         </div>
-      </div>
-    </section>
-
-    <!-- ── Extras (opt-in) ──────────────────────────────────────── -->
-    <section class="view" id="view-extras" aria-labelledby="t-extras">
-      <div class="card">
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-shield"/></svg>
-          <h3 id="t-extras">Recursos extras</h3>
-        </div>
-        <p class="card-sub">
-          Portados do ScanHub. Tudo aqui nasce <strong>desligado</strong> e usa tabelas novas:
-          ligar não muda o pipeline, só habilita as rotas abaixo. Desligar esconde o recurso,
-          sem apagar o que já foi cadastrado.
-        </p>
-
-        <div class="config-grade">
-          <div class="campo">
-            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-layers"/></svg>Espelhamento</label>
-            <label class="linha-opcao"><input type="checkbox" id="exFlagEspelhamento"> Replicar ofertas em canais extras</label>
-          </div>
-          <div class="campo">
-            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-clock"/></svg>Disparos</label>
-            <label class="linha-opcao"><input type="checkbox" id="exFlagDisparos"> Mensagens e enquetes agendadas</label>
-          </div>
-          <div class="campo">
-            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-alert-triangle"/></svg>Proteção</label>
-            <label class="linha-opcao"><input type="checkbox" id="exFlagProtecao"> Varrer fontes suspeitas antes de remover</label>
-          </div>
-          <div class="campo">
-            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-tag"/></svg>Marca d'água</label>
-            <label class="linha-opcao"><input type="checkbox" id="exFlagMarcaDagua"> Assinatura no texto publicado</label>
-          </div>
-          <div class="campo">
-            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-link"/></svg>Smart links</label>
-            <label class="linha-opcao"><input type="checkbox" id="exFlagSmartLink"> Links curtos locais com contagem</label>
-          </div>
-          <div class="campo">
-            <label><svg class="icone-sm" aria-hidden="true"><use href="#i-key"/></svg>Credenciais write-only</label>
-            <label class="linha-opcao"><input type="checkbox" id="exFlagCredenciais"> Guardar segredos sem exibi-los</label>
-          </div>
-          <div class="campo">
-            <label for="exSilencio"><svg class="icone-sm" aria-hidden="true"><use href="#i-power"/></svg>Horário de silêncio dos disparos</label>
-            <input id="exSilencio" type="text" placeholder="22:00-08:00" autocomplete="off" spellcheck="false">
-            <p class="ajuda">Em BRT. Vazio = sem silêncio. Ex.: <code>22:00-08:00</code>.</p>
-          </div>
-        </div>
-
-        <div class="acoes-form">
-          <button type="button" class="btn btn-primario" onclick="salvarFlagsExtras()">
-            <svg class="icone icone-sm" aria-hidden="true"><use href="#i-save"/></svg>
-            Salvar recursos
-          </button>
-          <span id="exAviso" class="metrica-rotulo" aria-live="polite"></span>
-        </div>
-      </div>
-
-      <div class="card" id="cardEspelhamento" hidden>
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-layers"/></svg>
-          <h3>Espelhamento</h3>
-        </div>
-        <p class="card-sub">Cada destino tem seu próprio interruptor. Nada é enviado automaticamente hoje — esta lista é a fonte para quem publicar.</p>
-        <div class="config-grade">
-          <div class="campo">
-            <label for="exMirrorChat">Destino</label>
-            <input id="exMirrorChat" type="text" placeholder="@canal ou -1001234567890" autocomplete="off" spellcheck="false">
-          </div>
-          <div class="campo">
-            <label for="exMirrorNome">Apelido (opcional)</label>
-            <input id="exMirrorNome" type="text" placeholder="Canal de achadinhos">
-          </div>
-        </div>
-        <div class="acoes-form">
-          <button type="button" class="btn btn-neutro" onclick="adicionarEspelho()">Adicionar destino</button>
-        </div>
-        <div id="exMirrorsLista" class="lista-extras"></div>
-      </div>
-
-      <div class="card" id="cardDisparos" hidden>
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-clock"/></svg>
-          <h3>Disparos</h3>
-        </div>
-        <p class="card-sub">Mensagem ou enquete, com horário e ritmo entre destinos. O envio respeita o horário de silêncio.</p>
-        <div class="config-grade">
-          <div class="campo">
-            <label for="exBroadcastKind">Tipo</label>
-            <select id="exBroadcastKind">
-              <option value="message">Mensagem</option>
-              <option value="poll">Enquete</option>
-            </select>
-          </div>
-          <div class="campo">
-            <label for="exBroadcastQuando">Quando (vazio = agora)</label>
-            <input id="exBroadcastQuando" type="datetime-local">
-          </div>
-          <div class="campo">
-            <label for="exBroadcastDestinos">Destinos (separados por vírgula)</label>
-            <input id="exBroadcastDestinos" type="text" placeholder="@canal, -1001234567890">
-          </div>
-          <div class="campo">
-            <label for="exBroadcastRitmo">Ritmo entre destinos (segundos)</label>
-            <input id="exBroadcastRitmo" type="number" min="0" step="1" value="3">
-          </div>
-          <div class="campo" style="grid-column:1/-1">
-            <label for="exBroadcastTexto">Texto / pergunta</label>
-            <textarea id="exBroadcastTexto" rows="3" placeholder="Oferta relâmpago: ..."></textarea>
-            <p class="ajuda">Para enquete, cada linha abaixo do texto vira uma opção.</p>
-          </div>
-        </div>
-        <div class="acoes-form">
-          <button type="button" class="btn btn-neutro" onclick="criarDisparo()">Agendar disparo</button>
-        </div>
-        <div id="exBroadcastsLista" class="lista-extras"></div>
-      </div>
-
-      <div class="card" id="cardProtecao" hidden>
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-alert-triangle"/></svg>
-          <h3>Proteção</h3>
-        </div>
-        <p class="card-sub">A varredura só monta a lista. Nada é removido antes de você marcar e confirmar.</p>
-        <div class="config-grade">
-          <div class="campo">
-            <label for="exProtDias">Sem mensagens há quantos dias</label>
-            <input id="exProtDias" type="number" min="1" max="365" value="14">
-          </div>
-        </div>
-        <div class="acoes-form">
-          <button type="button" class="btn btn-neutro" onclick="varrerProtecao()">Varrer fontes</button>
-        </div>
-        <div id="exProtScan" class="lista-extras"></div>
-      </div>
-
-      <div class="card" id="cardMarcaDagua" hidden>
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-tag"/></svg>
-          <h3>Marca d'água</h3>
-        </div>
-        <p class="card-sub">Aplicar duas vezes não duplica a assinatura. Desligada, o texto passa intacto.</p>
-        <div class="config-grade">
-          <div class="campo">
-            <label for="exWmPreset">Posição</label>
-            <select id="exWmPreset">
-              <option value="final">No fim (linha separada)</option>
-              <option value="topo">No topo</option>
-              <option value="sufixo">No fim da mesma linha</option>
-            </select>
-          </div>
-          <div class="campo">
-            <label for="exWmHandle">@ da assinatura</label>
-            <input id="exWmHandle" type="text" placeholder="@seucanal" autocomplete="off" spellcheck="false">
-          </div>
-          <div class="campo">
-            <label class="linha-opcao"><input type="checkbox" id="exWmAtivo"> Ativa</label>
-          </div>
-        </div>
-        <div class="acoes-form">
-          <button type="button" class="btn btn-neutro" onclick="salvarMarcaDagua()">Salvar marca d'água</button>
-        </div>
-      </div>
-
-      <div class="card" id="cardSmartLink" hidden>
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-link"/></svg>
-          <h3>Smart links</h3>
-        </div>
-        <p class="card-sub">Links curtos servidos só neste painel local (<code>/s/&lt;apelido&gt;</code>), com contagem de cliques.</p>
-        <div class="config-grade">
-          <div class="campo">
-            <label for="exSlUrl">URL de destino</label>
-            <input id="exSlUrl" type="url" placeholder="https://..." autocomplete="off" spellcheck="false">
-          </div>
-          <div class="campo">
-            <label for="exSlPlataforma">Plataforma</label>
-            <input id="exSlPlataforma" type="text" placeholder="amazon">
-          </div>
-          <div class="campo">
-            <label for="exSlSlug">Apelido (vazio = gerar)</label>
-            <input id="exSlSlug" type="text" placeholder="promo-tenis" autocomplete="off" spellcheck="false">
-          </div>
-        </div>
-        <div class="acoes-form">
-          <button type="button" class="btn btn-neutro" onclick="criarSmartLink()">Criar link</button>
-        </div>
-        <div id="exSlLista" class="lista-extras"></div>
-      </div>
-
-      <div class="card" id="cardCredenciais" hidden>
-        <div class="card-titulo">
-          <svg class="icone" aria-hidden="true"><use href="#i-key"/></svg>
-          <h3>Credenciais write-only</h3>
-        </div>
-        <p class="card-sub">O segredo entra e não volta: a lista mostra só "configurada". O <code>.env</code> continua sendo a fonte do pipeline.</p>
-        <div class="config-grade">
-          <div class="campo">
-            <label for="exCredPlataforma">Plataforma</label>
-            <input id="exCredPlataforma" type="text" placeholder="amazon">
-          </div>
-          <div class="campo">
-            <label for="exCredSegredo">Segredo</label>
-            <input id="exCredSegredo" type="password" autocomplete="new-password" spellcheck="false">
-          </div>
-        </div>
-        <div class="acoes-form">
-          <button type="button" class="btn btn-neutro" onclick="salvarCredencial()">Salvar segredo</button>
-        </div>
-        <div id="exCredLista" class="lista-extras"></div>
       </div>
     </section>
 
@@ -2642,7 +2418,7 @@ PAGINA = r"""<!doctype html>
   </main>
 </div>
 
-<!-- ══ Modal: link builder ═════════════════════════════════════════════ -->
+<!-- ══ Modal: gerador de link de afiliado ══════════════════════════════ -->
 <div class="overlay" id="modalLink" role="dialog" aria-modal="true" aria-labelledby="modalLinkTitulo" tabindex="-1" hidden>
   <div class="modal">
     <div class="modal-topo">
@@ -2690,29 +2466,6 @@ PAGINA = r"""<!doctype html>
       <button type="submit" form="formLink" class="btn btn-primario" id="btnGerarLink">
         <svg class="icone icone-sm" aria-hidden="true"><use href="#i-sparkles"/></svg>
         Gerar link
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ Modal: sessão do Mercado Livre ══════════════════════════════════ -->
-<div class="overlay" id="modalSessao" role="dialog" aria-modal="true" aria-labelledby="modalSessaoTitulo" tabindex="-1" hidden>
-  <div class="modal">
-    <div class="modal-topo">
-      <svg class="icone" aria-hidden="true"><use href="#i-shield"/></svg>
-      <h3 id="modalSessaoTitulo">Sessão local do Mercado Livre</h3>
-      <button type="button" class="btn btn-icone" data-fechar="modalSessao" aria-label="Fechar">
-        <svg class="icone" aria-hidden="true"><use href="#i-x"/></svg>
-      </button>
-    </div>
-    <div class="modal-corpo" id="modalSessaoCorpo">
-      <div class="vazio">Verificando a sessão…</div>
-    </div>
-    <div class="modal-pe">
-      <button type="button" class="btn btn-neutro" data-fechar="modalSessao">Fechar</button>
-      <button type="button" class="btn btn-primario" onclick="abrirLoginMl()">
-        <svg class="icone icone-sm" aria-hidden="true"><use href="#i-key"/></svg>
-        Refazer login
       </button>
     </div>
   </div>
@@ -2891,7 +2644,6 @@ function switchView(nome) {
   }
   if (nome === "dashboard") desenharGraficos();   // o canvas precisa de largura real
   if (nome === "suporte") renderDiagnostico();
-  if (nome === "extras") carregarExtras();
 }
 
 function irPara(view) {
@@ -2965,8 +2717,8 @@ async function atualizarStatus() {
     if (s.plataformas) {
       const ml = s.plataformas.mercadolivre || {};
       selo($("#seloMl"), ml.conectado, ml.conectado ? "Conectado" : "Não configurado");
-      $("#subMl").textContent = ml.conectado ? "Link builder pronto"
-        : ml.sessao_ativa ? "Falta a etiqueta" : "Falta fazer o login";
+      $("#subMl").textContent = ml.conectado ? "Cookie ativo"
+        : ml.sessao_ativa ? "Falta a etiqueta" : "Falta configurar o cookie (ML_COOKIE)";
 
       const amz = s.plataformas.amazon || {};
       selo($("#seloAmz"), amz.conectado, amz.conectado ? "Conectado" : "Não configurado");
@@ -3014,25 +2766,17 @@ const BLOCOS = [
   {
     chave: "mercadolivre", nome: "Mercado Livre", grupo: "Mercado Livre",
     cor: "var(--e1)", logo: "/assets/mercadolivre.png",
-    sub: "Linkbuilder com sessão local",
+    sub: "Autenticação por cookie",
     resumoDe: p => (p.mercadolivre || {}).status || "Não configurado",
-    // Três estados, e não dois: o servidor distingue a sessão pendente de
-    // uma credencial que existe mas nunca foi testada. Tratar os dois como
-    // "desconectado" esconde exatamente o que a pessoa precisa corrigir.
     estadoDe: p => {
       const m = p.mercadolivre || {};
       if (m.conectado) return ["ok", "Conectado"];
-      if (m.sessao_ativa) return ["erro", "Sessão ativa, falta a etiqueta"];
+      if (m.sessao_ativa) return ["erro", "Cookie ativo, falta a etiqueta"];
       return ["neutro", "Desconectado"];
     },
     acoes: [
-      ["ml-login", "Fazer login", "btn-primario", "key"],
       ["testar-ml", "Testar conexão", "btn-neutro", "search"],
-      // "Detalhes da sessão" e não só "Detalhes": ao lado de "Limpar
-      // sessão", um rótulo sozinho não diz do que o botão trata.
-      ["sessao", "Detalhes da sessão", "btn-neutro", "zoom"],
     ],
-    extra: [["Limpar sessão", "btn-perigo", "trash", "limparSessao()"]],
   },
   {
     chave: "amazon", nome: "Amazon", grupo: "Amazon",
@@ -3163,10 +2907,8 @@ function pintarEstadoPlataforma(s) {
   pintarSituacaoGaveta();
 }
 
-/* O resumo e o status do servidor, sem rótulo: "Status | Link Builder
-   pronto" repete a mesma palavra duas vezes, e o valor sozinho ja diz do
-   que se trata. Chega em duas respostas separadas — o status primeiro, o
-   /api/config depois — entao e repintado de qualquer uma delas. */
+/* O resumo e o status vêm prontos do servidor (/api/status e /api/config):
+   o cliente só exibe o valor, sem rótulo duplicado. */
 function pintarResumoPlataforma() {
   const s = statusAtual;
   if (!s || !s.plataformas) return;
@@ -3227,7 +2969,7 @@ async function abrirGaveta(chave) {
     <div class="gaveta-secao-titulo">${icone("play")} Ações</div>
     <div class="gaveta-acoes" style="margin-top:11px">
       ${b.acoes.map(([acao, rot, cls, ic]) => `<button type="button" class="btn ${cls}"
-          onclick="${acao === "sessao" ? "abrirModalSessao()" : acao === "ids" ? "detectarIds('#gavetaDeteccao', true)" : `executarAcao('${acao}')`}">
+          onclick="${acao === "ids" ? "detectarIds('#gavetaDeteccao', true)" : `executarAcao('${acao}')`}">
           ${icone(ic)} ${esc(rot)}</button>`).join("")}
       ${(b.extra || []).map(([rot, cls, ic, js]) =>
         `<button type="button" class="btn ${cls}" onclick="${js}">${icone(ic)} ${esc(rot)}</button>`).join("")}
@@ -3341,7 +3083,7 @@ function renderDiagnostico(s = statusAtual) {
     ["ID do dono", s.preenchidos && s.preenchidos.TELEGRAM_OWNER_ID],
     ["ID do canal", s.preenchidos && s.preenchidos.TELEGRAM_CHAT_ID],
     ["Navegador do Playwright", s.navegador],
-    ["Sessão do Mercado Livre", s.sessao_ml],
+    ["Cookie do Mercado Livre", s.sessao_ml],
   ];
   alvo.innerHTML = itens.map(([rot, ok]) => `
     <div class="diag-item">
@@ -3502,7 +3244,7 @@ async function atualizarMetricas() {
     const html = links.map(l => itemLink(l, false)).join("");
     const htmlTodos = links.map(l => itemLink(l, true)).join("");
     $("#linksRecentes").innerHTML = html || vazio("Nenhum link ainda", "Os links aparecem aqui depois do primeiro post.", "link");
-    $("#linksTodos").innerHTML = htmlTodos || vazio("Nenhum link ainda", "Use o link builder para gerar o primeiro.", "link");
+    $("#linksTodos").innerHTML = htmlTodos || vazio("Nenhum link ainda", "Use o gerador de link para gerar o primeiro.", "link");
   } catch (e) {
     $("#linksRecentes").innerHTML = vazio("Não consegui carregar", "O servidor local não respondeu.", "alert");
   }
@@ -3642,7 +3384,7 @@ async function alternarBot() {
 
 const ROTULOS_ACAO = {
   "instalar-navegador": "instalando o navegador",
-  "ml-login": "abrindo o login do Mercado Livre",
+  "testar-ml": "testando a conexão com o Mercado Livre",
   "testar-ml": "testando o Mercado Livre",
   "testar-shopee": "testando a Shopee",
   "testar-amazon": "testando a Amazon",
@@ -4150,51 +3892,6 @@ function abrirModalLink() {
   abrirModal("modalLink");
 }
 
-function abrirModalSessao() {
-  abrirModal("modalSessao");
-  carregarSessaoModal();
-}
-
-async function carregarSessaoModal() {
-  const corpo = $("#modalSessaoCorpo");
-  corpo.innerHTML = vazio("Verificando a sessão…", "", "refresh");
-  try {
-    const r = await (await fetch("/api/verificar-sessao", { method: "POST" })).json();
-    corpo.innerHTML = `
-      <div class="painel-info">
-        <dl>
-          <dt>Status</dt>
-          <dd style="color:${r.sessao_ml ? "var(--ok)" : "var(--alerta)"}">
-            ${r.sessao_ml ? "Ativa e persistente" : "Pendente — faça o login"}
-          </dd>
-          <dt>Arquivos no perfil</dt>
-          <dd>${r.arquivos}</dd>
-          <dd class="caminho">${esc(r.caminho)}</dd>
-        </dl>
-      </div>
-      <p class="ajuda" style="margin-top:10px">
-        A sessão fica só neste computador e é usada pelo link builder do Mercado Livre.
-        Se as ofertas pararem de virar link, limpe a sessão e faça o login de novo.
-      </p>`;
-  } catch (e) {
-    corpo.innerHTML = `<div class="alerta alerta-erro" role="alert">${icone("alert", "icone")}<div>Não consegui verificar a sessão.</div></div>`;
-  }
-}
-
-function abrirLoginMl() { fecharModal("modalSessao"); executarAcao("ml-login"); }
-
-async function limparSessao() {
-  if (!confirm("Apagar a sessão local do Mercado Livre? Você vai precisar fazer login de novo.")) return;
-  try {
-    const r = await (await fetch("/api/limpar-sessao", { method: "POST" })).json();
-    if (r.erro) { toast(r.erro, "erro"); return; }
-    toast(r.msg || "Sessão apagada.", "ok");
-    await atualizarStatus();
-  } catch (e) {
-    toast("Não consegui apagar a sessão.", "erro");
-  }
-}
-
 /* ══ Link builder ════════════════════════════════════════════════════ */
 async function gerarLink(event) {
   event.preventDefault();
@@ -4321,7 +4018,7 @@ function ligarEventos() {
   // Marca o formulário como editado para não perder o que foi digitado
   $("#formConfig").addEventListener("input", () => { configSuja = true; marcarConfigSuja(true); });
 
-  // Digitar Enter no link builder já gera
+  // Digitar Enter no gerador de link já gera
   $("#entradaUrl").addEventListener("keydown", ev => {
     if (ev.key === "Enter") { ev.preventDefault(); gerarLink(ev); }
   });
@@ -4950,350 +4647,6 @@ async function salvarConfigScraping() {
     toast("Erro ao comunicar com o servidor.", "erro");
   }
 }
-
-/* ══ Recursos extras (portados do ScanHub) ══════════════════════════
-   Tudo aqui é opt-in. A tela só mostra o cartão do recurso quando a flag
-   correspondente está ligada no config.yaml, e as funções abaixo falam com
-   /api/extras*, /api/mirrors, /api/broadcasts, /api/protection, /api/watermark,
-   /api/smart-link e /api/credentials. */
-const EX_CARDS = {
-  espelhamento: "cardEspelhamento",
-  disparos: "cardDisparos",
-  protecao: "cardProtecao",
-  marca_dagua: "cardMarcaDagua",
-  smart_link: "cardSmartLink",
-  credenciais: "cardCredenciais",
-};
-let EX_SCAN = null;
-
-async function extraPost(url, body) {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
-  });
-  let d = {};
-  try { d = await r.json(); } catch (e) { d = {}; }
-  return { ok: r.ok, status: r.status, d };
-}
-
-function exCartoes(flags) {
-  Object.entries(EX_CARDS).forEach(([flag, id]) => {
-    const card = $("#" + id);
-    if (card) card.hidden = !flags[flag];
-  });
-}
-
-async function carregarExtras() {
-  try {
-    const d = await (await fetch("/api/extras", { cache: "no-store" })).json();
-    const f = d.flags || {};
-    $("#exFlagEspelhamento").checked = !!f.espelhamento;
-    $("#exFlagDisparos").checked = !!f.disparos;
-    $("#exFlagProtecao").checked = !!f.protecao;
-    $("#exFlagMarcaDagua").checked = !!f.marca_dagua;
-    $("#exFlagSmartLink").checked = !!f.smart_link;
-    $("#exFlagCredenciais").checked = !!f.credenciais;
-    $("#exSilencio").value = f.disparos_horario_silencio || "";
-    exCartoes(f);
-    if (f.espelhamento) carregarEspelhos();
-    if (f.disparos) carregarDisparos();
-    if (f.marca_dagua) carregarMarcaDagua();
-    if (f.smart_link) carregarSmartLinks();
-    if (f.credenciais) carregarCredenciais();
-  } catch (e) {
-    toast("Não consegui carregar os recursos extras.", "erro");
-  }
-}
-
-async function salvarFlagsExtras() {
-  const { ok, d } = await extraPost("/api/extras/config", {
-    espelhamento: $("#exFlagEspelhamento").checked,
-    disparos: $("#exFlagDisparos").checked,
-    protecao: $("#exFlagProtecao").checked,
-    marca_dagua: $("#exFlagMarcaDagua").checked,
-    smart_link: $("#exFlagSmartLink").checked,
-    credenciais: $("#exFlagCredenciais").checked,
-    disparos_horario_silencio: $("#exSilencio").value.trim(),
-  });
-  if (!ok) { toast(d.erro || "Não consegui salvar os recursos.", "erro"); return; }
-  toast("Recursos atualizados.", "ok");
-  await carregarExtras();
-}
-
-/* ── Espelhamento ─────────────────────────────────────────────────── */
-async function carregarEspelhos() {
-  try {
-    const d = await (await fetch("/api/mirrors", { cache: "no-store" })).json();
-    const alvo = $("#exMirrorsLista");
-    const lista = d.mirrors || [];
-    if (!lista.length) {
-      alvo.innerHTML = `<p class="metrica-rotulo">Nenhum destino cadastrado.</p>`;
-      return;
-    }
-    alvo.innerHTML = lista.map(m => `
-      <div class="item-extra">
-        <div class="cresce">
-          <strong>${esc(m.nome || m.chat_id)}</strong>
-          <small>${esc(m.chat_id)} · ${m.ativo ? "ligado" : "desligado"}</small>
-        </div>
-        <button type="button" class="btn btn-neutro btn-sm"
-                data-extras-acao="mirror-toggle" data-id="${m.id}"
-                data-ativo="${m.ativo}">${m.ativo ? "Desligar" : "Ligar"}</button>
-        <button type="button" class="btn btn-perigo btn-sm"
-                data-extras-acao="mirror-remove" data-id="${m.id}">Remover</button>
-      </div>`).join("");
-  } catch (e) {
-    toast("Não consegui carregar o espelhamento.", "erro");
-  }
-}
-
-async function adicionarEspelho() {
-  const { ok, d } = await extraPost("/api/mirrors", {
-    chat_id: $("#exMirrorChat").value.trim(),
-    nome: $("#exMirrorNome").value.trim(),
-  });
-  if (!ok) { toast(d.erro || "Destino inválido.", "erro"); return; }
-  $("#exMirrorChat").value = "";
-  $("#exMirrorNome").value = "";
-  toast("Destino adicionado.", "ok");
-  carregarEspelhos();
-}
-
-/* ── Disparos ─────────────────────────────────────────────────────── */
-async function carregarDisparos() {
-  try {
-    const d = await (await fetch("/api/broadcasts", { cache: "no-store" })).json();
-    const alvo = $("#exBroadcastsLista");
-    const lista = d.broadcasts || [];
-    if (!lista.length) {
-      alvo.innerHTML = `<p class="metrica-rotulo">Nenhum disparo agendado.</p>`;
-      return;
-    }
-    alvo.innerHTML = lista.map(b => `
-      <div class="item-extra">
-        <div class="cresce">
-          <strong>${b.kind === "poll" ? "Enquete" : "Mensagem"} · ${esc(b.status)}</strong>
-          <small>${esc(b.texto || "")}</small>
-          <small>${b.agendado_para ? "para " + esc(b.agendado_para.replace("T", " ")) : "sem hora marcada"} · ${(b.destinos || []).length} destino(s)</small>
-        </div>
-        ${b.status === "pendente" ? `<button type="button" class="btn btn-perigo btn-sm"
-          data-extras-acao="broadcast-cancel" data-id="${b.id}">Cancelar</button>` : ""}
-      </div>`).join("");
-  } catch (e) {
-    toast("Não consegui carregar os disparos.", "erro");
-  }
-}
-
-async function criarDisparo() {
-  const kind = $("#exBroadcastKind").value;
-  const linhas = $("#exBroadcastTexto").value.split("\n")
-    .map(t => t.trim()).filter(Boolean);
-  const destinos = $("#exBroadcastDestinos").value
-    .split(/[,\n;]+/).map(t => t.trim()).filter(Boolean);
-  const corpo = {
-    kind: kind,
-    destinos: destinos,
-    agendado_para: $("#exBroadcastQuando").value,
-    ritmo_segundos: parseInt($("#exBroadcastRitmo").value || "3", 10),
-  };
-  if (kind === "poll") {
-    corpo.pergunta = linhas[0] || "";
-    corpo.opcoes = linhas.slice(1);
-  } else {
-    corpo.texto = linhas.join("\n");
-  }
-  const { ok, d } = await extraPost("/api/broadcasts", corpo);
-  if (!ok) { toast(d.erro || "Não consegui agendar o disparo.", "erro"); return; }
-  toast("Disparo agendado.", "ok");
-  $("#exBroadcastTexto").value = "";
-  carregarDisparos();
-}
-
-/* ── Proteção ─────────────────────────────────────────────────────── */
-function renderizarScan(scan) {
-  const alvo = $("#exProtScan");
-  if (!scan || !scan.id) { alvo.innerHTML = ""; return; }
-  const alvos = scan.alvos || [];
-  const revisao = scan.status === "revisao";
-  const itens = alvos.map(a => `
-    <label class="item-extra" style="cursor:pointer">
-      <input type="checkbox" class="ex-prot-alvo" value="${esc(a.chave)}"
-             ${a.status !== "pendente" ? "disabled" : ""} ${a.status === "pendente" ? "checked" : ""}>
-      <span class="cresce"><strong>${esc(a.nome || a.chat_id)}</strong>
-      <small>${esc(a.chat_id)} · ${esc(a.motivo)} · ${esc(a.status)}</small></span>
-    </label>`).join("");
-  alvo.innerHTML = `
-    <p class="metrica-rotulo">Scan ${esc(scan.id)} · ${esc(scan.status)} · ${alvos.length} fonte(s)${
-      typeof scan.removidas === "number" ? " · " + scan.removidas + " removida(s)" : ""}</p>
-    ${itens || `<p class="metrica-rotulo">Nenhuma fonte suspeita encontrada.</p>`}
-    ${revisao && alvos.length ? `
-      <div class="acoes-form">
-        <button type="button" class="btn btn-perigo" data-extras-acao="prot-confirm" data-id="${esc(scan.id)}">Remover selecionadas</button>
-        <button type="button" class="btn btn-neutro" data-extras-acao="prot-cancel" data-id="${esc(scan.id)}">Cancelar scan</button>
-      </div>` : ""}`;
-}
-
-async function varrerProtecao() {
-  const { ok, d } = await extraPost("/api/protection/scans", {
-    dias: parseInt($("#exProtDias").value || "14", 10),
-  });
-  if (!ok) { toast(d.erro || "Não consegui iniciar a varredura.", "erro"); return; }
-  EX_SCAN = d;
-  renderizarScan(d);
-  toast("Varredura pronta para revisão.", "info");
-}
-
-/* ── Marca d'água ─────────────────────────────────────────────────── */
-async function carregarMarcaDagua() {
-  try {
-    const d = await (await fetch("/api/watermark", { cache: "no-store" })).json();
-    const cfg = d.config || {};
-    $("#exWmPreset").value = cfg.preset || "final";
-    $("#exWmHandle").value = cfg.handle || "";
-    $("#exWmAtivo").checked = !!cfg.ativo;
-  } catch (e) {
-    toast("Não consegui carregar a marca d'água.", "erro");
-  }
-}
-
-async function salvarMarcaDagua() {
-  const { ok, d } = await extraPost("/api/watermark", {
-    preset: $("#exWmPreset").value,
-    handle: $("#exWmHandle").value.trim(),
-    ativo: $("#exWmAtivo").checked,
-  });
-  if (!ok) { toast(d.erro || "Não consegui salvar a marca d'água.", "erro"); return; }
-  toast("Marca d'água salva.", "ok");
-  carregarMarcaDagua();
-}
-
-/* ── Smart links ──────────────────────────────────────────────────── */
-async function carregarSmartLinks() {
-  try {
-    const d = await (await fetch("/api/smart-link/overview", { cache: "no-store" })).json();
-    const alvo = $("#exSlLista");
-    const lista = d.links || [];
-    if (!lista.length) {
-      alvo.innerHTML = `<p class="metrica-rotulo">Nenhum smart link criado.</p>`;
-      return;
-    }
-    alvo.innerHTML = `<p class="metrica-rotulo">${d.total_links} link(s) · ${d.total_cliques} clique(s)</p>` +
-      lista.map(l => `
-      <div class="item-extra">
-        <div class="cresce">
-          <strong>${esc(l.slug)}</strong>
-          <small>${esc(l.url)}</small>
-          <small>${l.cliques} clique(s) · ${esc(l.plataforma || "sem plataforma")} · ${esc(location.origin)}/s/${esc(l.slug)}</small>
-        </div>
-        <button type="button" class="btn btn-neutro btn-sm"
-                data-extras-acao="smart-remove" data-slug="${esc(l.slug)}">Remover</button>
-      </div>`).join("");
-  } catch (e) {
-    toast("Não consegui carregar os smart links.", "erro");
-  }
-}
-
-async function criarSmartLink() {
-  const { ok, d } = await extraPost("/api/smart-link", {
-    url: $("#exSlUrl").value.trim(),
-    plataforma: $("#exSlPlataforma").value.trim(),
-    slug: $("#exSlSlug").value.trim(),
-  });
-  if (!ok) { toast(d.erro || "Não consegui criar o link.", "erro"); return; }
-  toast(`Link /s/${d.slug} criado.`, "ok");
-  $("#exSlUrl").value = "";
-  $("#exSlSlug").value = "";
-  carregarSmartLinks();
-}
-
-/* ── Credenciais ──────────────────────────────────────────────────── */
-async function carregarCredenciais() {
-  try {
-    const d = await (await fetch("/api/credentials", { cache: "no-store" })).json();
-    const alvo = $("#exCredLista");
-    const lista = d.credenciais || [];
-    if (!lista.length) {
-      alvo.innerHTML = `<p class="metrica-rotulo">Nenhuma credencial guardada.</p>`;
-      return;
-    }
-    alvo.innerHTML = lista.map(c => `
-      <div class="item-extra">
-        <div class="cresce">
-          <strong>${esc(c.plataforma)}</strong>
-          <small>configurada · ${esc(c.atualizado_em || "")}</small>
-        </div>
-        <button type="button" class="btn btn-perigo btn-sm"
-                data-extras-acao="cred-remove" data-plataforma="${esc(c.plataforma)}">Remover</button>
-      </div>`).join("");
-  } catch (e) {
-    toast("Não consegui carregar as credenciais.", "erro");
-  }
-}
-
-async function salvarCredencial() {
-  const { ok, d } = await extraPost("/api/credentials", {
-    plataforma: $("#exCredPlataforma").value.trim(),
-    segredo: $("#exCredSegredo").value,
-  });
-  if (!ok) { toast(d.erro || "Não consegui salvar o segredo.", "erro"); return; }
-  $("#exCredSegredo").value = "";
-  toast("Segredo guardado. Ele não será exibido de novo.", "ok");
-  carregarCredenciais();
-}
-
-/* Delegação: os itens das listas nascem depois do HTML, e carregam dados
-   vindos do banco. data-* mantém valores fora do código (mesmo motivo do
-   comentário da tabela de fontes). */
-document.addEventListener("click", async ev => {
-  const btn = ev.target.closest("[data-extras-acao]");
-  if (!btn) return;
-  const acao = btn.dataset.extrasAcao;
-  try {
-    if (acao === "mirror-toggle") {
-      const { ok, d } = await extraPost(`/api/mirrors/${btn.dataset.id}/toggle`, {
-        enabled: btn.dataset.ativo !== "true",
-      });
-      if (!ok) toast(d.erro || "Não consegui alterar o destino.", "erro");
-      else carregarEspelhos();
-    } else if (acao === "mirror-remove") {
-      const { ok, d } = await extraPost(`/api/mirrors/${btn.dataset.id}/remove`, {});
-      if (!ok) toast(d.erro || "Não consegui remover o destino.", "erro");
-      else carregarEspelhos();
-    } else if (acao === "broadcast-cancel") {
-      const { ok, d } = await extraPost(`/api/broadcasts/${btn.dataset.id}/cancelar`, {});
-      if (!ok) toast(d.erro || "Não consegui cancelar o disparo.", "erro");
-      else carregarDisparos();
-    } else if (acao === "prot-confirm") {
-      const chaves = $$(".ex-prot-alvo:checked").map(c => c.value);
-      if (!chaves.length) { toast("Selecione ao menos uma fonte.", "espera"); return; }
-      const { ok, d } = await extraPost(
-        `/api/protection/scans/${btn.dataset.id}/confirm`, { chaves });
-      if (!ok) { toast(d.erro || "Não consegui remover as fontes.", "erro"); return; }
-      renderizarScan(d);
-      toast(`${d.removidas || 0} fonte(s) removida(s).`, "ok");
-    } else if (acao === "prot-cancel") {
-      const { ok, d } = await extraPost(
-        `/api/protection/scans/${btn.dataset.id}/cancel`, {});
-      if (!ok) { toast(d.erro || "Não consegui cancelar o scan.", "erro"); return; }
-      renderizarScan(d);
-      toast("Scan cancelado. Nada foi removido.", "info");
-    } else if (acao === "smart-remove") {
-      const { ok, d } = await extraPost(
-        `/api/smart-link/${encodeURIComponent(btn.dataset.slug)}/remove`, {});
-      if (!ok) toast(d.erro || "Não consegui remover o link.", "erro");
-      else carregarSmartLinks();
-    } else if (acao === "cred-remove") {
-      const { ok, d } = await extraPost("/api/credentials", {
-        plataforma: btn.dataset.plataforma, remover: true,
-      });
-      if (!ok) toast(d.erro || "Não consegui remover a credencial.", "erro");
-      else carregarCredenciais();
-    }
-  } catch (e) {
-    toast("Erro de conexão com o painel.", "erro");
-  }
-});
 
 /* ══ Início ══════════════════════════════════════════════════════════ */
 let _appNoAr = false;

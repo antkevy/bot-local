@@ -48,7 +48,7 @@ CHAVES = [
 # "funciona" mesmo com a logica de estado errada.
 STATUS_VAZIO = {
     "plataformas": {
-        "mercadolivre": {"conectado": False, "status": "Sessão pendente (Faça login ou insira o Cookie)",
+        "mercadolivre": {"conectado": False, "status": "Cookie do ML não configurado",
                          "sessao_ativa": False},
         "amazon": {"conectado": False, "status": "Não configurado", "api_ativa": False},
         "shopee": {"conectado": False, "status": "Não configurado"},
@@ -62,7 +62,7 @@ STATUS_VAZIO = {
 
 STATUS_LIGADO = json.loads(json.dumps(STATUS_VAZIO))
 STATUS_LIGADO["plataformas"]["mercadolivre"] = {
-    "conectado": True, "status": "Link Builder pronto", "sessao_ativa": True}
+    "conectado": True, "status": "Cookie ativo", "sessao_ativa": True}
 STATUS_LIGADO["plataformas"]["amazon"] = {"conectado": True, "status": "Tag configurada", "api_ativa": True}
 STATUS_LIGADO["plataformas"]["shopee"] = {"conectado": True, "status": "API configurada"}
 STATUS_LIGADO["plataformas"]["aliexpress"] = {"conectado": True, "status": "Open API pronta"}
@@ -317,7 +317,7 @@ class TestGradePlataformas(TestAbaPlataformas):
         a mutação escapou. O que separa é a ALTURA: 36px com o limite, 18px
         sem ele. E para a altura variar, o texto precisa ocupar as duas
         linhas, senão as regras são idênticas na prática."""
-        status = ("Sessão pendente (Faça login ou insira o Cookie) antes de "
+        status = ("Cookie do ML não configurado: cole o cookie antes de "
                   "publicar ofertas no canal, e confira também a etiqueta "
                   "de afiliado no painel")
         st = json.loads(json.dumps(STATUS_VAZIO))
@@ -451,7 +451,7 @@ class TestGavetaPlataforma(TestAbaPlataformas):
         nesse momento a pessoa ja digitou a credencial."""
         pg = self.abrir()
         acoes_por_chave = {
-            "mercadolivre": ["Fazer login", "Testar conexão", "Detalhes da sessão", "Limpar sessão"],
+            "mercadolivre": ["Testar conexão"],
             "amazon": ["Testar conexão"],
             "shopee": ["Testar conexão"],
             "aliexpress": ["Testar conexão"],
@@ -604,7 +604,7 @@ class TestGavetaPlataforma(TestAbaPlataformas):
         """
         pg = self.abrir(status=STATUS_VAZIO)
         g = self.abrir_gaveta("mercadolivre")
-        self.assertIn("Sessão pendente", g["situacao"], "partiu sem o status do servidor")
+        self.assertIn("Cookie do ML não configurado", g["situacao"], "partiu sem o status do servidor")
 
         # O servidor muda de estado. É a mesma troca de /api/status que o
         # painel real faz quando um "Testar conexão" dá certo.
@@ -615,13 +615,13 @@ class TestGavetaPlataforma(TestAbaPlataformas):
         # seguinte seria culpa do transporte, não da gaveta.
         cartao = next(c for c in self.cards() if c["chave"] == "mercadolivre")
         self.assertEqual(cartao["selo"], "Conectado", "o card não acompanhou o status")
-        self.assertEqual(cartao["resumo"], "Link Builder pronto")
+        self.assertEqual(cartao["resumo"], "Cookie ativo")
 
         g = self.abrir_gaveta_aberta()
         self.assertEqual(g["seloGaveta"].strip(), "Conectado",
                          "a gaveta continuou com o retrato da abertura")
-        self.assertIn("Link Builder pronto", g["situacao"])
-        self.assertNotIn("Sessão pendente", g["situacao"])
+        self.assertIn("Cookie ativo", g["situacao"])
+        self.assertNotIn("Cookie do ML não configurado", g["situacao"])
         self.assertEqual(self.console, [], f"erro de console: {self.console}")
 
     def abrir_gaveta_aberta(self):
@@ -690,11 +690,11 @@ class TestEstadosPlataforma(TestAbaPlataformas):
         'Desconectado' e a pessoa vai caçar um problema de sessao que nao
         existe — o defeito e a etiqueta."""
         casos = [
-            ({"conectado": True, "status": "Link Builder pronto", "sessao_ativa": True},
+            ({"conectado": True, "status": "Cookie ativo", "sessao_ativa": True},
              "ok", "Conectado"),
             ({"conectado": False, "status": "Etiqueta não configurada", "sessao_ativa": True},
-             "erro", "Sessão ativa, falta a etiqueta"),
-            ({"conectado": False, "status": "Sessão pendente", "sessao_ativa": False},
+             "erro", "Cookie ativo, falta a etiqueta"),
+            ({"conectado": False, "status": "Cookie do ML não configurado", "sessao_ativa": False},
              "neutro", "Desconectado"),
         ]
         for entrada, classe, selo in casos:

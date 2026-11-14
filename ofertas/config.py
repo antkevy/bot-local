@@ -102,22 +102,6 @@ class Config:
         self.scraping_intervalo_segundos: int = int(scraping_tg.get("intervalo_segundos", 30))
         self.scraping_max_msgs: int = int(scraping_tg.get("max_mensagens_por_ciclo", 50))
 
-        # Recursos extras (opt-in). Nenhum deles altera o pipeline atual:
-        # são tabelas novas servidas por rotas novas, e as rotas respondem 404
-        # enquanto a chave correspondente estiver desligada. Desligado é o
-        # padrão para o bot continuar fazendo exatamente o que fazia.
-        extras = y.get("extras") or {}
-        self.extras_espelhamento: bool = bool(extras.get("espelhamento", False))
-        self.extras_disparos: bool = bool(extras.get("disparos", False))
-        self.extras_protecao: bool = bool(extras.get("protecao", False))
-        self.extras_marca_dagua: bool = bool(extras.get("marca_dagua", False))
-        self.extras_smart_link: bool = bool(extras.get("smart_link", False))
-        self.extras_credenciais: bool = bool(extras.get("credenciais", False))
-        # Janela de silêncio dos disparos, em BRT ("22:00-08:00"). Vazio = sem
-        # silêncio. A validação do formato fica no painel e em broadcasts.py.
-        self.disparos_horario_silencio: str = str(
-            extras.get("disparos_horario_silencio") or "").strip()
-
         fontes = y.get("fontes") or {}
         self.fonte_ml: dict = fontes.get("mercadolivre") or {"ativa": False}
         self.fonte_shopee: dict = fontes.get("shopee") or {"ativa": False}
@@ -223,7 +207,6 @@ def verificar() -> list[str]:
         pendencias.append("ML_ETIQUETA (a 'Etiqueta em uso' do Linkbuilder do ML)")
     if not list((DATA_DIR / "pw-browsers").glob("chromium-*")):
         pendencias.append("Chromium do Playwright (rode: uv run python -m ofertas instalar-navegador)")
-    perfil_ml = DATA_DIR / "ml_profile"
-    if not (perfil_ml.exists() and any(perfil_ml.iterdir())):
-        pendencias.append("Sessão do Mercado Livre (rode: uv run python -m ofertas ml-login)")
+    if not config.ml_cookie:
+        pendencias.append("ML_COOKIE (cookie de sessão do Mercado Livre, copiado do navegador)")
     return pendencias

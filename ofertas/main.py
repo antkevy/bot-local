@@ -160,11 +160,6 @@ def cmd_instalar_navegador(_):
     raise SystemExit(r.returncode)
 
 
-def cmd_ml_login(_):
-    from .sources import mercadolivre
-    mercadolivre.ml_login()
-
-
 def cmd_telegram_user_login(_):
     from .sources import telegram_userbot
     asyncio.run(telegram_userbot.login_terminal())
@@ -250,8 +245,7 @@ def main():
     pp.add_argument("url")
     pp.set_defaults(fn=cmd_postar)
 
-    sub.add_parser("instalar-navegador", help="baixa o Chromium usado pelo Linkbuilder (fica em data/)").set_defaults(fn=cmd_instalar_navegador)
-    sub.add_parser("ml-login", help="login único no Mercado Livre (salva a sessão)").set_defaults(fn=cmd_ml_login)
+    sub.add_parser("instalar-navegador", help="baixa o Chromium usado pelo navegador (fica em data/)").set_defaults(fn=cmd_instalar_navegador)
     sub.add_parser("telegram-user-login", help="login na sua conta Telegram para monitorar canais de terceiros (Telethon)").set_defaults(fn=cmd_telegram_user_login)
 
     pt = sub.add_parser("testar", help="testa uma fonte sem postar nada")

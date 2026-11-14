@@ -16,7 +16,6 @@ import json
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
 import threading
@@ -47,8 +46,9 @@ CAMPOS = [
      "O canal onde o bot posta. Use 'Detectar IDs'."),
     ("ML_ETIQUETA", "Etiqueta do afiliado", "Mercado Livre", False,
      "A 'Etiqueta em uso' que aparece no Linkbuilder do painel de afiliados."),
-    ("ML_COOKIE", "Cookie de sessão (Fallback / Alternativo)", "Mercado Livre", True,
-     "Opcional. Cookie ssid/login do ML para autenticação em cascata caso o Link Builder falhe."),
+    ("ML_COOKIE", "Cookie de sessão", "Mercado Livre", True,
+     "Cole aqui os cookies de mercadolivre.com.br (ssid, orguserid...). "
+     "É a única autenticação do ML: sem ele a coleta e os links de afiliado não funcionam."),
     ("AMAZON_TAG", "Tag de associado", "Amazon", False,
      "Sua tag do Amazon Associados (ex: seunome-20)."),
     ("AMAZON_CREDENTIAL_ID", "Creators API — ID", "Amazon", False,
@@ -96,9 +96,9 @@ def ler_env() -> dict[str, str]:
     return valores
 
 
-def _linhas_env_extras(atual: dict[str, str]) -> list[str]:
+def _linhas_env_desconhecidas(atual: dict[str, str]) -> list[str]:
     """Chaves que o painel não conhece (comentadas) — preservadas ao salvar."""
-    extras: list[str] = []
+    desconhecidas: list[str] = []
     if ENV_PATH.exists():
         for linha in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
             limpa = linha.strip()
@@ -107,8 +107,8 @@ def _linhas_env_extras(atual: dict[str, str]) -> list[str]:
             k, _, v = limpa.partition("=")
             if k.strip() not in CHAVES and k.strip() not in atual:
                 atual[k.strip()] = v.strip()
-                extras.append(linha)
-    return extras
+                desconhecidas.append(linha)
+    return desconhecidas
 
 
 def salvar_env(novos: dict[str, str], acessos: dict[str, str] | None = None) -> None:
@@ -119,7 +119,7 @@ def salvar_env(novos: dict[str, str], acessos: dict[str, str] | None = None) -> 
     for k, v in (acessos or {}).items():
         if k in CHAVES_ACESSO:
             atuais[k] = str(v).strip()
-    extras = _linhas_env_extras(atuais)
+    desconhecidas = _linhas_env_desconhecidas(atuais)
     linhas = ["# Configuração do bot de ofertas (gerado pelo painel).",
               "# Não compartilhe este arquivo — ele guarda seus segredos.", ""]
     grupo_atual = None
@@ -133,8 +133,8 @@ def salvar_env(novos: dict[str, str], acessos: dict[str, str] | None = None) -> 
     linhas += ["", "# ── Acesso ao painel ──"]
     for chave in CHAVES_ACESSO:
         linhas.append(f"{chave}={atuais.get(chave, '')}")
-    if extras:
-        linhas += ["", "# ── Mantidas do arquivo original ──", *extras]
+    if desconhecidas:
+        linhas += ["", "# ── Mantidas do arquivo original ──", *desconhecidas]
     ENV_PATH.write_text("\n".join(linhas) + "\n", encoding="utf-8")
 
 
@@ -311,7 +311,7 @@ class Processo:
             return False
         self.rotulo = rotulo
         flags = 0
-        if "ml-login" not in args and "telegram-user-login" not in args:
+        if "telegram-user-login" not in args:
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
@@ -429,31 +429,21 @@ def detectar_ids() -> dict:
 
 
 import datetime as dt
-import shutil
 from .db import total_postadas, listar_postadas, contar_por_plataforma
-
-
-def _sessao_ml_existe() -> bool:
-    from .sources import mercadolivre
-    return mercadolivre.tem_sessao()
 
 
 def status() -> dict:
     env = ler_env()
     tem_navegador = bool(list((DATA_DIR / "pw-browsers").glob("chromium-*")))
     from .sources import mercadolivre
-    from .sources.ml_auth import ml_auth_service
     tem_sessao_ml = mercadolivre.tem_sessao()
     tem_ml_etiqueta = bool(env.get("ML_ETIQUETA"))
     ml_conectado = tem_sessao_ml and tem_ml_etiqueta
 
     if tem_sessao_ml:
-        if mercadolivre.tem_sessao_linkbuilder():
-            status_ml = "Link Builder pronto" if tem_ml_etiqueta else "Etiqueta não configurada"
-        else:
-            status_ml = "Cookie manual ativo" if tem_ml_etiqueta else "Etiqueta não configurada"
+        status_ml = "Cookie ativo" if tem_ml_etiqueta else "Etiqueta não configurada"
     else:
-        status_ml = "Sessão pendente (Faça login ou insira o Cookie)"
+        status_ml = "Cookie do ML não configurado"
 
     amz_conectado = bool(env.get("AMAZON_TAG"))
     shp_conectado = bool(env.get("SHOPEE_APP_ID") and env.get("SHOPEE_APP_SECRET"))
@@ -1108,26 +1098,8 @@ class Handler(BaseHTTPRequestHandler):
                 })
             elif rota == "/api/userbot/status":
                 self._json(_userbot_tg_status())
-            elif rota.startswith("/s/"):
-                # Smart link: redireciona e conta o clique. Só existe no
-                # painel local, então não vira um encurtador público.
-                from .extras_api import tratar_smartlink
-                destino = tratar_smartlink(rota[3:])
-                if not destino:
-                    self._json({"erro": "link não encontrado"}, 404)
-                    return
-                self.send_response(302)
-                self.send_header("Location", destino)
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
             else:
-                from .extras_api import tratar_get
-                tratada = tratar_get(rota, urlparse(self.path).query)
-                if tratada is None:
-                    self._json({"erro": "rota desconhecida"}, 404)
-                else:
-                    self._json(tratada[0], tratada[1])
+                self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:
             try:
                 self._json({"erro": str(e)}, 500)
@@ -1292,7 +1264,6 @@ class Handler(BaseHTTPRequestHandler):
                 nome = dados.get("nome", "")
                 mapa = {
                     "instalar-navegador": (["instalar-navegador"], "Instalando navegador"),
-                    "ml-login": (["ml-login"], "Login no Mercado Livre"),
                     "testar-ml": (["testar", "ml"], "Testando Mercado Livre"),
                     "testar-shopee": (["testar", "shopee"], "Testando Shopee"),
                     "testar-amazon": (["testar", "amazon"], "Testando Amazon"),
@@ -1303,11 +1274,10 @@ class Handler(BaseHTTPRequestHandler):
                 if nome not in mapa:
                     return self._json({"erro": "ação desconhecida"}, 400)
                 if acao.rodando():
-                    # O botão de login do ML é o caso que mais trava: o
-                    # navegador fica aberto até a pessoa fechá-lo, e durante
-                    # esse tempo TODA ação é recusada — clicar de novo só
-                    # repetia um toast rápido e passageiro. Por isso devolvemos
-                    # o rótulo e explicitamos o caminho para destravar.
+                    # Ação longa (teste de plataforma, ciclo) bloqueia as
+                    # outras: clicar de novo só repetiria um toast passageiro.
+                    # Por isso devolvemos o rótulo e explicitamos o caminho
+                    # para destravar.
                     return self._json({
                         "erro": f"Já rodando: {acao.rotulo}. Clique em "
                                 f"“Cancelar” na barra de ações para liberar.",
@@ -1329,27 +1299,10 @@ class Handler(BaseHTTPRequestHandler):
                 url = dados.get("url", "")
                 plat = dados.get("plataforma", "")
                 self._json(gerar_link_afiliado(url, plat))
-            elif rota == "/api/verificar-sessao":
-                perfil = DATA_DIR / "ml_profile"
-                tem = _sessao_ml_existe()
-                self._json({
-                    "sessao_ml": tem,
-                    "arquivos": len(list(perfil.rglob("*"))) if tem else 0,
-                    "caminho": str(perfil),
-                })
             elif rota == "/api/limpar-log":
                 alvo = acao if dados.get("alvo") == "acao" else bot
                 alvo.linhas.clear()
                 self._json({"ok": True})
-            elif rota == "/api/limpar-sessao":
-                perfil = DATA_DIR / "ml_profile"
-                if perfil.exists():
-                    try:
-                        shutil.rmtree(perfil)
-                        perfil.mkdir(exist_ok=True)
-                    except Exception as e:
-                        return self._json({"erro": f"Erro ao limpar: {e}"}, 500)
-                self._json({"ok": True, "msg": "Sessão limpa com sucesso."})
             elif rota == "/api/nichos":
                 from .nichos import salvar_selecao
                 salvar_selecao(dados.get("selecionados") or [])
@@ -1470,12 +1423,7 @@ class Handler(BaseHTTPRequestHandler):
                 # substitui a fase quando necessário.
                 return self._json({"erro": res.get("erro", "Código inválido.")}, 400)
             else:
-                from .extras_api import tratar_post
-                tratada = tratar_post(rota, dados)
-                if tratada is None:
-                    self._json({"erro": "rota desconhecida"}, 404)
-                else:
-                    self._json(tratada[0], tratada[1])
+                self._json({"erro": "rota desconhecida"}, 404)
         except Exception as e:
             try:
                 self._json({"erro": str(e)}, 500)
