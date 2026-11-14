@@ -33,6 +33,39 @@ def extrair_urls(texto: str | None) -> list[str]:
     return re.findall(r"https?://\S+", texto or "")
 
 
+def extrair_imagem_produto(url: str | None, timeout: int = 12) -> str | None:
+    """Tenta obter a imagem principal de uma página de produto (og/twitter image)."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        return None
+    try:
+        r = sessao().get(url, timeout=timeout, allow_redirects=True)
+        if r.status_code >= 400 or not r.text:
+            return None
+        html = r.text[:250000]
+        # Prioriza og:image, depois twitter:image, depois twitter:image:src
+        padroes = (
+            r'<meta[^>]+property=["\']og:image(?::secure_url)?["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image(?::secure_url)?["\']',
+            r'<meta[^>]+name=["\']twitter:image(?::src)?["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image(?::src)?["\']',
+        )
+        for padrao in padroes:
+            m = re.search(padrao, html, re.IGNORECASE)
+            if not m:
+                continue
+            img = (m.group(1) or "").strip()
+            if img.startswith("//"):
+                img = "https:" + img
+            if img.startswith("http://") or img.startswith("https://"):
+                return img
+    except Exception:
+        return None
+    return None
+
+
 # Valor monetario em formato brasileiro, sempre com o "R$" na frente.
 #
 # O "R$" e obrigatorio de proposito: e o que separa um preco de um numero

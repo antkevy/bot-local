@@ -502,8 +502,6 @@ async def processar_mensagem_telegram(
             oferta.cupom = resultado_ia.cupom
             oferta.beneficio_cupom = resultado_ia.beneficio_cupom
         oferta.tipo = resultado_ia.tipo
-        if imagem_url and not oferta.imagem:
-            oferta.imagem = imagem_url
     else:
         # Se for cupom ou promoção sem produto explícito mas com link de loja
         if resultado_ia.tipo in ("cupom", "promocao", "frete_gratis") and pre["urls"]:
@@ -529,6 +527,23 @@ async def processar_mensagem_telegram(
         if source_id and message_id:
             db.registrar_msg_telegram(source_id, message_id, status="sem_produto")
         return {"ok": False, "motivo": "sem_produto"}
+
+    # Prioridade da imagem: produto (converter/scraper) -> busca no produto -> foto do grupo.
+    if not oferta.imagem:
+        from .utils import extrair_imagem_produto
+
+        url_ref = oferta.url_produto or oferta.url_afiliado or (links_mp[0]["url"] if links_mp else None)
+        if url_ref:
+            try:
+                img_prod = await asyncio.to_thread(extrair_imagem_produto, url_ref)
+                if img_prod:
+                    oferta.imagem = img_prod
+                    log.info("[SCRAPER] Imagem obtida do produto: %s", url_ref[:80])
+            except Exception as e:
+                log.debug("[SCRAPER] Falha ao obter imagem do produto (%s): %s", url_ref[:80], e)
+    if imagem_url and not oferta.imagem:
+        oferta.imagem = imagem_url
+        log.info("[SCRAPER] Usando imagem da mensagem de origem como fallback.")
 
     # 4.1 Preco escrito no texto da mensagem, como fallback.
     #
