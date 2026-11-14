@@ -124,22 +124,28 @@ def filtrar(ofertas: list[Oferta]) -> list[Oferta]:
     for o in ofertas:
         if not o.titulo:
             continue
-        # Bloqueio permanente de repetido, salvo se o preço cair: um produto
-        # já postado só volta ao canal com preço menor do que o gravado na
-        # última postagem. (não há janela de dias — hoje o `nao_repetir_dias`
-        # do config serve de referência no painel, a regra real é esta.)
+        # Bloqueio permanente de repetido, salvo se o preço cair ou se vier com cupom:
+        # um produto já postado volta ao canal com preço menor do que o gravado na
+        # última postagem, ou quando a nova ocorrência traz cupom. (não há janela de
+        # dias — hoje o `nao_repetir_dias` do config serve de referência no painel,
+        # a regra real é esta.)
         preco_antigo = db.preco_ultima_postagem(o.uid)
         if preco_antigo is not None:
             caiu = o.preco is not None and o.preco < preco_antigo
-            if not caiu:
+            tem_cupom_novo = bool(getattr(o, "cupom", None))
+            if not caiu and not tem_cupom_novo:
                 atual = ("sem preço" if o.preco is None else f"{o.preco:.2f}")
                 log.info(
-                    "[FILTER] Oferta '%s' ignorada: produto já postado (R$%.2f) e preço não caiu (atual: %s) — só republica se o preço cair.",
+                    "[FILTER] Oferta '%s' ignorada: produto já postado (R$%.2f), preço não caiu (atual: %s) e sem cupom novo — só republica se o preço cair ou vier com cupom.",
                     o.titulo[:40], preco_antigo, atual,
                 )
                 continue
-            log.info("[FILTER] Oferta '%s' re-aprovada: preço caiu de R$%.2f para R$%.2f.",
-                     o.titulo[:40], preco_antigo, o.preco)
+            if caiu:
+                log.info("[FILTER] Oferta '%s' re-aprovada: preço caiu de R$%.2f para R$%.2f.",
+                         o.titulo[:40], preco_antigo, o.preco)
+            elif tem_cupom_novo:
+                log.info("[FILTER] Oferta '%s' re-aprovada: produto já postado, mas nova ocorrência traz cupom (%s).",
+                         o.titulo[:40], o.cupom)
         ok, motivo = passes_product_filters(o)
         if not ok:
             log.info("[FILTER] Oferta '%s' rejeitada: %s", o.titulo[:40], motivo)
@@ -498,9 +504,12 @@ async def processar_mensagem_telegram(
         if resultado_ia.titulo_otimizado:
             log.info("[AI] Título otimizado: %s", resultado_ia.titulo_otimizado)
             oferta.titulo = resultado_ia.titulo_otimizado
-        if resultado_ia.tem_cupom and resultado_ia.cupom:
-            oferta.cupom = resultado_ia.cupom
-            oferta.beneficio_cupom = resultado_ia.beneficio_cupom
+        cupom_ia = resultado_ia.cupom if resultado_ia.tem_cupom and resultado_ia.cupom else None
+        if not cupom_ia and pre.get("cupons_candidatos"):
+            cupom_ia = pre["cupons_candidatos"][0]
+        if cupom_ia:
+            oferta.cupom = cupom_ia
+            oferta.beneficio_cupom = resultado_ia.beneficio_cupom or oferta.beneficio_cupom
         oferta.tipo = resultado_ia.tipo
     else:
         # Se for cupom ou promoção sem produto explícito mas com link de loja
@@ -516,9 +525,10 @@ async def processar_mensagem_telegram(
                         if resultado_ia.titulo_otimizado:
                             oferta.titulo = resultado_ia.titulo_otimizado
                         oferta.tipo = resultado_ia.tipo
-                        if resultado_ia.cupom:
-                            oferta.cupom = resultado_ia.cupom
-                            oferta.beneficio_cupom = resultado_ia.beneficio_cupom
+                        cupom_ia = resultado_ia.cupom or (pre.get("cupons_candidatos") or [None])[0]
+                        if cupom_ia:
+                            oferta.cupom = cupom_ia
+                            oferta.beneficio_cupom = resultado_ia.beneficio_cupom or oferta.beneficio_cupom
                 except Exception as e:
                     log.warning("[SCRAPER] Erro ao converter URL geral '%s': %s", url_geral, e)
 
@@ -587,16 +597,24 @@ async def processar_mensagem_telegram(
     # canal e ainda encontrado na listagem de ofertas, passava duas vezes e era
     # postado duas vezes. Aqui conferimos contra `postadas` e reservamos o
     # produto, igual ao ciclo automático.
-    # Mesma regra do ciclo: permanente, e só republica se o preço cair.
+    # Mesma regra do ciclo: permanente, e só republica se o preço cair ou se a
+    # nova ocorrência trouxer cupom.
     preco_antigo = db.preco_ultima_postagem(oferta.uid)
     if preco_antigo is not None:
         caiu = oferta.preco is not None and oferta.preco < preco_antigo
-        if not caiu:
-            log.info("[FILTROS] Oferta '%s' ignorada: produto já postado (R$%.2f) e preço não caiu — só republica se o preço cair.",
+        tem_cupom_novo = bool(getattr(oferta, "cupom", None))
+        if not caiu and not tem_cupom_novo:
+            log.info("[FILTROS] Oferta '%s' ignorada: produto já postado (R$%.2f), preço não caiu e sem cupom novo — só republica se o preço cair ou vier com cupom.",
                      oferta.titulo[:50], preco_antigo)
             if source_id and message_id:
                 db.registrar_msg_telegram(source_id, message_id, oferta.uid, status="produto_ja_postado")
             return {"ok": False, "motivo": "produto_ja_postado"}
+        if caiu:
+            log.info("[FILTROS] Oferta '%s' re-aprovada: preço caiu de R$%.2f para R$%.2f.",
+                     oferta.titulo[:50], preco_antigo, oferta.preco)
+        elif tem_cupom_novo:
+            log.info("[FILTROS] Oferta '%s' re-aprovada: produto já postado, mas nova ocorrência traz cupom (%s).",
+                     oferta.titulo[:50], oferta.cupom)
 
     if not db.reservar(oferta.uid):
         log.info("[FILTROS] Oferta '%s' ignorada: outro processo já está publicando este produto.",
