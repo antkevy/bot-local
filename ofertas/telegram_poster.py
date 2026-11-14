@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -19,9 +20,32 @@ async def postar_oferta(bot: Bot, oferta: Oferta, chat_id: str | int,
     markup = teclado or teclado_oferta(oferta)
     if not oferta.imagem:
         raise RuntimeError("oferta sem imagem — regra: não publicar sem foto")
-    try:
-        return await bot.send_photo(chat_id, oferta.imagem, caption=caption,
-                                    parse_mode=ParseMode.HTML, reply_markup=markup)
-    except Exception as e:
-        log.warning("send_photo falhou (%s) — pulando oferta (sem fallback para texto)", e)
-        raise
+
+    ultimo_erro: Exception | None = None
+    for tentativa in range(3):
+        try:
+            return await bot.send_photo(chat_id, oferta.imagem, caption=caption,
+                                        parse_mode=ParseMode.HTML, reply_markup=markup)
+        except Exception as e:
+            ultimo_erro = e
+            nome = e.__class__.__name__
+            transient = (
+                isinstance(e, (asyncio.TimeoutError, TimeoutError, ConnectionError, OSError))
+                or nome in {"TimedOut", "NetworkError", "RetryAfter"}
+            )
+            if transient and tentativa < 2:
+                espera = getattr(e, "retry_after", None)
+                try:
+                    espera_s = float(espera) if espera is not None else float(2 * (tentativa + 1))
+                except Exception:
+                    espera_s = float(2 * (tentativa + 1))
+                espera_s = min(max(espera_s, 1.0), 15.0)
+                log.warning("send_photo falhou (tentativa %d/3, %s: %s) — nova tentativa em %.1fs",
+                            tentativa + 1, nome, e, espera_s)
+                await asyncio.sleep(espera_s)
+                continue
+            log.warning("send_photo falhou (%s) — pulando oferta (sem fallback para texto)", e)
+            raise
+    if ultimo_erro:
+        raise ultimo_erro
+    raise RuntimeError("falha desconhecida ao postar oferta")

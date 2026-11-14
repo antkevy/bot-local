@@ -515,6 +515,8 @@ async def processar_mensagem_telegram(
                     if oferta:
                         if source_id:
                             oferta.canal_origem = str(source_id)
+                        if resultado_ia.titulo_otimizado:
+                            oferta.titulo = resultado_ia.titulo_otimizado
                         oferta.tipo = resultado_ia.tipo
                         if resultado_ia.cupom:
                             oferta.cupom = resultado_ia.cupom

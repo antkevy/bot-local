@@ -95,5 +95,4 @@ para consultar. Trate como possível vazamento e rotacione o que ele expõe:
 1. `TELEGRAM_BOT_TOKEN`: `/revoke` no @BotFather e atualizar o `.env`.
 2. Credenciais de marketplace no `.env` (Amazon, Shopee, AliExpress, ML).
 3. Conferir fontes do Telegram (aba Links) e a configuração.
-4. Conferir se há smart links ou credenciais cadastrados que você não criou
-   (aba Extras, quando ligada).
+4. Conferir se há links, configurações ou credenciais cadastrados que você não criou.

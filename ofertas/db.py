@@ -115,25 +115,29 @@ def _conn():
         # _COLUNAS de propósito: é o ALTER abaixo que garante a coluna em bancos
         # novos E antigos, num só caminho.
         existentes = {r[1] for r in c.execute("PRAGMA table_info(postadas)")}
-        for coluna in ("url_afiliado", "imagem", "url_produto"):
+        colunas_postadas = {
+            "url_afiliado": "TEXT",
+            "imagem": "TEXT",
+            "url_produto": "TEXT",
+            "canal_origem": "TEXT",
+        }
+        for coluna, tipo in colunas_postadas.items():
             if coluna not in existentes:
                 try:
-                    c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
-                except sqlite3.OperationalError:
-                    pass
-        for coluna in ("canal_origem",):
-            if coluna not in existentes:
-                try:
-                    c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} TEXT")
+                    c.execute(f"ALTER TABLE postadas ADD COLUMN {coluna} {tipo}")
                 except sqlite3.OperationalError:
                     pass
         # Mesma ideia para as pendências do ML.
         existentes = {r[1] for r in c.execute("PRAGMA table_info(ofertas_pendentes_ml)")}
-        for coluna in _COLUNAS_PENDENTES_ML_EXTRA:
-            nome = coluna.split()[0]
-            if nome not in existentes:
+        colunas_pendentes_ml = {
+            "tentativas": "INTEGER DEFAULT 0",
+            "ultimo_erro": "TEXT",
+            "ultima_tentativa_em": "TEXT",
+        }
+        for coluna, tipo in colunas_pendentes_ml.items():
+            if coluna not in existentes:
                 try:
-                    c.execute(f"ALTER TABLE ofertas_pendentes_ml ADD COLUMN {coluna}")
+                    c.execute(f"ALTER TABLE ofertas_pendentes_ml ADD COLUMN {coluna} {tipo}")
                 except sqlite3.OperationalError:
                     pass
         c.commit()

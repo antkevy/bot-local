@@ -11,7 +11,7 @@ CONTÉUDO (integral e funcional):
   - .env ................. credenciais reais (bot do Telegram, ML, painel,
                            API ID/HASH, chave xAI/Grok) — completo
   - config.yaml .......... config portada (intervalo 25 min, canais @nerdofertas/@pesquizei)
-  - data/ml_profile ...... sessão do Mercado Livre (login válido)
+  - data/ml_cookies.json . cookie do Mercado Livre (se existir) / sessão em .env (ML_COOKIE)
   - data/ofertas.db ...... banco local (produtos, postagens)
 
 EXCLUÍDO do pacote (para ficar leve; se regenera sozinho):

@@ -99,12 +99,12 @@ class TestRotaProtegidaAtrasDoTunel(unittest.TestCase):
             return e.code, e.read().decode("utf-8", "replace")
 
     def test_local_sem_header_continua_liberado(self):
-        status, _ = self._pedir("/api/extras")
+        status, _ = self._pedir("/api/config")
         self.assertEqual(status, 200)
 
     def test_pedido_de_tunel_sem_senha_e_recusado(self):
         status, corpo = self._pedir(
-            "/api/extras", {"CF-Connecting-IP": "203.0.113.9"})
+            "/api/config", {"CF-Connecting-IP": "203.0.113.9"})
         self.assertEqual(status, 403)
         self.assertIn("PAINEL_USUARIO", json.loads(corpo)["erro"])
 

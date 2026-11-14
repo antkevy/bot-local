@@ -3,7 +3,7 @@
 O ``ML_COOKIE`` (ou o cookie validado salvo por ``/setcookie`` em
 ``data/ml_cookies.json``) autentica as duas coisas:
 
-1. a API interna ``createLink`` do Linkbuilder, que gera os links ``meli.la``;
+1. a API interna ``createLink`` (Linkbuilder), que gera os links ``meli.la``;
 2. o Chromium temporário que coleta as páginas de ofertas (o HTTP puro é
    barrado pelo ML).
 
@@ -19,6 +19,7 @@ import asyncio
 import inspect
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -99,8 +100,22 @@ def salvar_cookie_local(cookie_str: str) -> None:
     """Salva o cookie validado de forma segura no diretório data/."""
     cookie_str = normalizar_cookie(cookie_str)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(COOKIE_FILE, "w", encoding="utf-8") as f:
-        json.dump({"cookie": cookie_str.strip(), "atualizado_em": time.time()}, f, indent=2)
+    dados = {"cookie": cookie_str.strip(), "atualizado_em": time.time()}
+    try:
+        fd = os.open(COOKIE_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(dados, f, indent=2)
+        try:
+            os.chmod(COOKIE_FILE, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        with open(COOKIE_FILE, "w", encoding="utf-8") as f:
+            json.dump(dados, f, indent=2)
+        try:
+            os.chmod(COOKIE_FILE, 0o600)
+        except OSError:
+            pass
     config.ml_cookie = cookie_str.strip()
 
 

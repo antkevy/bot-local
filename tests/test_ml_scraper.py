@@ -174,25 +174,34 @@ class TestBuscarOfertas(unittest.TestCase):
         navegador.assert_called_once()
         http.assert_not_called()
 
-    def test_cai_para_http_quando_navegador_falha(self):
+    def test_com_sessao_navegador_falha_usa_alternativa(self):
         oferta = Oferta(plataforma="mercadolivre", id_produto="MLB2",
                         url_produto="https://www.mercadolivre.com.br/x/p/MLB2",
                         titulo="x")
         with patch.object(mercadolivre, "tem_sessao", return_value=True), \
              patch.object(mercadolivre, "_buscar_via_navegador",
                           side_effect=RuntimeError("perfil ocupado")), \
-             patch.object(mercadolivre, "_buscar_via_http",
-                          return_value=[oferta]) as http:
+             patch.object(mercadolivre, "_coletar_alternativa",
+                          return_value=[oferta]) as alternativa, \
+             patch.object(mercadolivre, "_buscar_via_http") as http:
             resultado = mercadolivre.buscar_ofertas()
         self.assertEqual(resultado, [oferta])
-        http.assert_called_once()
+        alternativa.assert_called_once()
+        http.assert_not_called()
 
-    def test_cai_para_http_quando_navegador_devolve_vazio(self):
+    def test_com_sessao_navegador_vazio_usa_alternativa(self):
+        oferta = Oferta(plataforma="mercadolivre", id_produto="MLB3",
+                        url_produto="https://www.mercadolivre.com.br/x/p/MLB3",
+                        titulo="x")
         with patch.object(mercadolivre, "tem_sessao", return_value=True), \
              patch.object(mercadolivre, "_buscar_via_navegador", return_value=[]), \
-             patch.object(mercadolivre, "_buscar_via_http", return_value=[]) as http:
-            mercadolivre.buscar_ofertas()
-        http.assert_called_once()
+             patch.object(mercadolivre, "_coletar_alternativa",
+                          return_value=[oferta]) as alternativa, \
+             patch.object(mercadolivre, "_buscar_via_http") as http:
+            resultado = mercadolivre.buscar_ofertas()
+        self.assertEqual(resultado, [oferta])
+        alternativa.assert_called_once()
+        http.assert_not_called()
 
     def test_sem_sessao_usa_http_direto(self):
         with patch.object(mercadolivre, "tem_sessao", return_value=False), \

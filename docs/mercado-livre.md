@@ -8,11 +8,12 @@ verificado na VPS em 13/11/2026.
 1. **Coleta**: `buscar_ofertas()` lê `https://www.mercadolivre.com.br/ofertas`
    (e o plano B `/mais-vendidos`) em um **Chromium headless autenticado por
    cookie**.
-2. **Link de afiliado**: `createLink` (API interna do Linkbuilder), autenticado
-   pelo **cookie** configurado em `ML_COOKIE` (ou salvo via `/setcookie`).
+2. **Link de afiliado**: `createLink` (API interna do programa de afiliados),
+   autenticado pelo **cookie** configurado em `ML_COOKIE` (ou salvo via
+   `/setcookie`).
 3. **Autenticação única**: não existe mais login pelo navegador nem perfil
-   persistente em `data/ml_profile`. O cookie é injetado em um contexto
-   temporário do Chromium para a coleta e usado no header da chamada `createLink`.
+   persistente. O cookie é injetado em um contexto temporário do Chromium para
+   a coleta e usado no header da chamada `createLink`.
 4. **Sem link não publica**: a oferta vai para `ofertas_pendentes_ml` e o admin
    é avisado (com cooldown de 1h).
 

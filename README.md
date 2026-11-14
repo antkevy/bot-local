@@ -13,7 +13,7 @@ Dois modos, no mesmo programa:
 
 | Plataforma | De onde vêm as ofertas | Link de afiliado |
 |---|---|---|
-| Mercado Livre | Página de ofertas, coletada em navegador autenticado por cookie | API interna do Linkbuilder (`createLink`) autenticada pelo `ML_COOKIE`; gera `meli.la/...` |
+| Mercado Livre | Página de ofertas, coletada em navegador autenticado por cookie | API interna de afiliados (`createLink`) autenticada pelo `ML_COOKIE`; gera `meli.la/...` |
 | Shopee | Open API oficial de afiliados (busca por palavra-chave) | A API já devolve o link com sua comissão |
 | Amazon | Creators API; ou, enquanto sua conta não é elegível, ofertas por departamento | Link com a sua tag |
 
@@ -71,7 +71,7 @@ notepad .env
 Preencha (o que você não tiver ainda, deixe em branco e preencha depois):
 - `TELEGRAM_BOT_TOKEN` — o token do passo 3.
 - `TELEGRAM_OWNER_ID` e `TELEGRAM_CHAT_ID` — o jeito fácil: salve o token, rode o bot (passo 7), mande `/id` para ele no privado (dá o seu **owner id**) e encaminhe um post do canal para ele (dá o **chat id**). Depois cole os dois no `.env`.
-- `ML_ETIQUETA` — a "Etiqueta em uso" que aparece no [Linkbuilder](https://www.mercadolivre.com.br/afiliados/linkbuilder) do painel de afiliados do Mercado Livre.
+- `ML_ETIQUETA` — a "Etiqueta em uso" do seu painel de afiliados do Mercado Livre.
 - `ML_COOKIE` — os cookies da sua sessão em `mercadolivre.com.br` (ex.: `ssid`, `orguserid...`), no formato `nome=valor; nome=valor`. É o que autentica a coleta e a geração de links do ML. Você também pode enviar `/setcookie <cookie>` no privado do bot depois.
 - `AMAZON_TAG` — sua tag do [Amazon Associados](https://associados.amazon.com.br) (algo como `seunome-20`).
 - `AMAZON_CREDENTIAL_ID` / `SECRET` — opcional (Creators API). Sem isso o bot funciona mesmo assim.

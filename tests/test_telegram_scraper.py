@@ -195,7 +195,7 @@ class TestScraperTelegram(unittest.TestCase):
 
     def test_4_sem_link_afiliado_nao_publica(self):
         texto = "Super Oferta!\nhttps://www.mercadolivre.com.br/p/MLB123"
-        # Oferta sem url_afiliado (falha no linkbuilder)
+        # Oferta sem url_afiliado (falha ao gerar link de afiliado)
         oferta_sem_afiliado = Oferta(
             plataforma="mercadolivre",
             id_produto="MLB123",

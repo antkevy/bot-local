@@ -823,6 +823,26 @@ class Handler(BaseHTTPRequestHandler):
     def _cookie_limpar(self) -> str:
         return f"{COOKIE_SESSAO}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
 
+    def _origem_post_ok(self) -> bool:
+        """Bloqueia POSTs cross-site quando Origin/Referer não bate com Host."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        origem = (self.headers.get("Origin") or "").strip()
+        if not origem:
+            ref = (self.headers.get("Referer") or "").strip()
+            if ref:
+                origem = ref
+        if not origem or not host:
+            return True
+        try:
+            netloc = urlparse(origem).netloc.lower()
+        except Exception:
+            self._json({"erro": "Origem inválida."}, 403)
+            return False
+        if netloc == host:
+            return True
+        self._json({"erro": "Origem inválida."}, 403)
+        return False
+
     def _fazer_login(self, dados: dict):
         ip = self._ip()
         restante = _bloqueado(ip)
@@ -1110,6 +1130,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             rota = urlparse(self.path).path
             dados = self._corpo_json()
+
+            if not self._origem_post_ok():
+                return
 
             if rota == "/api/login":
                 return self._fazer_login(dados)

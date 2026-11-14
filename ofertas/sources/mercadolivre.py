@@ -1,11 +1,11 @@
 """Mercado Livre: scraping da página de ofertas + link de afiliado.
 
-O ML não tem API pública para afiliados, mas o Linkbuilder do painel usa uma API
-interna simples (createLink), autenticada só pelos cookies da sessão. A
-autenticação do bot é **exclusivamente por cookie**: o valor de ``ML_COOKIE``
-(ou o cookie salvo em ``data/ml_cookies.json`` pelo /setcookie) é injetado em um
-Chromium temporário, que coleta as ofertas e chama o createLink. Não existe mais
-login pelo navegador nem perfil persistente em ``data/ml_profile``.
+O ML não tem API pública para afiliados, mas a API interna do Linkbuilder
+(`createLink`) gera links autenticada pelos cookies da sessão. A autenticação
+do bot é **exclusivamente por cookie**: o valor de ``ML_COOKIE`` (ou o cookie
+salvo em ``data/ml_cookies.json`` pelo /setcookie) é injetado em um Chromium
+temporário, que coleta as ofertas e autentica a geração de links. Não existe
+mais login pelo navegador nem perfil persistente.
 """
 import logging
 import os
@@ -30,7 +30,6 @@ from ..utils import USER_AGENT, parse_preco_br, sessao
 log = logging.getLogger("ofertas.ml")
 
 URL_OFERTAS = "https://www.mercadolivre.com.br/ofertas"
-URL_LINKBUILDER = "https://www.mercadolivre.com.br/afiliados/linkbuilder"
 API_CREATELINK = "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink"
 
 _RE_ID = re.compile(r"(MLB-?\d{6,})")
@@ -279,9 +278,10 @@ def _coletar_alternativa() -> list[Oferta]:
 def buscar_ofertas() -> list[Oferta]:
     """Ofertas do ML: /ofertas por categoria via navegador, com plano B.
 
-    Ordem: janela rotativa de `/ofertas?category=` no Chromium autenticado →
-    (se houver captcha) `/mais-vendidos` → (sem sessão) HTTP antigo, que o ML
-    quase sempre barra mas ainda serve de rede de segurança.
+    Ordem: janela rotativa de `/ofertas?category=` no Chromium autenticado por
+    cookie → (se houver captcha, falha ou vazio) `/mais-vendidos`. Sem cookie
+    configurado cai para HTTP direto, que o ML quase sempre barra mas ainda
+    serve de rede de segurança.
     """
     if parada.pedido():
         log.info("Mercado Livre: parada pedida antes da coleta")
@@ -299,7 +299,8 @@ def buscar_ofertas() -> list[Oferta]:
             if coletadas:
                 log.info("Mercado Livre: %d ofertas coletadas (navegador)", len(coletadas))
                 return coletadas
-            log.warning("Mercado Livre: navegador não devolveu ofertas; tentando HTTP")
+            log.warning("Mercado Livre: navegador não devolveu ofertas; tentando página alternativa")
+            return _coletar_alternativa()
         except _VerificacaoML as e:
             _registrar_bloqueio(str(e))
             if e.ofertas:
@@ -308,8 +309,9 @@ def buscar_ofertas() -> list[Oferta]:
                 return e.ofertas
             return _coletar_alternativa()
         except Exception as e:
-            log.warning("Mercado Livre: coleta pelo navegador falhou (%s: %s); tentando HTTP",
+            log.warning("Mercado Livre: coleta pelo navegador falhou (%s: %s); tentando página alternativa",
                         type(e).__name__, e)
+            return _coletar_alternativa()
 
     ofertas = _buscar_via_http(alvos)
     log.info("Mercado Livre: %d ofertas coletadas", len(ofertas))
@@ -453,7 +455,7 @@ def _parse_card(card) -> Oferta | None:
         plataforma="mercadolivre",
         id_produto=id_produto,
         titulo=titulo,
-        url_afiliado="",  # preenchido depois pelo Linkbuilder
+        url_afiliado="",  # preenchido depois pela geração de link de afiliado
         url_produto=url,
         preco=preco,
         preco_original=preco_original,
